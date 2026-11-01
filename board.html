@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Join the Board | KTH Poker Society</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <header>
+    <div class="container header-inner">
+      <a href="index.html" class="logo-area" aria-label="KTH Poker Society Home">
+        <img src="assets/logo.png" alt="" width="40" height="40">
+        <span>KTH Poker Society</span>
+      </a>
+      <button class="hamburger" aria-label="Toggle navigation" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <nav class="nav-links">
+        <a href="about.html">About</a>
+        <a href="board.html" class="active">Board</a>
+        <a href="sponsors.html">Sponsorships</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section-dark">
+      <div class="container">
+        <span class="eyebrow">02 / Leadership Operations</span>
+        <h1 class="mb-4">Join the Board: 2026 Academic Season</h1>
+        <p>We are actively building our leadership team. Step up, shape the society, and expand your professional network.</p>
+
+        <div class="grid-2 mt-4">
+          <div class="card">
+            <h3>Strategy & Research</h3>
+            <p>Develop curriculum, run hand-analysis workshops, and explore advanced solver mechanics.</p>
+            <a href="#apply" class="btn btn-primary" data-role="Strategy & Research">Apply for role &rarr;</a>
+          </div>
+          <div class="card">
+            <h3>Events & Tournaments</h3>
+            <p>Architect our theoretical tournaments, manage logistics, and ensure flawless execution.</p>
+            <a href="#apply" class="btn btn-primary" data-role="Events & Tournaments">Apply for role &rarr;</a>
+          </div>
+          <div class="card">
+            <h3>Sponsorships & Partnerships</h3>
+            <p>Connect our talent pool with top-tier finance, tech, and consulting firms.</p>
+            <a href="#apply" class="btn btn-primary" data-role="Sponsorships & Partnerships">Apply for role &rarr;</a>
+          </div>
+          <div class="card">
+            <h3>Marketing & Community</h3>
+            <p>Grow our membership, manage our digital presence, and build a cohesive campus culture.</p>
+            <a href="#apply" class="btn btn-primary" data-role="Marketing & Community">Apply for role &rarr;</a>
+          </div>
+          <div class="card">
+            <h3>Tech & Development</h3>
+            <p>Build our internal tools, maintain the website, and optimize our tournament tracking software.</p>
+            <a href="#apply" class="btn btn-primary" data-role="Tech & Development">Apply for role &rarr;</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-light" id="apply">
+      <div class="container" style="max-width: 600px;">
+        <h2 class="text-center mb-4">Board Application Portal</h2>
+
+        <div id="form-success" class="form-message success" style="display: none;" role="status" aria-live="polite">
+          Your application has been submitted successfully. We will be in touch!
+        </div>
+        <div id="form-error" class="form-message error" style="display: none;" role="alert">
+          There was an error submitting your application. Please try again.
+        </div>
+
+        <form id="board-form">
+          <div class="form-group">
+            <label class="form-label" for="full_name">Full Name *</label>
+            <input type="text" id="full_name" name="full_name" class="form-control" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="email">Email Address *</label>
+            <input type="email" id="email" name="email" class="form-control" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="program">Study Program</label>
+            <input type="text" id="program" name="program" class="form-control">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="role">Role *</label>
+            <select id="role" name="role" class="form-control" required>
+              <option value="" disabled selected>Select a role...</option>
+              <option value="Strategy & Research">Strategy & Research</option>
+              <option value="Events & Tournaments">Events & Tournaments</option>
+              <option value="Sponsorships & Partnerships">Sponsorships & Partnerships</option>
+              <option value="Marketing & Community">Marketing & Community</option>
+              <option value="Tech & Development">Tech & Development</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="motivation">Motivation</label>
+            <textarea id="motivation" name="motivation" class="form-control" maxlength="4000" placeholder="Why are you a good fit for this role?"></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width: 100%;">Submit Application</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner text-center">
+      <p><strong>Zero Financial Risk Policy:</strong> The KTH Poker Society plays exclusively for points, pride, and intellectual growth. We never play for real money.</p>
+      <p>&copy; 2026 KTH Poker Society. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
