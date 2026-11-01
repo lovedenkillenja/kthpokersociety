@@ -227,6 +227,12 @@ footer p {
 }
 
 /* Buttons */
+.btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
 .btn {
   display: inline-block;
   padding: 0.75rem 1.5rem;
