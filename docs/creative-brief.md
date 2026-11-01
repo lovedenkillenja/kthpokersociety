@@ -3,7 +3,14 @@
 Source: Gemini 3.1 Pro conversation "KTH Poker Society Website Redesign" (2026-11-01).
 Gemini owns the creative decisions; this file records them so code and design stay in sync.
 
-## Chosen concept: The Quant's Playground
+## Decisions by Love (override anything below)
+- **Style:** The Quant's Playground, restyled with the existing logo's colors, plus the airiness of "Modern Rationalist" (generous whitespace, little visual noise).
+- **Palette (from logo, `assets/logo.png`):** KTH Blue #004791, White #FFFFFF, Steel Blue #739AC2, Pale Blue #BFD1E3, plus a very dark navy derived from KTH Blue. No neon green or cyan.
+- **Logo:** keep the existing decision-tree logo (`assets/logo.png`).
+- **Structure for the finished site:** each main section is its own page (Home, About, Join the Board, Sponsorships, Contact). The Stitch design prototype may stay single-page.
+- **Language:** English only.
+
+## Original Gemini concept: The Quant's Playground
 Dark-mode, terminal-inspired interface. Poker framed as algorithmic thinking, expected value and risk, with no casino aesthetics.
 
 Mood: cerebral, high-tech, precise, late-night hackathon.
