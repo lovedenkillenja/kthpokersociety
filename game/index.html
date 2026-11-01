@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 400 400%27%3E%3Crect width=%27400%27 height=%27400%27 rx=%2760%27 fill=%27%23004791%27/%3E%3Cg stroke=%27white%27 fill=%27none%27 stroke-linecap=%27round%27%3E%3Cpath d=%27M200 108 L130 188 M130 188 L95 270 M130 188 L165 270 M270 188 L305 270%27 stroke-opacity=%27.5%27 stroke-width=%2710%27/%3E%3Cpath d=%27M200 108 L270 188 L235 268%27 stroke-width=%2718%27/%3E%3C/g%3E%3Ccircle cx=%27200%27 cy=%27108%27 r=%2722%27 fill=%27white%27/%3E%3C/svg%3E">
+  <title>Play Poker · KTH Poker Society</title>
+  <meta name="robots" content="noindex">
+  <meta name="description" content="Play-money Texas Hold'em for members of KTH Poker Society. Play money – no cash value.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Display&family=Hanken+Grotesk:wght@400;600&display=swap">
+  <link rel="stylesheet" href="./styles/tokens.css">
+  <link rel="stylesheet" href="./styles/base.css">
+  <link rel="stylesheet" href="./styles/components.css">
+</head>
+<body>
+  <div class="play-money-strip" role="region" aria-label="Play money notice">
+    <div class="wrap">
+      <span class="play-money-badge">
+        <span class="play-money-dot" aria-hidden="true"></span>
+        <span>Play money – no cash value</span>
+      </span>
+      <span>KTH Poker Society members only · Chips cannot be bought, sold or cashed out</span>
+    </div>
+  </div>
+
+  <header class="game-header">
+    <div class="wrap">
+      <a class="brand" href="#lobby" id="brand-link">
+        <svg viewBox="0 0 400 400" role="img" aria-label="KTH Poker Society mark">
+          <rect width="400" height="400" rx="60" fill="#004791"/>
+          <g stroke="white" fill="none" stroke-linecap="round">
+            <path d="M200 108 L130 188 M130 188 L95 270 M130 188 L165 270 M270 188 L305 270" stroke-opacity=".5" stroke-width="10"/>
+            <path d="M200 108 L270 188 L235 268" stroke-width="18"/>
+          </g>
+          <circle cx="200" cy="108" r="22" fill="white"/>
+        </svg>
+        <span>KTH Poker <span class="brand-subtitle">Club Room</span></span>
+      </a>
+
+      <nav id="view-nav" class="view-nav" aria-label="Game navigation" hidden>
+        <button type="button" class="view-nav__btn" data-view-btn="lobby" aria-current="page">Chips &amp; Lobby</button>
+        <button type="button" class="view-nav__btn" data-view-btn="leaderboard">Leaderboard</button>
+        <button type="button" class="view-nav__btn" data-view-btn="profile">Profile</button>
+      </nav>
+
+      <div class="header-right">
+        <a class="btn btn--ghost" href="/">Society site</a>
+        <button type="button" class="btn btn--primary" id="header-auth-btn">Log in</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="game-main wrap" id="main-content">
+    <!-- GUEST EXPLAINER VIEW (shown when signed out; max 2 panels) -->
+    <section id="view-guest" class="screen" aria-labelledby="guest-heading">
+      <div class="panel">
+        <div class="panel__head">
+          <span class="pill pill--chip">Play money – no cash value</span>
+          <span class="pill">Members only</span>
+        </div>
+        <h1 id="guest-heading">Texas Hold'em for KTH Poker Society</h1>
+        <p class="panel__lede">
+          A quiet, mobile-first poker room for KTH students. Sign in with your society member account to claim daily play-money chips, set your display name, and follow the campus leaderboard.
+        </p>
+        <div class="btn-row">
+          <button type="button" class="btn btn--primary" id="guest-login-btn">Log in with member account</button>
+          <button type="button" class="btn btn--ghost" id="guest-signup-btn">Become a member</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="felt-preview" aria-label="Sample playing cards on poker felt">
+          <div class="card-row" id="guest-card-showcase"></div>
+          <span class="pill pill--chip tabular">10 / 20 blinds · 2–6 seats · No cash value</span>
+        </div>
+        <h3>How society chips work</h3>
+        <ul class="ledger-list" aria-label="How chips work">
+          <li class="ledger-row">
+            <div>
+              <div class="ledger-row__title">Welcome stack</div>
+              <div class="ledger-row__meta">Granted automatically when you create your member account</div>
+            </div>
+            <span class="ledger-row__delta tabular">+1,000 chips</span>
+          </li>
+          <li class="ledger-row">
+            <div>
+              <div class="ledger-row__title">Daily check-in</div>
+              <div class="ledger-row__meta">Claim once every Stockholm calendar day</div>
+            </div>
+            <span class="ledger-row__delta tabular">+100 chips</span>
+          </li>
+          <li class="ledger-row">
+            <div>
+              <div class="ledger-row__title">Society events &amp; workshops</div>
+              <div class="ledger-row__meta">Awarded for attending KTH Poker Society nights</div>
+            </div>
+            <span class="ledger-row__delta tabular">Event bonus</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- MEMBER LOBBY VIEW (shown when signed in; max 2 panels) -->
+    <section id="view-lobby" class="screen" aria-labelledby="lobby-heading" hidden>
+      <div class="panel">
+        <div class="panel__head">
+          <div>
+            <span class="pill pill--chip">Play money – no cash value</span>
+            <h1 id="lobby-heading" style="margin-top: 8px">Your chip stack</h1>
+          </div>
+          <span class="pill" id="lobby-member-pill">Member</span>
+        </div>
+
+        <div class="chip-balance-hero" aria-live="polite">
+          <div>
+            <span class="chip-balance-hero__label">Current balance</span>
+            <span class="chip-balance-hero__value" id="balance-value">0</span>
+            <span class="chip-balance-hero__unit">chips</span>
+          </div>
+          <button type="button" class="btn btn--primary" id="claim-daily-btn">
+            Claim daily +100 chips
+          </button>
+        </div>
+
+        <p class="field-hint" id="claim-daily-hint">
+          Claim +100 play-money chips once per day (resets at 00:00 Stockholm time).
+        </p>
+
+        <div class="btn-row">
+          <button type="button" class="btn btn--ghost" data-jump-view="leaderboard">View leaderboard</button>
+          <button type="button" class="btn btn--ghost" data-jump-view="profile">Edit display name</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__head">
+          <h2>Recent chip history</h2>
+          <span class="pill" id="ledger-count-pill">Ledger</span>
+        </div>
+        <div id="ledger-container">
+          <ul class="ledger-list" id="ledger-list" aria-label="Recent chip transactions"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- LEADERBOARD VIEW (1 panel) -->
+    <section id="view-leaderboard" class="screen" aria-labelledby="leaderboard-heading" hidden>
+      <div class="panel">
+        <div class="panel__head">
+          <div>
+            <span class="pill pill--chip">Play money – no cash value</span>
+            <h1 id="leaderboard-heading" style="margin-top: 8px">Leaderboard</h1>
+          </div>
+          <button type="button" class="btn btn--ghost" id="refresh-leaderboard-btn">Refresh</button>
+        </div>
+        <p class="panel__lede">
+          Standings among society members who opted in to share their display name and play-money chip balance.
+        </p>
+
+        <div id="leaderboard-optout-banner" class="empty-state" hidden>
+          <p>Your profile is currently hidden from the leaderboard.</p>
+          <button type="button" class="btn btn--ghost" data-jump-view="profile">Change in Profile</button>
+        </div>
+
+        <div id="leaderboard-container" aria-live="polite">
+          <ol class="leaderboard-list" id="leaderboard-list"></ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROFILE VIEW (2 panels) -->
+    <section id="view-profile" class="screen" aria-labelledby="profile-heading" hidden>
+      <div class="panel">
+        <div class="panel__head">
+          <div>
+            <span class="pill">Privacy first</span>
+            <h1 id="profile-heading" style="margin-top: 8px">Table profile</h1>
+          </div>
+        </div>
+        <p class="panel__lede">
+          Choose the display name other students see at the table and on the leaderboard.
+        </p>
+
+        <form id="profile-form" class="form-stack" novalidate>
+          <div class="field">
+            <label for="profile-display-name">Display name</label>
+            <input
+              id="profile-display-name"
+              name="display_name"
+              type="text"
+              maxlength="40"
+              autocomplete="nickname"
+              required
+              aria-describedby="profile-name-hint profile-error"
+            >
+            <span class="field-hint" id="profile-name-hint">
+              1–40 characters. Shown instead of your full name.
+            </span>
+          </div>
+
+          <label class="check-field" for="profile-leaderboard-optin">
+            <input id="profile-leaderboard-optin" name="show_on_leaderboard" type="checkbox" checked>
+            <span class="check-field__label">
+              <strong>Show me on the leaderboard</strong>
+              <span class="check-field__sub">
+                When enabled, signed-in members can see your display name and chip balance on the leaderboard.
+              </span>
+            </span>
+          </label>
+
+          <p class="form-error" id="profile-error" role="alert"></p>
+
+          <div class="btn-row">
+            <button type="submit" class="btn btn--primary" id="profile-save-btn">Save profile</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div class="panel__head">
+          <h2>Society membership</h2>
+          <span class="pill pill--brand">Verified account</span>
+        </div>
+        <dl class="meta-list">
+          <dt>Full name</dt>
+          <dd id="account-full-name">—</dd>
+          <dt>Email</dt>
+          <dd id="account-email">—</dd>
+          <dt>Program &amp; year</dt>
+          <dd id="account-program">—</dd>
+          <dt>Member since</dt>
+          <dd id="account-since">—</dd>
+        </dl>
+        <div class="btn-row">
+          <button type="button" class="btn btn--danger" id="profile-logout-btn">Log out</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="game-footer">
+    <div class="wrap">
+      <span>KTH Poker Society · Student-led association at KTH Stockholm</span>
+      <span>Play money – no cash value · No real-money stakes or prizes</span>
+    </div>
+  </footer>
+
+  <!-- NATIVE AUTH DIALOG -->
+  <dialog id="auth-dialog" class="game-dialog" aria-labelledby="auth-dialog-title">
+    <div class="dialog-inner">
+      <div class="dialog-top">
+        <h2 id="auth-dialog-title" tabindex="-1">Log in</h2>
+        <button type="button" class="icon-close-btn" data-close-dialog aria-label="Close dialog">×</button>
+      </div>
+
+      <div id="auth-tabs-wrap">
+        <div class="auth-tabs" role="tablist" aria-label="Member account">
+          <button type="button" role="tab" id="tab-login" aria-selected="true" aria-controls="login-form">Log in</button>
+          <button type="button" role="tab" id="tab-signup" aria-selected="false" aria-controls="signup-form" tabindex="-1">Create account</button>
+        </div>
+
+        <form id="login-form" class="form-stack" role="tabpanel" aria-labelledby="tab-login" novalidate style="margin-top: 16px">
+          <div class="field">
+            <label for="li-email">Email</label>
+            <input id="li-email" name="email" type="email" autocomplete="email" required aria-describedby="login-error">
+          </div>
+          <div class="field">
+            <label for="li-password">Password</label>
+            <input id="li-password" name="password" type="password" autocomplete="current-password" required aria-describedby="login-error">
+          </div>
+          <button type="button" class="link-btn" id="forgot-password-btn">Forgot your password?</button>
+          <p class="form-error" id="login-error" role="alert"></p>
+          <button type="submit" class="btn btn--primary btn--full" id="login-submit-btn">Log in</button>
+        </form>
+
+        <form id="signup-form" class="form-stack" role="tabpanel" aria-labelledby="tab-signup" novalidate hidden style="margin-top: 16px">
+          <div class="field">
+            <label for="su-name">Full name</label>
+            <input id="su-name" name="name" type="text" autocomplete="name" required aria-describedby="signup-error">
+          </div>
+          <div class="field">
+            <label for="su-email">Email</label>
+            <input id="su-email" name="email" type="email" autocomplete="email" required aria-describedby="signup-error">
+          </div>
+          <div class="field">
+            <label for="su-program">Program (optional)</label>
+            <input id="su-program" name="program" type="text" placeholder="e.g. CDATE, CINEK" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="su-password">Password</label>
+            <input id="su-password" name="password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="signup-error">
+            <span class="field-hint">At least 8 characters.</span>
+          </div>
+          <label class="check-field" for="su-consent">
+            <input id="su-consent" type="checkbox" required>
+            <span class="check-field__label">
+              <span>I agree to KTH Poker Society storing my membership details.</span>
+            </span>
+          </label>
+          <p class="form-error" id="signup-error" role="alert"></p>
+          <button type="submit" class="btn btn--primary btn--full" id="signup-submit-btn">Create account (+1,000 chips)</button>
+        </form>
+      </div>
+
+      <form id="reset-form" class="form-stack" novalidate hidden>
+        <p class="field-hint">Enter the email you signed up with and we will send you a password reset link.</p>
+        <div class="field">
+          <label for="rs-email">Email</label>
+          <input id="rs-email" type="email" autocomplete="email" required aria-describedby="reset-error">
+        </div>
+        <p class="form-error" id="reset-error" role="alert"></p>
+        <button type="submit" class="btn btn--primary btn--full" id="reset-submit-btn">Send reset link</button>
+        <button type="button" class="link-btn" id="back-to-login-btn">Back to log in</button>
+      </form>
+
+      <form id="recovery-form" class="form-stack" novalidate hidden>
+        <p class="field-hint">Choose a new password for your member account.</p>
+        <div class="field">
+          <label for="rc-password">New password</label>
+          <input id="rc-password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="recovery-error">
+          <span class="field-hint">At least 8 characters.</span>
+        </div>
+        <p class="form-error" id="recovery-error" role="alert"></p>
+        <button type="submit" class="btn btn--primary btn--full" id="recovery-submit-btn">Save new password</button>
+      </form>
+
+      <div id="auth-message-view" class="form-stack" hidden>
+        <p id="auth-message-text" class="panel__lede"></p>
+        <button type="button" class="btn btn--ghost" id="message-back-login-btn">Back to log in</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ACCESSIBLE LIVE ANNOUNCER & TOAST CONTAINER -->
+  <div id="live-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+
+  <!-- Pinned Supabase JS UMD bundle (same version as /index.html) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
