@@ -2,7 +2,12 @@
 -- Play-money chips: no monetary value, cannot be bought/sold/transferred/cashed out.
 -- Writes to chip_ledger happen server-side only. Chip conservation invariant preserved.
 --
--- STATUS: NOT applied, awaiting Claude review. Do NOT apply from client or CLI.
+-- STATUS: APPLIED to the members project (tibyyjnghhwwcxvlwmiq) on 2026-11-02 by Claude, with the corrections below.
+-- Kept here as the source of truth. Do not edit; add a new migration file instead.
+-- Corrections vs the original draft: (1) ON CONFLICT (member_id, ref) WHERE ref IS NOT NULL (partial unique index),
+-- (2) btrim instead of pg_catalog.trim (applied as follow-up migration m7_1_fix_redeem_btrim),
+-- (3) extensions.gen_random_bytes only (no unqualified fallback), (4) referral tables: revoke all from anon/authenticated,
+-- grant SELECT to authenticated only, (5) referral_config() has search_path = '' (migration m7_1_referral_config_search_path).
 --
 -- Rollback note:
 --   drop function if exists public.claim_referral_rewards();
@@ -97,11 +102,7 @@ declare
   v_byte integer;
   v_i integer;
 begin
-  begin
-    v_bytes := extensions.gen_random_bytes(8);
-  exception when undefined_function then
-    v_bytes := gen_random_bytes(8);
-  end;
+  v_bytes := extensions.gen_random_bytes(8);
 
   for v_i in 0..7 loop
     v_byte := pg_catalog.get_byte(v_bytes, v_i);
@@ -175,7 +176,7 @@ begin
     'referral',
     'referral:' || p_referred_id::text
   )
-  on conflict (member_id, ref) do nothing
+  on conflict (member_id, ref) where ref is not null do nothing
   returning id into v_inserted_id;
 
   -- Mark referral as rewarded
@@ -288,7 +289,7 @@ begin
     raise exception 'ERR_UNAUTHORIZED: sign-in required' using errcode = '42501';
   end if;
 
-  v_normalized_code := pg_catalog.upper(pg_catalog.trim(coalesce(p_code, '')));
+  v_normalized_code := pg_catalog.upper(pg_catalog.btrim(coalesce(p_code, '')));
   if not (v_normalized_code ~ '^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$') then
     return 'invalid_code';
   end if;
@@ -392,3 +393,10 @@ grant execute on function public.claim_referral_rewards() to authenticated, serv
 
 -- 9. Drop the daily chip claim function (preserves old ledger rows)
 drop function if exists public.claim_daily_chips();
+
+-- Hardening applied together with this migration (same content as in the applied version):
+revoke all on public.referral_codes from anon, authenticated;
+revoke all on public.referrals from anon, authenticated;
+grant select on public.referral_codes to authenticated;
+grant select on public.referrals to authenticated;
+alter function public.referral_config() set search_path = '';
