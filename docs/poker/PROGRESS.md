@@ -1,0 +1,185 @@
+# Progress log (agent: update this every session)
+
+## Status
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup), M6 (visual & UX polish), and M6.1 (fit-to-screen no-scroll table layout across desktop, mobile portrait, and mobile landscape) are complete.
+
+## Next up
+- [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
+- [x] M2 engine + tests (`game/engine/`: hand evaluation, betting rounds, pots, side pots, showdown + `node --test`)
+- [x] M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `supabase/checks/chip_conservation.sql` – reviewed and applied)
+- [x] M3b/M3c Edge Functions (`table`, `act`) + atomic hand persistence migration (`20261102020000_hand_persistence_tx.sql`) – M3b+M3c deployed
+- [x] M4 heads-up playable on two phones (UI built & wired to deployed `table` and `act`; live two-phone Realtime play UNVERIFIED)
+- [x] M5 3–6 players, timers, reconnect (code + 36/36 `node --test` tests complete; M5 migration applied by Claude; M5 functions deployed)
+- [x] M6 polish and tutorial
+- [x] M6.1 fit-to-screen game layout (no-scroll play view across desktop, mobile portrait & mobile landscape; verified in Chrome headless across 8 viewports for 2, 4, 6 players)
+- [ ] M7 link from website, event awards
+
+## Decisions for Claude
+- None – no backend, SQL, or Edge Function changes were needed for M6.1.
+
+## Decisions for Love
+- None right now. Ready for testing on the Netlify `poker-game` branch deploy or proceeding to M7 (link from website & event awards).
+
+## Session log
+- 2026-11-02 (Gemini – M6.1):
+  - **What changed** (frontend-only in `game/`; zero SQL, backend, or Edge Function changes):
+    - **1. Fixed-height app shell (no-scroll table play view)**:
+      - Styled `body[data-active-view="table"]` with `height: 100dvh` (with `100vh` fallback), `overflow: hidden`, and `overscroll-behavior: none` (`min-height: 320px` query; fallback to scroll if height < 320px). Hides global header/footer/strip in table view.
+      - Structured `#view-table` as a 3-row CSS grid (`[slim topbar | flex table-stage | docked action bar]`) with safe-area insets (`env(safe-area-inset-*)`).
+    - **2. Desktop (>= 961px) scalable 3x3 oval ring layout**:
+      - Dynamically computes container-relative CSS variables (`--felt-w`, `--felt-h`, `--felt-radius`, `--seat-col-w`, card sizes) via `game/lib/table-layout.js` and `game/ui/table-shell-ui.js` so the table expands to available width/height at `1280x720`, `1440x900`, `1920x1080` without any page scroll.
+      - Self seat and hole cards docked at bottom-centre with action bar directly beneath.
+    - **3. Mobile portrait (375x667 & 390x844)**:
+      - Compact seat plaques with avatar initials (`extractInitials`), truncated names, and inline chip stacks.
+      - Hole cards docked side-by-side with player plaque at bottom-centre.
+      - Raise controls open as a modal bottom sheet (`.action-raise-sheet`) over the action bar, preventing layout shift or scrolling.
+    - **4. Mobile landscape (667x375, 844x390, 932x430)**:
+      - Uses `@media (orientation: landscape) and (max-height: 500px)` 2-column layout: wide oval felt on the left, vertical thumb-reachable action bar on the right. Topbar collapsed to 46px.
+    - **5. Fullscreen toggle & Android rotate hint**:
+      - Added `#table-fullscreen-btn` in topbar using Fullscreen API with WebKit fallback (`document.documentElement.requestFullscreen` / `webkitRequestFullscreen`). Hidden on devices lacking element fullscreen support (iPhone Safari).
+      - On Android portrait fullscreen success, triggers `screen.orientation.lock("landscape")` (wrapped in try/catch) and shows one-time toast: `"Rotate your phone for a bigger table"`.
+    - **6. PWA standalone meta tags**:
+      - Added `apple-mobile-web-app-capable`, `mobile-web-app-capable`, `theme-color="#06142a"`, `viewport-fit=cover`, and `apple-mobile-web-app-status-bar-style="black-translucent"` in `game/index.html`.
+    - **7. Secondary panels as overlay drawers**:
+      - Replaced inline hand history with native modal drawer dialog (`#table-drawer-dialog`), accessible via `☰` or `"Recent hands"` buttons.
+    - **8. Compliance & accessibility**:
+      - `"Play money – no cash value"` remains visible in all modes (topbar on landscape/desktop, action bar meta on portrait). Touch targets >= 44px maintained throughout.
+  - **Verified viewports (Chrome headless, 2, 4, 6 players each, 0 console errors, 0 scroll overflow)**:
+    - `1920x1080`: verified (2p, 4p, 6p)
+    - `1440x900`: verified (2p, 4p, 6p)
+    - `1280x720`: verified (2p, 4p, 6p)
+    - `1024x768`: verified (2p, 4p, 6p)
+    - `390x844`: verified (2p, 4p, 6p)
+    - `375x667`: verified (2p, 4p, 6p)
+    - `844x390`: verified (2p, 4p, 6p)
+    - `667x375`: verified (2p, 4p, 6p)
+  - **Verified unit tests**: `node --test game/tests/*.test.js` (42/42 passing, including pure layout and sizing tests in `game/tests/table-layout.test.js`).
+  - **UNVERIFIED**: Real physical touch interactions on iOS Safari dynamic address bars on a real iPhone device.
+  - **What is broken**: Nothing known.
+  - **What is next**: M7 – link from website (`/index.html`), event chip awards.
+- 2026-11-02 (Gemini – M6):
+  - **What changed** (frontend-only in `game/`; zero SQL, backend, or Edge Function changes):
+    - **1. 375px table layout for 2, 3, 4, 5 and 6 players & mobile raise controls (`game/lib/table-helpers.js`, `game/ui/table-render.js`, `game/styles/table.css`)**:
+      - Added `layoutOpponentSeatsForGrid(opponentSeats)` to arrange 1–5 opponents in clockwise visual order around the upper felt, centering the top 12 o'clock seat across both columns (`fullRow: true`) for 2, 4, and 6 players while pairing left/right flank seats cleanly.
+      - Refined `.poker-felt` border radius (`34px` mobile, `56px` desktop) and compact opponent seat plaques (`min-width: 0`, ellipsis on long names, crisp `D`/`SB`/`BB` badges) so 2–6 seats never clip or overlap at 375px.
+      - Added `−` and `+` 1-BB step buttons (`#table-raise-dec-btn`, `#table-raise-inc-btn`, `44x44px`) beside the mobile raise slider and numeric input (`17px` font size to prevent iOS auto-zoom, `inputmode="numeric"`), plus `Min`, `½ pot`, `Pot`, and `All-in` presets.
+    - **2. Turn indicator, in-place 30s countdown bar & Sitting-out UX (`game/ui/table-render.js`, `game/ui/table-view.js`, `game/index.html`)**:
+      - Added `.seat-timer-bar` (`role="progressbar"`) and `updateTurnTimerInPlace()` so 1-second timer ticks update the active seat's countdown pill (`● Your turn · 24s` / `⚠ 7s` in danger red at `<=7s`) and progress bar width in place without rebuilding the felt DOM or re-triggering card deal animations every second.
+      - Added a dedicated `#table-sitout-banner` above the felt when the player is sitting out (including after 2 consecutive timeouts) with a 1-tap **"Sit back in"** button, plus a topbar `Sit out` / `Sit back in` toggle (`#table-sit-toggle-btn`).
+    - **3. Showdown & win presentation, last-10-hands log, and reduced-motion animations (`game/lib/table-helpers.js`, `game/ui/table-render.js`, `game/styles/table.css`)**:
+      - Added `summarizeShowdown()` and `buildHandHistoryEntry()` to display winners, winning hand rank (`Royal Flush`..`High Card`), split pots, and side-pot breakdowns (`Main: 400 → Alice`, `Side 1: 200 → Bob`), plus `.table-seat-card--winner` gold highlights and `★ Won +X` badges on winning seats.
+      - Added a collapsible **"Recent hands (last 10)"** panel (`#table-history-details`) below the felt and tracked animation state so `.playing-card--deal` (`200ms ease-out`) and `.chip-move-anim` (`180ms ease-out`) fire only when new cards or bets appear and are disabled under `@media (prefers-reduced-motion: reduce)`.
+    - **4. Empty, loading, and error states (`game/lib/table-helpers.js`, `game/lib/poker-api.js`, `game/ui/table-view.js`)**:
+      - Added `friendlyTableError()` mapping `ERR_TABLE_NOT_FOUND` (wrong room code), `ERR_TABLE_FULL`, `ERR_TABLE_CLOSED`, `ERR_SEAT_TAKEN`, `ERR_INSUFFICIENT_CHIPS`, `ERR_TOO_MANY_OPEN_TABLES`, `ERR_OUT_OF_TURN`, `ERR_STALE_ACTION_SEQ`, `ERR_UNAUTHORIZED` (401), and `ERR_NETWORK` (`"Connection lost. Reconnecting…"`) to clear, actionable messages.
+      - Added `#table-conn-banner` for live connection loss (`"Connection lost. Reconnecting…"`) with a **Retry now** button, automatic one-time `sb.auth.refreshSession()` retry on `401` before prompting **Sign in again**, and a closed-table notice with a 1-tap **Back to Lobby** button.
+    - **5. Interactive tutorial, optional sound cues & accessibility (`game/ui/tutorial-dialog.js`, `game/index.html`, `game/styles/base.css`, `game/styles/components.css`)**:
+      - Added `game/ui/tutorial-dialog.js` (`#tutorial-dialog`) accessible from both the Lobby (**"How to play & hand rankings"**) and Table topbar (**"? Rules"** or `?` shortcut), covering the 3-step Hold'em walkthrough, all 10 hand rankings rendered with mini CSS cards, table etiquette (30s timer, 2x timeout sit-out, play-money rules), and keyboard shortcuts (`F`, `C`, `R`, `?`, `Esc`).
+      - Added synthesized Web Audio sound cues (turn chime, card deal, pot win) defaulting to **Sound: Off** per `STYLE_GUIDE.md`.
+      - Added `.skip-link` (`Skip to main content`), visible `:focus-visible` outlines on all interactive controls, and verified all text is HTML/CSS (never baked into images).
+    - **6. "Play money – no cash value" on every screen (`game/index.html`, `game/styles/components.css`)**:
+      - Added `.view-play-money-note` badges so `"Play money – no cash value"` is visible inside `#view-lobby`, `#view-table`, `#view-leaderboard`, `#view-profile`, `#auth-dialog`, and `#tutorial-dialog`, in addition to the global header and footer.
+  - **Verified**: `node --test game/tests/*.test.js` (39/39 passing, including new M6 unit tests in `game/tests/table-helpers.test.js` and `game/tests/m5.test.js`), all files in `game/` `<= 600` lines, and zero changes outside `game/` and `docs/poker/PROGRESS.md`.
+  - **UNVERIFIED**: Live visual/UX inspection on a physical 375px phone and desktop browser against the Netlify branch deploy (`https://poker-game--kthpokersociety-v3.netlify.app/game/`), including real network-drop reconnect banner and multi-player showdown animations.
+  - **What is broken**: Nothing known.
+  - **What is next**: M7 – link from the society website (`/index.html`) when approved, plus admin event chip awards UI/workflow.
+- 2026-11-02 (Gemini – M5 deploy):
+  - **What changed**: Pulled commit `ab377d1` (where Claude fixed `20261102023000_m5_timers_sitout_cleanup.sql` to preserve the `p_board text[]` signature on `apply_hand_tx`, restore table-first lock order, and make the activity trigger safe, then applied it to `tibyyjnghhwwcxvlwmiq`), verified `node --test` (36/36 passing), and deployed both Edge Functions (`table` and `act`) to Supabase project `tibyyjnghhwwcxvlwmiq`. M5 migration applied by Claude; M5 functions deployed.
+  - **What is next**: M6 – visual polish and interactive tutorial.
+- 2026-11-02 (Gemini – M5):
+  - **What changed**:
+    - **1. 3–6 players at one table (`game/` + `game/engine/`)**:
+      - Added table size selector (`2`–`6` seats, default `6`) in Create Table (`game/index.html`, `game/app.js`).
+      - Updated `partitionTableSeats` (`game/lib/table-helpers.js`) to order up to 5 opponent seats clockwise starting from the player's immediate left (`seatNo > selfSeat.seatNo`), keeping the player's own seat anchored at bottom-centre.
+      - Updated `game/ui/table-render.js` and `game/styles/table.css` (`.table-opponents-grid` + `.table-seat-card--compact`) to render 1–5 opponents in a responsive 2-column clockwise grid that fits at 375px width without horizontal scroll, showing Dealer (`D`), Small Blind (`SB`), and Big Blind (`BB`) badges on seat plaques, and displaying Main Pot + Side Pots (with winner names at showdown).
+    - **2. Server-enforced 30s action timer (`ACTION_TIMEOUT_MS = 30_000`) & atomic `timeout-fold`**:
+      - Added `type: "timeout"` / `"timeout-fold"` to `apply()` in `game/engine/betting.js` (synced to `supabase/functions/_shared/engine/betting.js` via `game/scripts/sync-engine.js`): when checking is free (`legalActions.canCheck`), the engine checks for the timed-out player; when facing a bet, it folds them. In both cases, `hand_actions` records `action: 'timeout-fold', amount: 0`.
+      - `stampTurnTimer` (`supabase/functions/_shared/state-helpers.js`) stamps `turnStartedAt` and `turnDeadlineAt = nowMs + 30_000` on every active turn transition and exposes `turnStartedAt`, `turnDeadlineAt`, `turnTimeoutMs`, and `serverNow` in public hand state so clients compute clock-skew-adjusted countdowns (`computeRemainingTurnSeconds`).
+      - **Timeout trigger design & reason**: Because Edge Functions are request-driven and a stalled/disconnected client cannot be trusted to fold itself, we use a two-layer server-enforced trigger: (a) **Opportunistic server check on every table/act request** (`resolveExpiredTurns` runs inside `withTableLock` before `state`, `tick`, `join`, `leave`, `close`, `sit-in`, `sit-out`, or any betting action), and (b) **Dedicated `"tick"` intent** (`POST /functions/v1/act` or `/table` with `{ intent: "tick", table: code }`) called automatically by any seated or observing client as soon as the 30s countdown reaches `0s` (paired with the existing 3.5s `"state"` fallback poll). Every timeout transition executes atomically through `apply_hand_tx` (with `FOR UPDATE` row lock and `expected_action_seq`), so even if 5 clients call `tick` simultaneously at `0s`, exactly one succeeds and the rest see the updated post-timeout state.
+    - **3. Sit-out handling (`consecutive_timeouts`)**:
+      - Added `table_seats.consecutive_timeouts` in `supabase/migrations/20261102023000_m5_timers_sitout_cleanup.sql` and updated `apply_hand_tx` to persist `consecutive_timeouts` and `status` atomically.
+      - Any voluntary on-time action resets the acting seat's `consecutive_timeouts` to `0`. A timeout increments `consecutive_timeouts` by `1`; when `consecutive_timeouts >= 2`, `apply_hand_tx` atomically sets `table_seats.status = 'sitout'`.
+      - Sitting-out players are skipped when dealing (`eligibleSeats` filters `status === "active" && stack > 0`), and the UI renders a **"Sit back in"** button (`intent: "sit-in"` -> `set_seat_status` RPC) that restores `status = 'active'` and resets `consecutive_timeouts = 0`.
+    - **4. Table cleanup (30-minute idle auto-close + host `close` intent)**:
+      - Added `poker_tables.last_activity_at` (updated automatically via triggers `table_seats_touch_activity_trg` and `hands_touch_activity_trg`) and `public.close_idle_tables(p_now)` (`SECURITY DEFINER`, `service_role` only) which closes tables (`status = 'closed'`, `closed_at = now()`) that have no seated players (`active`/`sitout`), no open hand, and `last_activity_at <= now() - interval '30 minutes'`.
+      - `close_idle_tables` is invoked automatically inside `enforce_max_open_tables_per_host()` (DB trigger on table creation), in the `create` handler before checking `countOpenTablesByHost`, and every 5 minutes via `pg_cron` (`kth-poker-close-idle-tables`) when the `pg_cron` extension is enabled, ensuring hosts are never locked out by the 3-open-tables cap.
+      - Added `public.close_table(p_table_id, p_host_id)` RPC and `intent: "close"` (plus **"Close table"** button in the UI topbar for the host when the table is empty).
+  - **Files needing Claude review & deployment**:
+    - SQL migration (NOT applied): `supabase/migrations/20261102023000_m5_timers_sitout_cleanup.sql`
+    - Edge Function shared code (NOT deployed): `supabase/functions/_shared/handlers.js`, `supabase/functions/_shared/state-helpers.js`, `supabase/functions/_shared/supabase-store.js`, `supabase/functions/_shared/engine/betting.js` (redeploy `table` and `act`).
+  - **Verified**: `node --test game/tests/*.test.js` (36/36 passing, including new tests in `game/tests/m5.test.js`, `game/tests/engine.test.js`, and `game/tests/table-helpers.test.js` covering 3–6 player hands, side pots, dealer rotation, 30s timeout fold/check, 2x timeout -> sit-out & skip on deal, sit-in reset, 30m idle empty table auto-close, host close-table, and `chip_conservation.sql` invariant). All files under 600 lines (`m5.test.js` trimmed).
+  - **UNVERIFIED**: Live 3–6 account gameplay, live 30-second countdown auto-fold, and host table close on `https://poker-game--kthpokersociety-v3.netlify.app/game/` (requires Claude to apply `20261102023000_m5_timers_sitout_cleanup.sql` and deploy updated `table` and `act` Edge Functions first).
+  - **What is broken**: Nothing known.
+  - **What is next**: After Claude reviews/applies the M5 migration and deploys `table` and `act`, M6 – visual polish and interactive tutorial.
+- 2026-11-02 (Gemini – M4):
+  - **What changed**:
+    - Built the M4 heads-up (2-player) poker UI in `/game/` without modifying the deployed Edge Functions (`table` and `act`):
+      - `game/lib/poker-api.js`: wraps deployed `table` (`create`, `join`, `leave`, `state`) and `act` (`start`, `fold`, `check`, `call`, `raise`, `all-in` with `handId` and `actionSeq`), fetches private hole cards from `public.hole_cards` via RLS, and subscribes to Realtime channel `table:<code>` (`broadcast` event `state`) with automatic `"state"` intent fallback polling (every 3.5s while visible + on tab wakeup + on `409 ERR_STALE_ACTION_SEQ`).
+      - `game/lib/table-helpers.js` + `game/tests/table-helpers.test.js`: room code validation, buy-in validation (`400–2,000` chips), `isSelf` seat preservation across shared Realtime broadcasts, seat partitioning (own seat always bottom-centre, opponent top-centre), raise preset calculation (`Min`, `½ pot`, `Pot`, `All-in`), and street/showdown status summaries.
+      - `game/ui/table-view.js`, `game/ui/table-render.js`, `game/styles/table.css`, `game/index.html`, and `game/app.js`: Lobby create/join table forms, 5-letter room code badge with 1-tap copy, oval felt table (`--felt` radial highlight), community board, pot & side-pot pills, showdown hand reveal, fixed bottom thumb-reachable action bar with raise slider/presets, keyboard shortcuts (`F` fold, `C` check/call, `R` raise), turn haptics (`navigator.vibrate`), and leave/cash-out back to `chip_ledger`.
+  - **Verified**: `node --test game/tests/*.test.js` (29/29 passing), live HTTP reachability of deployed `table` and `act` Edge Functions on `tibyyjnghhwwcxvlwmiq`, and all files under 600 lines.
+  - **UNVERIFIED**: Real two-phone authenticated gameplay and Realtime broadcast latency across two signed-in member sessions on `https://poker-game--kthpokersociety-v3.netlify.app/game/`.
+  - **What is broken**: Nothing known (note: Server-side `broadcastTableState` in `supabase-store.js` sends on an unjoined channel; if Supabase Realtime requires REST broadcast or joined WebSocket in Deno, the client's automatic `"state"` intent fallback every 3.5s and on tab focus keeps both phones in sync seamlessly).
+  - **What is next**: M5 – 3–6 players, turn timer, auto-fold on timeout, reconnect handling, sit-out.
+- 2026-11-02 (Gemini – M3b+M3c deploy):
+  - **What changed**: Verified `node --test` (24/24 passing), installed Supabase CLI (`2.122.0`), authenticated via `supabase login`, and deployed both Edge Functions (`table` and `act` from branch tip `b721d7b`) to Supabase project `tibyyjnghhwwcxvlwmiq` after Claude applied `20261102020000_hand_persistence_tx.sql`. M3b+M3c deployed.
+  - **What is next**: M4 – Heads-up (2 players) playable end-to-end on two phones.
+- 2026-11-02 (Gemini – M3c):
+  - **What changed**:
+    - Added migration `supabase/migrations/20261102020000_hand_persistence_tx.sql` with `SECURITY DEFINER` (`service_role` only, `REVOKE ALL FROM public, anon, authenticated`) functions `start_hand_tx(...)` and `apply_hand_tx(...)`. Each function locks the `poker_tables` and `hands` rows with `FOR UPDATE`, verifies `expected_action_seq`, and atomically updates `hands`, `table_seats.stack` (and seat `status` on mid-hand sitout), `hole_cards`, `hand_actions`, and `poker_tables.status` in one transaction while verifying table chip conservation before vs after.
+    - Updated `supabase/functions/_shared/supabase-store.js`, `handlers.js`, and `state-helpers.js` to call `start_hand_tx` and `apply_hand_tx` via `.rpc(...)` instead of separate table writes, keeping `withTableLock` in `handlers.js` as an in-memory optimization.
+    - Capped open (`status in ('open', 'playing')`) tables per host at 3 in the `create` path (`handlers.js` + `supabase-store.js` `countOpenTablesByHost` + DB trigger `poker_tables_max_open_per_host_trg`).
+    - Added unit tests in `game/tests/store-tx.test.js` covering the `createSupabaseStore` RPC paths, the 3-open-table host cap, atomic rollback on stale `actionSeq` / conservation mismatch, and all 4 checks in `supabase/checks/chip_conservation.sql`.
+  - **Verified**: `node --test game/tests/*.test.js` (24/24 passing).
+  - **UNVERIFIED**: Live execution of `20261102020000_hand_persistence_tx.sql` and `supabase/checks/chip_conservation.sql` against Supabase project `tibyyjnghhwwcxvlwmiq` (no Supabase MCP or `psql` in this environment; handed over to Claude).
+  - **What is broken**: Nothing known.
+  - **What is next**: M4 – Heads-up (2 players) playable end-to-end on two phones once M3c migration is applied and Edge Functions are deployed.
+- 2026-11-02 (Gemini – M3b):
+  - **What changed**:
+    - Added Edge Functions `supabase/functions/table/index.ts` (intents: `create`, `join`, `leave`, `state`) and `supabase/functions/act/index.ts` (intents: `start_hand`, `fold`, `check`, `call`, `raise`, `all_in`), backed by shared modules in `supabase/functions/_shared/` (`handlers.js`, `state-helpers.js`, `supabase-store.js`, `cors.js`).
+    - Shared `game/engine/` with Deno via `game/scripts/sync-engine.js` copying into `supabase/functions/_shared/engine/` and guarded by `game/tests/engine-sync.test.js` (fails if any file diverges byte-for-byte). **Reason**: Supabase CLI bundles each function with `supabase/functions/_shared/` and can reject relative imports escaping above `supabase/functions/`; a deterministic sync script + automated parity test keeps a single source of truth while ensuring trouble-free Edge Function deployment.
+    - **Chip conservation during running hands**: Whenever a hand starts (blinds posted), on every betting action, and when a hand settles, the Edge Function updates `table_seats.stack` to each seat's live remaining stack while `hands.pot` tracks all committed chips and `ended_at` remains `null` until settlement (at which point `table_seats.stack` gets final stacks and `hands.ended_at` is set). `supabase/checks/chip_conservation.sql` stays valid (`net_game_ledger + active_seat_stacks + active_hand_pots = 0`) at every step without modification.
+    - **Leaving mid-hand**: If a player calls `leave` while a hand is open on their seat, `table` folds them first; if that ends the hand (always true in heads-up), the hand settles immediately (`ended_at = now()`) and `leave_seat` cashes out their stack. If 2+ other players remain active in a multi-way hand, the leaving player is folded, marked `'sitout'`, queued in `state.pendingLeaveMemberIds`, and cashed out via `leave_seat` automatically as soon as the hand settles.
+    - **Privacy & Realtime broadcast**: `supabase-store.js` fetches `display_name` from `chip_profiles` using `service_role` and broadcasts sanitized public state on Realtime channel `table:<code>` (`table_state` event) with display names, never exposing `deck`, unrevealed `holeCards`, or raw `member_id` values. Deal writes each player's 2 cards to `public.hole_cards` so owners fetch only their own cards via RLS.
+    - Fixed an edge case in `game/engine/pots.js` where a player who folded with the highest commitment on a street (e.g. big blind leaving/folding out of turn before small blind acts) had their excess commitment treated as an uncalled bet instead of dead money in the pot.
+  - **5 hostile-client attacks considered against the Edge Function & defenses**:
+    1. **Forged `member_id` in request body**: `handleTableRequest` and `handleActRequest` authenticate the caller exclusively via the `Authorization: Bearer <jwt>` header (`supabase.auth.getUser(token)`) and ignore any `member_id` or `memberId` fields in the request body.
+    2. **Acting out of turn (or when not seated / hand not active)**: `handleActRequest` maps the authenticated `user.id` to their seated `seat_no` at the table and verifies `seat_no === state.actionOn` while the hand is in an active betting phase (`preflop`/`flop`/`turn`/`river`); otherwise it rejects with HTTP `409 ERR_OUT_OF_TURN`.
+    3. **Replaying a previous action (`actionSeq` / `handId` mismatch)**: Every action increments `actionSeq`; if the client supplies `expectedActionSeq` (or `handId`) that does not match the current open hand's sequence or ID, the request is rejected with `409 ERR_ACTION_REPLAY` before touching the engine.
+    4. **Raising more than the player's stack or below the legal minimum**: `handleActRequest` validates integer amounts, rejects `amount > stack + committed` with `400 ERR_RAISE_EXCEEDS_STACK`, checks `legalActions(state, seat)` bounds (`minRaiseTo` / `maxRaiseTo`), and runs `apply()` which enforces full-raise and all-in rules.
+    5. **Two parallel requests racing on the same table (`act` + `act` or `act` + `leave`)**: Requests serialize per table through `withTableLock(tableId, ...)` and use compare-and-swap on the open `hands` row (`compareAndSwapHandState` checking `ended_at IS NULL` and prior `state`), returning `409 ERR_CONCURRENT_MODIFICATION` if another worker mutated the hand concurrently.
+  - **Verified**: `node --test game/tests/*.test.js` (21/21 passing, including mocked DB full lifecycle, mid-hand leave, chip conservation at every step, all 5 hostile-client attack vectors, and engine parity check). UI and `/index.html` untouched.
+  - **UNVERIFIED**: Live deployment and invocation of `table` and `act` Edge Functions on Supabase project `tibyyjnghhwwcxvlwmiq` (no Supabase MCP connected; handed over for review/deploy).
+  - **What is broken**: Nothing known.
+  - **What is next**: M4 – Heads-up (2 players) playable end-to-end on two phones once M3b Edge Functions are deployed.
+- 2026-11-02 (Gemini – M3a):
+  - **What changed**: Added `supabase/migrations/20261102012000_poker_tables.sql` defining `poker_tables`, `table_seats`, `hands`, `hole_cards`, `hand_actions`, `public_hands` view, RLS policies, and `service_role`-only transactional functions `sit_down(p_table_id, p_member_id, p_seat_no, p_buyin)` and `leave_seat(p_table_id, p_member_id)`. Added `supabase/checks/chip_conservation.sql` returning zero rows when ledger + table stacks + active pots balance.
+  - **5 hostile-client attacks considered & SQL defenses**:
+    1. **Reading opponents' hole cards or the undealt deck (`hands.state`) from DevTools**: `hole_cards` has RLS policy `((select auth.uid()) = member_id)` so a client can only ever read their own cards. On `public.hands`, `SELECT` on `state` is revoked from `anon` and `authenticated`; clients can only read non-secret columns (`id, table_id, hand_no, dealer_seat, board, pot, showdown, started_at, ended_at`) and the `public_hands` (`security_invoker = true`) view.
+    2. **Calling `sit_down` or `leave_seat` directly from the browser RPC endpoint (or spoofing another member's `member_id`)**: Both functions have `REVOKE ALL ... FROM public, anon, authenticated`, explicit `GRANT EXECUTE ... TO service_role`, and an internal guard checking `request.jwt.claim.role = 'service_role'` (or database admin user). Clients cannot invoke them at all, nor can clients `INSERT`/`UPDATE`/`DELETE` on `chip_ledger`, `table_seats`, `poker_tables`, `hands`, `hole_cards`, or `hand_actions`.
+    3. **Double buy-in race condition (sending two simultaneous `sit_down` requests across one or two tables to spend the same balance twice)**: `sit_down` takes a transaction-scoped advisory lock on `p_member_id` (`pg_advisory_xact_lock(hashtextextended(p_member_id::text, 0))`) and locks the `public.members` row `FOR UPDATE` before computing `SUM(delta)` from `chip_ledger` and inserting the `-buyin` row in the same transaction. Concurrent requests serialize and the second fails with `ERR_INSUFFICIENT_CHIPS` or `ERR_ALREADY_SEATED`.
+    4. **Joining a full table, taking an occupied seat, or taking multiple seats at the same table**: `sit_down` locks the `poker_tables` row `FOR UPDATE`, validates `0 <= p_seat_no < max_seats`, checks active seat count `< max_seats`, verifies the seat is not active/sitout, and is backed by both primary key `(table_id, seat_no)` and partial unique index `table_seats_one_active_seat_per_member_uniq ON table_seats(table_id, member_id) WHERE status IN ('active', 'sitout')`.
+    5. **Leaving mid-hand to cash out a pre-hand stack or forging game actions/pots**: Clients have zero write privileges on `hands`, `hand_actions`, or `table_seats` (so out-of-turn or forged actions cannot be written from the browser), and `leave_seat` rejects cash-outs while an unsettled hand (`ended_at IS NULL`) exists on the table (`ERR_HAND_IN_PROGRESS`), requiring the Edge Function to fold/settle the hand first.
+  - **Verified**: `node --test game/tests/*.test.js` (17/17 passing). UI and `/index.html` untouched.
+  - **UNVERIFIED**: Execution of `20261102012000_poker_tables.sql` and `chip_conservation.sql` against live Supabase (MCP not connected; handed over for review/apply).
+  - **What is broken**: Nothing known.
+  - **What is next**: M3b – Edge Function `act` + Realtime broadcast once M3a migration is applied.
+- 2026-11-02 (Gemini – M2):
+  - **What changed**: Built the dependency-free No-Limit Texas Hold'em engine in `game/engine/` (`cards.js`, `evaluator.js`, `pots.js`, `betting.js`, `index.js`) compatible with both Node and Deno. Implemented `newHand(seats, dealer, blinds, rng)`, `legalActions(state, seat)`, `apply(state, seat, action)`, `showdown(state)`, `evaluate(cards7)`, `publicView(state)`, and `checkChipConservation(state)`. Added full `node --test` coverage in `game/tests/engine.test.js` covering all hand ranks and kickers, wheel straight (`A-2-3-4-5`), ties/split pots, 3-way all-in with two side pots, fold-out uncalled bet return, min-raise & short all-in reopening rules, heads-up blind order, odd-chip split (first winner left of button), and chip conservation.
+  - **Verified**: `node --test game/tests/*.test.js` (17/17 tests passing). UI and `/index.html` untouched.
+  - **UNVERIFIED**: Live branch deploy at `https://poker-game--kthpokersociety-v3.netlify.app/game/` (M1 loading and authenticated member flow on Netlify branch deploy are UNVERIFIED from this environment).
+  - **What is broken**: Nothing known.
+  - **What is next**: M3 – `poker_tables`, `table_seats`, `hands`, `hole_cards`, and `hand_actions` migration with RLS + Supabase Edge Function `act` + Realtime broadcast.
+- 2026-11-02 (Gemini – M1):
+  - **What changed**: Created branch `poker-game` from `poker-game-workspace`. Built M1 skeleton in `game/` following `STYLE_GUIDE.md` (`game/config.js`, `game/index.html`, `game/app.js`, `game/lib/supabase.js`, `game/lib/format.js`, `game/ui/components.js`, `game/ui/auth-dialog.js`, `game/styles/{tokens,base,components}.css`, and unit tests in `game/tests/format.test.js`). Wired member sign-in/sign-up/password-reset, `chip_profiles` (display name 1–40 chars + leaderboard opt-in), `chip_balances`, `chip_ledger` history, `claim_daily_chips()` (+100/day, Europe/Stockholm), and `get_leaderboard(p_limit)`.
+  - **Verified**: `node --test` (8/8 passing), headless Chrome render on 375px and 1280px viewports with 0 console errors, PostgREST RPC signature check against live Supabase (`tibyyjnghhwwcxvlwmiq`).
+  - **UNVERIFIED**: End-to-end authenticated `claim_daily_chips()` and `chip_profiles` write with a real signed-in member session in a live browser (requires a member account login).
+  - **What is broken**: Nothing known.
+  - **What is next**: M2 – pure dependency-free Texas Hold'em engine in `game/engine/` with full `node --test` coverage.
+- 2026-11-02 (Claude): workspace, rules, specs and chip schema created. No game code.
+
+- 2026-11-02 (Claude review): M3a migration reviewed and APPLIED to the members project, plus hardening migration 20261102013000 (revokes TRUNCATE/REFERENCES/TRIGGER from client roles). Tested as an `authenticated` user: hands.state and `select *` on hands denied, sit_down/leave_seat/award_chips denied, direct inserts into chip_ledger/table_seats denied, TRUNCATE denied. Security advisors: only the two intentional warnings remain.
+  Notes for M3b (Edge Function):
+  - The `service_role` check inside sit_down/leave_seat uses current_user, which is the function owner inside SECURITY DEFINER, so it never rejects. Real protection is the grants (execute only for service_role). Do not rely on that in-function check; do not grant execute to other roles.
+  - chip_conservation.sql counts hands.pot for open hands, so while a hand is running `table_seats.stack` must be decremented as chips go into the pot, or the check shows false positives. Decide this in M3b and keep the check consistent.
+  - table_seats exposes member_id (UUID) to all signed-in members. Display names live in chip_profiles, which is own-row read only; broadcast names from the Edge Function in the public table state instead.
+  - leave_seat refuses while any hand is in progress at the table; the `act` function must fold a leaving player first and settle before cash-out.

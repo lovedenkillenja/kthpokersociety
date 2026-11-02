@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#06142a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="KTH Poker">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 400 400%27%3E%3Crect width=%27400%27 height=%27400%27 rx=%2760%27 fill=%27%23004791%27/%3E%3Cg stroke=%27white%27 fill=%27none%27 stroke-linecap=%27round%27%3E%3Cpath d=%27M200 108 L130 188 M130 188 L95 270 M130 188 L165 270 M270 188 L305 270%27 stroke-opacity=%27.5%27 stroke-width=%2710%27/%3E%3Cpath d=%27M200 108 L270 188 L235 268%27 stroke-width=%2718%27/%3E%3C/g%3E%3Ccircle cx=%27200%27 cy=%27108%27 r=%2722%27 fill=%27white%27/%3E%3C/svg%3E">
+  <title>Play Poker · KTH Poker Society</title>
+  <meta name="robots" content="noindex">
+  <meta name="description" content="Play-money Texas Hold'em for members of KTH Poker Society. Play money – no cash value.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Display&family=Hanken+Grotesk:wght@400;600&display=swap">
+  <link rel="stylesheet" href="./styles/tokens.css">
+  <link rel="stylesheet" href="./styles/base.css">
+  <link rel="stylesheet" href="./styles/components.css">
+  <link rel="stylesheet" href="./styles/table.css">
+  <link rel="stylesheet" href="./styles/table-responsive.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+
+  <div class="play-money-strip" role="region" aria-label="Play money notice">
+    <div class="wrap">
+      <span class="play-money-badge">
+        <span class="play-money-dot" aria-hidden="true"></span>
+        <span>Play money – no cash value</span>
+      </span>
+      <span>KTH Poker Society members only · Chips cannot be bought, sold or cashed out</span>
+    </div>
+  </div>
+
+  <header class="game-header">
+    <div class="wrap">
+      <a class="brand" href="#lobby" id="brand-link">
+        <svg viewBox="0 0 400 400" role="img" aria-label="KTH Poker Society mark">
+          <rect width="400" height="400" rx="60" fill="#004791"/>
+          <g stroke="white" fill="none" stroke-linecap="round">
+            <path d="M200 108 L130 188 M130 188 L95 270 M130 188 L165 270 M270 188 L305 270" stroke-opacity=".5" stroke-width="10"/>
+            <path d="M200 108 L270 188 L235 268" stroke-width="18"/>
+          </g>
+          <circle cx="200" cy="108" r="22" fill="white"/>
+        </svg>
+        <span>KTH Poker <span class="brand-subtitle">Club Room</span></span>
+      </a>
+
+      <nav id="view-nav" class="view-nav" aria-label="Game navigation" hidden>
+        <button type="button" class="view-nav__btn" data-view-btn="lobby" aria-current="page">Chips &amp; Lobby</button>
+        <button type="button" class="view-nav__btn" data-view-btn="table" id="nav-table-btn" hidden>Table</button>
+        <button type="button" class="view-nav__btn" data-view-btn="leaderboard">Leaderboard</button>
+        <button type="button" class="view-nav__btn" data-view-btn="profile">Profile</button>
+      </nav>
+
+      <div class="header-right">
+        <button type="button" class="btn btn--ghost btn--compact" data-open-tutorial>How to play</button>
+        <a class="btn btn--ghost btn--compact" href="/">Society site</a>
+        <button type="button" class="btn btn--primary btn--compact" id="header-auth-btn">Log in</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="game-main wrap" id="main-content">
+    <!-- GUEST EXPLAINER VIEW (shown when signed out; max 2 panels) -->
+    <section id="view-guest" class="screen" aria-labelledby="guest-heading">
+      <div class="panel">
+        <div class="panel__head">
+          <span class="pill pill--chip">Play money – no cash value</span>
+          <span class="pill">Members only</span>
+        </div>
+        <h1 id="guest-heading">Texas Hold'em for KTH Poker Society</h1>
+        <p class="panel__lede">
+          A quiet, mobile-first poker room for KTH students. Sign in with your society member account to claim daily play-money chips, set your display name, and play 2–6 player tables with friends.
+        </p>
+        <div class="btn-row">
+          <button type="button" class="btn btn--primary" id="guest-login-btn">Log in with member account</button>
+          <button type="button" class="btn btn--ghost" id="guest-signup-btn">Become a member</button>
+          <button type="button" class="btn btn--ghost" data-open-tutorial>How to play &amp; hand ranks</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="felt-preview" aria-label="Sample playing cards on poker felt">
+          <div class="card-row" id="guest-card-showcase"></div>
+          <span class="pill pill--chip tabular">10 / 20 blinds · 2–6 seats · No cash value</span>
+        </div>
+        <h3>How society chips work</h3>
+        <ul class="ledger-list" aria-label="How chips work">
+          <li class="ledger-row">
+            <div>
+              <div class="ledger-row__title">Welcome stack</div>
+              <div class="ledger-row__meta">Granted automatically when you create your member account</div>
+            </div>
+            <span class="ledger-row__delta tabular">+1,000 chips</span>
+          </li>
+          <li class="ledger-row">
+            <div>
+              <div class="ledger-row__title">Daily check-in</div>
+              <div class="ledger-row__meta">Claim once every Stockholm calendar day</div>
+            </div>
+            <span class="ledger-row__delta tabular">+100 chips</span>
+          </li>
+          <li class="ledger-row">
+            <div>
+              <div class="ledger-row__title">Society events &amp; workshops</div>
+              <div class="ledger-row__meta">Awarded for attending KTH Poker Society nights</div>
+            </div>
+            <span class="ledger-row__delta tabular">Event bonus</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- MEMBER LOBBY VIEW (shown when signed in; max 2 panels) -->
+    <section id="view-lobby" class="screen" aria-labelledby="lobby-heading" hidden>
+      <div class="panel">
+        <div class="panel__head">
+          <div>
+            <span class="pill pill--chip">Play money – no cash value</span>
+            <h1 id="lobby-heading" style="margin-top: 8px">Your chip stack</h1>
+          </div>
+          <span class="pill" id="lobby-member-pill">Member</span>
+        </div>
+
+        <div class="chip-balance-hero" aria-live="polite">
+          <div>
+            <span class="chip-balance-hero__label">Current balance</span>
+            <span class="chip-balance-hero__value" id="balance-value">0</span>
+            <span class="chip-balance-hero__unit">chips</span>
+          </div>
+          <button type="button" class="btn btn--primary" id="claim-daily-btn">
+            Claim daily +100 chips
+          </button>
+        </div>
+
+        <p class="field-hint" id="claim-daily-hint">
+          Claim +100 play-money chips once per day (resets at 00:00 Stockholm time).
+        </p>
+
+        <div id="active-table-banner" class="active-table-banner" hidden>
+          <div>
+            <strong id="active-table-banner-title">Active table</strong>
+            <div class="field-hint">Your seat is waiting on the felt.</div>
+          </div>
+          <button type="button" class="btn btn--primary" id="return-table-btn">Return to table</button>
+        </div>
+
+        <hr class="panel__divider">
+
+        <div class="panel__head">
+          <div>
+            <h2>Play Hold'em (2–6 players)</h2>
+            <p class="field-hint" style="margin-top: 4px">
+              10 / 20 blinds · Buy-in 400–2,000 chips · 30s action clock · Share your 5-character room code.
+            </p>
+          </div>
+          <button type="button" class="btn btn--ghost btn--compact" data-open-tutorial>Hand rankings</button>
+        </div>
+
+        <div class="table-lobby-split">
+          <form id="create-table-form" class="lobby-subbox" novalidate>
+            <h3>Create a table</h3>
+            <div class="field">
+              <label for="create-table-max-seats">Table size (seats)</label>
+              <select id="create-table-max-seats" name="max_seats" class="tabular">
+                <option value="6" selected>6 seats (6-max)</option>
+                <option value="5">5 seats</option>
+                <option value="4">4 seats</option>
+                <option value="3">3 seats</option>
+                <option value="2">2 seats (Heads-up)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="create-table-buyin">Your buy-in (400–2,000 chips)</label>
+              <input id="create-table-buyin" name="buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required aria-describedby="create-table-error">
+            </div>
+            <p class="form-error" id="create-table-error" role="alert"></p>
+            <button type="submit" class="btn btn--primary btn--full" id="create-table-btn">Create table &amp; sit down</button>
+          </form>
+
+          <form id="join-table-form" class="lobby-subbox" novalidate>
+            <h3>Join by room code</h3>
+            <div class="field">
+              <label for="join-table-code">5-letter room code</label>
+              <input id="join-table-code" name="code" type="text" maxlength="5" placeholder="KTH26" autocomplete="off" class="code-input" required aria-describedby="join-table-error">
+            </div>
+            <div class="field">
+              <label for="join-table-buyin">Your buy-in (400–2,000 chips)</label>
+              <input id="join-table-buyin" name="buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required aria-describedby="join-table-error">
+            </div>
+            <p class="form-error" id="join-table-error" role="alert"></p>
+            <button type="submit" class="btn btn--ghost btn--full" id="join-table-btn">Join table</button>
+          </form>
+        </div>
+
+        <div class="btn-row">
+          <button type="button" class="btn btn--ghost" data-jump-view="leaderboard">View leaderboard</button>
+          <button type="button" class="btn btn--ghost" data-jump-view="profile">Edit display name</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__head">
+          <h2>Recent chip history</h2>
+          <span class="pill" id="ledger-count-pill">Ledger</span>
+        </div>
+        <div id="ledger-container">
+          <ul class="ledger-list" id="ledger-list" aria-label="Recent chip transactions"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- TABLE VIEW: Fixed-height no-scroll shell [slim topbar | flex felt stage | docked action bar] -->
+    <section id="view-table" class="screen table-shell" aria-labelledby="table-code-badge" hidden>
+      <div class="table-topbar">
+        <div class="table-topbar__left">
+          <button type="button" class="btn btn--ghost btn--topbar" id="table-lobby-btn" aria-label="Back to lobby">
+            ← <span class="topbar-hide-xs">Lobby</span>
+          </button>
+          <button type="button" class="btn btn--ghost btn--topbar room-code-btn" id="table-copy-code-btn" title="Copy 5-character room code">
+            <span class="room-code-badge" id="table-code-badge">Room —</span>
+            <span aria-hidden="true">⧉</span>
+          </button>
+          <span class="pill tabular table-topbar__desktop" id="table-blinds-pill">10 / 20</span>
+          <span class="pill pill--chip table-topbar__desktop">Play money – no cash value</span>
+          <span class="pill table-topbar__desktop" id="table-conn-pill">Live</span>
+        </div>
+        <div class="table-topbar__right">
+          <button type="button" class="btn btn--ghost btn--topbar table-topbar__desktop" id="table-history-open-btn">
+            Recent hands
+          </button>
+          <button type="button" class="btn btn--ghost btn--topbar btn--icon" data-open-tutorial aria-label="How to play and hand rankings" title="How to play &amp; hand rankings">
+            ?
+          </button>
+          <button type="button" class="btn btn--ghost btn--topbar btn--icon" id="table-fullscreen-btn" aria-pressed="false" aria-label="Enter fullscreen" title="Toggle fullscreen">
+            ⛶
+          </button>
+          <button type="button" class="btn btn--ghost btn--topbar btn--icon" id="table-drawer-btn" aria-label="Table options and recent hands" title="Table options &amp; recent hands">
+            ☰
+          </button>
+          <button type="button" class="btn btn--danger btn--topbar" id="table-leave-btn">
+            Leave
+          </button>
+        </div>
+      </div>
+
+      <div id="table-stage" class="table-stage">
+        <div id="table-conn-banner" class="table-conn-banner" role="status" aria-live="polite" hidden>
+          <span id="table-conn-banner-text">Connection lost. Reconnecting…</span>
+          <button type="button" class="btn btn--primary btn--topbar" id="table-conn-banner-btn">Reconnect</button>
+        </div>
+
+        <div class="poker-felt" role="region" aria-label="Poker table felt">
+          <div id="table-opponent-seat" class="table-opponents-grid" aria-label="Opponent seats"></div>
+
+          <div class="table-center">
+            <div class="table-pot-box" aria-live="polite">
+              <div class="table-pot-value">
+                <span class="chip-disc" aria-hidden="true"></span>
+                <span id="table-pot-amount">Pot: 0</span>
+              </div>
+              <div id="table-side-pots" class="table-side-pots" hidden></div>
+            </div>
+
+            <div id="table-board-row" class="table-board-row" role="group" aria-label="Community cards"></div>
+
+            <div class="table-status-banner" aria-live="polite">
+              <span id="table-status-headline" class="table-status-banner__headline">Waiting for players</span>
+              <span id="table-status-detail" class="table-status-banner__detail">Share room code to begin.</span>
+            </div>
+          </div>
+
+          <div id="table-self-zone" class="table-self-zone" aria-label="Your seat">
+            <div id="table-self-seat" class="table-self-seat-slot"></div>
+            <form id="table-sitdown-form" class="table-sitdown-inline" hidden novalidate>
+              <label for="table-sitdown-buyin" class="sr-only">Buy in (400–2,000 chips)</label>
+              <input id="table-sitdown-buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required>
+              <button type="submit" class="btn btn--primary btn--topbar" id="table-sitdown-btn">Sit &amp; buy in</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div id="table-action-bar" class="action-bar" role="region" aria-label="Table controls">
+        <div id="action-raise-panel" class="action-raise-sheet" role="group" aria-label="Choose raise size" hidden>
+          <div class="action-raise-sheet__head">
+            <strong>Choose raise size</strong>
+            <button type="button" class="btn btn--ghost btn--topbar" id="raise-sheet-close-btn">Cancel</button>
+          </div>
+          <div class="preset-row" role="group" aria-label="Quick raise sizes">
+            <button type="button" class="preset-btn" id="preset-min-btn">Min</button>
+            <button type="button" class="preset-btn" id="preset-half-btn">½ pot</button>
+            <button type="button" class="preset-btn" id="preset-pot-btn">Pot</button>
+            <button type="button" class="preset-btn" id="preset-allin-btn">All-in</button>
+          </div>
+          <div class="raise-slider-row">
+            <button type="button" class="preset-btn raise-step-btn" id="raise-step-down-btn" aria-label="Decrease raise by 1 big blind">−</button>
+            <input id="action-raise-slider" type="range" min="40" max="500" step="10" value="40" aria-label="Raise amount slider">
+            <button type="button" class="preset-btn raise-step-btn" id="raise-step-up-btn" aria-label="Increase raise by 1 big blind">+</button>
+            <input id="action-raise-input" type="number" inputmode="numeric" min="40" max="500" step="10" value="40" aria-label="Raise to chip amount">
+          </div>
+          <button type="button" class="btn btn--primary btn--full" id="action-raise-confirm-btn">Raise</button>
+        </div>
+
+        <div class="action-bar__inner">
+          <div class="action-bar__head">
+            <span id="action-waiting-text">Waiting for players…</span>
+            <div class="action-bar__meta">
+              <span id="action-timer-pill" class="pill tabular" hidden>30s</span>
+              <span class="action-bar__keys">F Fold · C Call · R Raise</span>
+              <span class="action-bar__play-money">Play money – no cash value</span>
+            </div>
+          </div>
+
+          <div id="action-idle-row" class="action-idle-row">
+            <div id="table-sitout-banner" class="action-sitout-inline" hidden>
+              <span>⏸ Sitting out</span>
+              <button type="button" class="btn btn--primary btn--topbar" id="table-sitin-btn">Sit back in</button>
+            </div>
+            <div id="table-deal-wrap" hidden>
+              <button type="button" class="btn btn--primary btn--topbar" id="table-deal-btn">Deal hand #1</button>
+            </div>
+          </div>
+
+          <div id="action-controls-wrap" class="action-controls-wrap" hidden>
+            <div class="action-btn-grid">
+              <button type="button" class="btn btn--danger" id="action-fold-btn">Fold</button>
+              <button type="button" class="btn btn--primary" id="action-check-call-btn">Check</button>
+              <button type="button" class="btn btn--primary" id="action-raise-btn" aria-expanded="false">Raise…</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LEADERBOARD VIEW (1 panel) -->
+    <section id="view-leaderboard" class="screen" aria-labelledby="leaderboard-heading" hidden>
+      <div class="panel">
+        <div class="panel__head">
+          <div>
+            <span class="pill pill--chip">Play money – no cash value</span>
+            <h1 id="leaderboard-heading" style="margin-top: 8px">Leaderboard</h1>
+          </div>
+          <button type="button" class="btn btn--ghost" id="refresh-leaderboard-btn">Refresh</button>
+        </div>
+        <p class="panel__lede">
+          Standings among society members who opted in to share their display name and play-money chip balance.
+        </p>
+
+        <div id="leaderboard-optout-banner" class="empty-state" hidden>
+          <p>Your profile is currently hidden from the leaderboard.</p>
+          <button type="button" class="btn btn--ghost" data-jump-view="profile">Change in Profile</button>
+        </div>
+
+        <div id="leaderboard-container" aria-live="polite">
+          <ol class="leaderboard-list" id="leaderboard-list"></ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROFILE VIEW (2 panels) -->
+    <section id="view-profile" class="screen" aria-labelledby="profile-heading" hidden>
+      <div class="panel">
+        <div class="panel__head">
+          <div>
+            <div class="btn-row" style="gap: 8px">
+              <span class="pill pill--chip">Play money – no cash value</span>
+              <span class="pill">Privacy first</span>
+            </div>
+            <h1 id="profile-heading" style="margin-top: 8px">Table profile</h1>
+          </div>
+        </div>
+        <p class="panel__lede">
+          Choose the display name other students see at the table and on the leaderboard.
+        </p>
+
+        <form id="profile-form" class="form-stack" novalidate>
+          <div class="field">
+            <label for="profile-display-name">Display name</label>
+            <input id="profile-display-name" name="display_name" type="text" maxlength="40" autocomplete="nickname" required aria-describedby="profile-name-hint profile-error">
+            <span class="field-hint" id="profile-name-hint">1–40 characters. Shown instead of your full name.</span>
+          </div>
+
+          <label class="check-field" for="profile-leaderboard-optin">
+            <input id="profile-leaderboard-optin" name="show_on_leaderboard" type="checkbox" checked>
+            <span class="check-field__label">
+              <strong>Show me on the leaderboard</strong>
+              <span class="check-field__sub">When enabled, signed-in members can see your display name and chip balance on the leaderboard.</span>
+            </span>
+          </label>
+
+          <p class="form-error" id="profile-error" role="alert"></p>
+          <div class="btn-row">
+            <button type="submit" class="btn btn--primary" id="profile-save-btn">Save profile</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div class="panel__head">
+          <h2>Society membership</h2>
+          <span class="pill pill--brand">Verified account</span>
+        </div>
+        <dl class="meta-list">
+          <dt>Full name</dt>
+          <dd id="account-full-name">—</dd>
+          <dt>Email</dt>
+          <dd id="account-email">—</dd>
+          <dt>Program &amp; year</dt>
+          <dd id="account-program">—</dd>
+          <dt>Member since</dt>
+          <dd id="account-since">—</dd>
+        </dl>
+        <div class="btn-row">
+          <button type="button" class="btn btn--danger" id="profile-logout-btn">Log out</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="game-footer">
+    <div class="wrap">
+      <span>KTH Poker Society · Student-led association at KTH Stockholm</span>
+      <span>Play money – no cash value · No real-money stakes or prizes</span>
+    </div>
+  </footer>
+
+  <!-- NATIVE AUTH DIALOG -->
+  <dialog id="auth-dialog" class="game-dialog" aria-labelledby="auth-dialog-title">
+    <div class="dialog-inner">
+      <div class="dialog-top">
+        <div>
+          <span class="pill pill--chip">Play money – no cash value</span>
+          <h2 id="auth-dialog-title" tabindex="-1" style="margin-top: 6px">Log in</h2>
+        </div>
+        <button type="button" class="icon-close-btn" data-close-dialog aria-label="Close dialog">×</button>
+      </div>
+
+      <div id="auth-tabs-wrap">
+        <div class="auth-tabs" role="tablist" aria-label="Member account">
+          <button type="button" role="tab" id="tab-login" aria-selected="true" aria-controls="login-form">Log in</button>
+          <button type="button" role="tab" id="tab-signup" aria-selected="false" aria-controls="signup-form" tabindex="-1">Create account</button>
+        </div>
+
+        <form id="login-form" class="form-stack" role="tabpanel" aria-labelledby="tab-login" novalidate style="margin-top: 16px">
+          <div class="field">
+            <label for="li-email">Email</label>
+            <input id="li-email" name="email" type="email" autocomplete="email" required aria-describedby="login-error">
+          </div>
+          <div class="field">
+            <label for="li-password">Password</label>
+            <input id="li-password" name="password" type="password" autocomplete="current-password" required aria-describedby="login-error">
+          </div>
+          <button type="button" class="link-btn" id="forgot-password-btn">Forgot your password?</button>
+          <p class="form-error" id="login-error" role="alert"></p>
+          <button type="submit" class="btn btn--primary btn--full" id="login-submit-btn">Log in</button>
+        </form>
+
+        <form id="signup-form" class="form-stack" role="tabpanel" aria-labelledby="tab-signup" novalidate hidden style="margin-top: 16px">
+          <div class="field">
+            <label for="su-name">Full name</label>
+            <input id="su-name" name="name" type="text" autocomplete="name" required aria-describedby="signup-error">
+          </div>
+          <div class="field">
+            <label for="su-email">Email</label>
+            <input id="su-email" name="email" type="email" autocomplete="email" required aria-describedby="signup-error">
+          </div>
+          <div class="field">
+            <label for="su-program">Program (optional)</label>
+            <input id="su-program" name="program" type="text" placeholder="e.g. CDATE, CINEK" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="su-password">Password</label>
+            <input id="su-password" name="password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="signup-error">
+            <span class="field-hint">At least 8 characters.</span>
+          </div>
+          <label class="check-field" for="su-consent">
+            <input id="su-consent" type="checkbox" required>
+            <span class="check-field__label">
+              <span>I agree to KTH Poker Society storing my membership details.</span>
+            </span>
+          </label>
+          <p class="form-error" id="signup-error" role="alert"></p>
+          <button type="submit" class="btn btn--primary btn--full" id="signup-submit-btn">Create account (+1,000 chips)</button>
+        </form>
+      </div>
+
+      <form id="reset-form" class="form-stack" novalidate hidden>
+        <p class="field-hint">Enter the email you signed up with and we will send you a password reset link.</p>
+        <div class="field">
+          <label for="rs-email">Email</label>
+          <input id="rs-email" type="email" autocomplete="email" required aria-describedby="reset-error">
+        </div>
+        <p class="form-error" id="reset-error" role="alert"></p>
+        <button type="submit" class="btn btn--primary btn--full" id="reset-submit-btn">Send reset link</button>
+        <button type="button" class="link-btn" id="back-to-login-btn">Back to log in</button>
+      </form>
+
+      <form id="recovery-form" class="form-stack" novalidate hidden>
+        <p class="field-hint">Choose a new password for your member account.</p>
+        <div class="field">
+          <label for="rc-password">New password</label>
+          <input id="rc-password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="recovery-error">
+          <span class="field-hint">At least 8 characters.</span>
+        </div>
+        <p class="form-error" id="recovery-error" role="alert"></p>
+        <button type="submit" class="btn btn--primary btn--full" id="recovery-submit-btn">Save new password</button>
+      </form>
+
+      <div id="auth-message-view" class="form-stack" hidden>
+        <p id="auth-message-text" class="panel__lede"></p>
+        <button type="button" class="btn btn--ghost" id="message-back-login-btn">Back to log in</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- HOW TO PLAY & HAND RANKINGS DIALOG -->
+  <dialog id="tutorial-dialog" class="game-dialog game-dialog--wide" aria-labelledby="tutorial-dialog-title">
+    <div class="dialog-inner">
+      <div class="dialog-top">
+        <div>
+          <span class="pill pill--chip">Play money – no cash value</span>
+          <h2 id="tutorial-dialog-title" tabindex="-1" style="margin-top: 6px">How to play &amp; hand rankings</h2>
+        </div>
+        <button type="button" class="icon-close-btn" data-close-dialog aria-label="Close guide">×</button>
+      </div>
+
+      <div class="tutorial-steps">
+        <div class="tutorial-step">
+          <strong>1. Sit down (400–2,000 chips)</strong>
+          <span class="field-hint">Create a 2–6 seat room or enter a 5-letter code. Your buy-in moves from your balance to your table stack and returns when you leave.</span>
+        </div>
+        <div class="tutorial-step">
+          <strong>2. Act within 30 seconds</strong>
+          <span class="field-hint">Blinds are 10 / 20. Each player gets 2 private hole cards and shares 5 community cards across Preflop, Flop, Turn, and River. Timing out twice in a row sets you to Sitting out.</span>
+        </div>
+        <div class="tutorial-step">
+          <strong>3. Best 5-card hand wins</strong>
+          <span class="field-hint">Make the strongest 5-card combination from your 2 hole cards + 5 community cards. Keyboard shortcuts: <code>F</code> Fold · <code>C</code> Check/Call · <code>R</code> Raise · <code>D</code> Deal · <code>?</code> Guide.</span>
+        </div>
+      </div>
+
+      <h3>Texas Hold'em hand rankings (strongest to weakest)</h3>
+      <ol id="tutorial-rankings-list" class="tutorial-rankings-list"></ol>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn--primary btn--full" data-close-dialog>Got it</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- TABLE OPTIONS & RECENT HANDS OVERLAY DRAWER -->
+  <dialog id="table-drawer-dialog" class="game-dialog game-dialog--wide" aria-labelledby="table-drawer-title">
+    <div class="dialog-inner">
+      <div class="dialog-top">
+        <div>
+          <span class="pill pill--chip">Play money – no cash value</span>
+          <h2 id="table-drawer-title" tabindex="-1" style="margin-top: 6px">Table options &amp; recent hands</h2>
+        </div>
+        <button type="button" class="icon-close-btn" data-close-drawer aria-label="Close table options">×</button>
+      </div>
+
+      <div class="drawer-btn-grid">
+        <button type="button" class="btn btn--ghost" id="table-sound-btn" aria-pressed="false">Sound: Off</button>
+        <button type="button" class="btn btn--ghost" id="table-sitout-toggle-btn" hidden>Sit out</button>
+        <button type="button" class="btn btn--ghost" id="table-refresh-btn">Sync table</button>
+        <button type="button" class="btn btn--ghost" data-open-tutorial data-close-drawer>How to play</button>
+        <button type="button" class="btn btn--ghost" data-drawer-jump="leaderboard">Leaderboard</button>
+        <button type="button" class="btn btn--ghost" data-drawer-jump="profile">Profile</button>
+        <button type="button" class="btn btn--ghost" id="table-close-btn" hidden>Close empty table</button>
+      </div>
+
+      <div id="table-history-panel" class="table-history-panel">
+        <h3>Recent hands at this table (last 10)</h3>
+        <p id="table-history-empty" class="field-hint">Completed hands at this table will appear here.</p>
+        <ol id="table-history-list" class="hand-history-list" hidden></ol>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ACCESSIBLE LIVE ANNOUNCER & TOAST CONTAINER -->
+  <div id="live-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+
+  <!-- Pinned Supabase JS UMD bundle (same version as /index.html) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

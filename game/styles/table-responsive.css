@@ -1,0 +1,287 @@
+/* KTH Poker Society – M6.1 Action Dock, Raise Sheet, Desktop 3x3 Ring, & Mobile Landscape */
+
+/* 1. Docked Action Bar & Bottom-Sheet Raise Controls */
+.action-bar {
+  position: relative;
+  background: var(--deep);
+  border-top: 1px solid var(--line);
+  padding: 6px max(10px, env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+  z-index: 25;
+}
+.action-bar--my-turn { border-top: 2px solid var(--sky); }
+.action-bar--urgent { border-top: 2px solid var(--danger); }
+
+.action-bar__inner {
+  max-width: 780px;
+  margin-inline: auto;
+  display: grid;
+  gap: 5px;
+}
+.action-bar__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: 600;
+}
+.action-bar__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.action-bar__play-money {
+  color: var(--chip);
+  font-weight: 600;
+  font-size: 11px;
+}
+.action-bar__keys { display: none; }
+@media (min-width: 961px) {
+  .action-bar__keys { display: inline; }
+}
+
+.action-idle-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}
+.action-idle-row > div { width: 100%; max-width: 340px; }
+.action-idle-row .btn { width: 100%; }
+.action-sitout-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--danger);
+  font-weight: 600;
+}
+.action-sitout-inline .btn { width: auto; }
+
+.action-btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr 1.25fr;
+  gap: 8px;
+}
+.action-btn-grid .btn {
+  min-height: 46px;
+  padding: 0 10px;
+  font-size: var(--text-xs);
+}
+@media (min-width: 480px) {
+  .action-btn-grid .btn { font-size: var(--text-base); padding: 0 16px; }
+}
+
+/* Floating Bottom Sheet / Popover for Raise Controls */
+.action-raise-sheet {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(460px, calc(100vw - 16px));
+  padding: 10px 12px;
+  border-radius: var(--radius-panel);
+  background: var(--deep);
+  border: 1px solid var(--sky);
+  box-shadow: 0 -10px 30px rgba(2, 8, 20, 0.72);
+  display: grid;
+  gap: 8px;
+  z-index: 35;
+}
+.action-raise-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--text-xs);
+}
+.preset-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.preset-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 6px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--control);
+  background: var(--ink);
+  color: var(--paper);
+  font: 600 var(--text-xs) var(--font-body);
+  cursor: pointer;
+}
+.preset-btn:hover { border-color: var(--sky); }
+.raise-slider-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px 86px;
+  align-items: center;
+  gap: 6px;
+}
+.raise-step-btn { font-size: var(--text-md); padding: 0; }
+.raise-slider-row input[type="range"] {
+  width: 100%;
+  height: 44px;
+  accent-color: var(--action);
+  cursor: pointer;
+}
+.raise-slider-row input[type="number"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--control);
+  background: var(--ink);
+  color: var(--chip);
+  font: 600 var(--text-base) var(--font-body);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* 2. Desktop (>= 961px) 3x3 Oval Ring Layout */
+@media (min-width: 961px) and (min-height: 501px) {
+  .poker-felt {
+    grid-template-columns: var(--seat-col-w) minmax(0, 1fr) var(--seat-col-w);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "top-left top-center top-right"
+      "mid-left center     mid-right"
+      "self-row self-row   self-row";
+    gap: 10px 16px;
+  }
+  .table-opponents-grid { display: contents; }
+  .poker-felt [data-grid-pos="top-left"] { grid-area: top-left; max-width: 100%; }
+  .poker-felt [data-grid-pos="top-center"] { grid-area: top-center; width: min(100%, 290px); max-width: 290px; }
+  .poker-felt [data-grid-pos="top-right"] { grid-area: top-right; max-width: 100%; }
+  .poker-felt [data-grid-pos="mid-left"] { grid-area: mid-left; max-width: 100%; align-self: center; }
+  .poker-felt [data-grid-pos="mid-right"] { grid-area: mid-right; max-width: 100%; align-self: center; }
+  .table-center { grid-area: center; gap: 10px; }
+  .table-self-zone { grid-area: self-row; }
+  .table-seat-card--opp { max-width: 310px; }
+  .table-seat-plaque { padding: 8px 12px; gap: 5px; }
+  .table-seat-plaque__name strong { font-size: var(--text-xs); max-width: 130px; }
+  .table-seat-plaque .chip-amount { font-size: var(--text-xs); }
+  .seat-avatar { width: 24px; height: 24px; font-size: 11px; }
+}
+
+@media (min-width: 1400px) and (min-height: 820px) {
+  .table-seat-plaque { padding: 11px 15px; gap: 6px; border-radius: 12px; }
+  .table-seat-plaque__name strong { font-size: 16px; max-width: 155px; }
+  .table-seat-plaque .chip-amount { font-size: 16px; }
+  .table-seat-plaque .pill { font-size: 12px; padding: 2px 8px; }
+  .table-seat-card--self .table-seat-plaque { min-width: 230px; max-width: 320px; padding: 10px 14px; }
+  .seat-avatar { width: 28px; height: 28px; font-size: 12px; }
+}
+
+/* 3. Mobile Landscape (@media (orientation: landscape) and (max-height: 500px)) */
+@media (orientation: landscape) and (max-height: 500px) and (min-height: 320px) {
+  .table-shell {
+    grid-template-columns: minmax(0, 1fr) clamp(140px, 21vw, 172px);
+    grid-template-rows: 46px minmax(0, 1fr);
+  }
+  .table-topbar {
+    grid-column: 1 / -1;
+    min-height: 46px;
+    padding-block: 1px;
+  }
+  .table-stage {
+    grid-column: 1;
+    grid-row: 2;
+    padding: 3px 4px max(3px, env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px));
+  }
+  .poker-felt {
+    grid-template-columns: var(--seat-col-w) minmax(0, 1fr) var(--seat-col-w);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "top-left top-center top-right"
+      "mid-left center     mid-right"
+      "self-row self-row   self-row";
+    gap: 3px 6px;
+  }
+  .table-opponents-grid { display: contents; }
+  .poker-felt [data-grid-pos="top-left"] { grid-area: top-left; max-width: 100%; }
+  .poker-felt [data-grid-pos="top-center"] { grid-area: top-center; width: min(100%, 195px); }
+  .poker-felt [data-grid-pos="top-right"] { grid-area: top-right; max-width: 100%; }
+  .poker-felt [data-grid-pos="mid-left"] { grid-area: mid-left; max-width: 100%; align-self: center; }
+  .poker-felt [data-grid-pos="mid-right"] { grid-area: mid-right; max-width: 100%; align-self: center; }
+  .table-center { grid-area: center; gap: 3px; }
+  .table-self-zone { grid-area: self-row; }
+  .table-seat-plaque { padding: 3px 6px; gap: 2px; }
+  .table-seat-plaque__name strong { font-size: 12px; max-width: 72px; }
+  .table-bet-pill { font-size: 10px; padding: 1px 5px; }
+  .seat-avatar { width: 18px; height: 18px; font-size: 9px; }
+
+  .action-bar {
+    grid-column: 2;
+    grid-row: 2;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    padding: 6px max(6px, env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px)) 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .action-bar--my-turn { border-top: 0; border-left: 2px solid var(--sky); }
+  .action-bar--urgent { border-top: 0; border-left: 2px solid var(--danger); }
+  .action-bar__inner {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 4px;
+  }
+  .action-bar__head { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .action-bar__meta { flex-wrap: wrap; white-space: normal; gap: 4px; }
+  .action-bar__play-money { white-space: normal; line-height: 1.2; font-size: 10.5px; }
+  .action-btn-grid { grid-template-columns: 1fr; gap: 6px; }
+  .action-btn-grid .btn { min-height: 44px; width: 100%; font-size: 13px; padding: 0 8px; }
+  .action-raise-sheet {
+    position: fixed;
+    left: auto;
+    right: max(8px, env(safe-area-inset-right, 0px));
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    transform: none;
+    width: min(370px, calc(100vw - 16px));
+  }
+}
+
+/* 4. Table Options & Recent Hands Overlay Drawer */
+.drawer-btn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.table-history-panel {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  font-size: var(--text-xs);
+}
+.hand-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.hand-history-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+}
+.hand-history-row__top,
+.hand-history-row__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+.hand-history-row__sub { color: var(--muted); }
+.hand-history-row__board { display: flex; align-items: center; gap: 4px; }
