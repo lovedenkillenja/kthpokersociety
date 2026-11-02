@@ -1,22 +1,40 @@
 # Progress log (agent: update this every session)
 
 ## Status
-M1 skeleton (`game/`) and M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`) are complete. M3a migration (`supabase/migrations/20261102012000_poker_tables.sql`) and conservation check (`supabase/checks/chip_conservation.sql`) are written and handed over for review/application.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), and M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `20261102013000_poker_tables_privilege_hardening.sql`, reviewed and applied by Claude) are complete. M3b Edge Functions (`supabase/functions/table` and `supabase/functions/act`) and tests (`game/tests/edge-functions.test.js`, `game/tests/engine-sync.test.js`) are written and ready for review and deployment.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
 - [x] M2 engine + tests (`game/engine/`: hand evaluation, betting rounds, pots, side pots, showdown + `node --test`)
-- [ ] M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `supabase/checks/chip_conservation.sql` – ready, awaiting review & apply)
-- [ ] M3b Edge Function `act` + Realtime broadcast
+- [x] M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `supabase/checks/chip_conservation.sql` – reviewed and applied)
+- [ ] M3b Edge Function `act` + Realtime broadcast (`supabase/functions/table` & `supabase/functions/act` – ready, awaiting review & deploy)
 - [ ] M4 heads-up playable on two phones
 - [ ] M5 3–6 players, timers, reconnect
 - [ ] M6 polish and tutorial
 - [ ] M7 link from website, event awards
 
 ## Decisions for Love
-- Migration `supabase/migrations/20261102012000_poker_tables.sql` is ready and NOT applied. Ask Claude to review and apply it.
+- Edge Functions are ready and NOT deployed. Ask Claude to review and deploy.
 
 ## Session log
+- 2026-11-02 (Gemini – M3b):
+  - **What changed**:
+    - Added Edge Functions `supabase/functions/table/index.ts` (intents: `create`, `join`, `leave`, `state`) and `supabase/functions/act/index.ts` (intents: `start_hand`, `fold`, `check`, `call`, `raise`, `all_in`), backed by shared modules in `supabase/functions/_shared/` (`handlers.js`, `state-helpers.js`, `supabase-store.js`, `cors.js`).
+    - Shared `game/engine/` with Deno via `game/scripts/sync-engine.js` copying into `supabase/functions/_shared/engine/` and guarded by `game/tests/engine-sync.test.js` (fails if any file diverges byte-for-byte). **Reason**: Supabase CLI bundles each function with `supabase/functions/_shared/` and can reject relative imports escaping above `supabase/functions/`; a deterministic sync script + automated parity test keeps a single source of truth while ensuring trouble-free Edge Function deployment.
+    - **Chip conservation during running hands**: Whenever a hand starts (blinds posted), on every betting action, and when a hand settles, the Edge Function updates `table_seats.stack` to each seat's live remaining stack while `hands.pot` tracks all committed chips and `ended_at` remains `null` until settlement (at which point `table_seats.stack` gets final stacks and `hands.ended_at` is set). `supabase/checks/chip_conservation.sql` stays valid (`net_game_ledger + active_seat_stacks + active_hand_pots = 0`) at every step without modification.
+    - **Leaving mid-hand**: If a player calls `leave` while a hand is open on their seat, `table` folds them first; if that ends the hand (always true in heads-up), the hand settles immediately (`ended_at = now()`) and `leave_seat` cashes out their stack. If 2+ other players remain active in a multi-way hand, the leaving player is folded, marked `'sitout'`, queued in `state.pendingLeaveMemberIds`, and cashed out via `leave_seat` automatically as soon as the hand settles.
+    - **Privacy & Realtime broadcast**: `supabase-store.js` fetches `display_name` from `chip_profiles` using `service_role` and broadcasts sanitized public state on Realtime channel `table:<code>` (`table_state` event) with display names, never exposing `deck`, unrevealed `holeCards`, or raw `member_id` values. Deal writes each player's 2 cards to `public.hole_cards` so owners fetch only their own cards via RLS.
+    - Fixed an edge case in `game/engine/pots.js` where a player who folded with the highest commitment on a street (e.g. big blind leaving/folding out of turn before small blind acts) had their excess commitment treated as an uncalled bet instead of dead money in the pot.
+  - **5 hostile-client attacks considered against the Edge Function & defenses**:
+    1. **Forged `member_id` in request body**: `handleTableRequest` and `handleActRequest` authenticate the caller exclusively via the `Authorization: Bearer <jwt>` header (`supabase.auth.getUser(token)`) and ignore any `member_id` or `memberId` fields in the request body.
+    2. **Acting out of turn (or when not seated / hand not active)**: `handleActRequest` maps the authenticated `user.id` to their seated `seat_no` at the table and verifies `seat_no === state.actionOn` while the hand is in an active betting phase (`preflop`/`flop`/`turn`/`river`); otherwise it rejects with HTTP `409 ERR_OUT_OF_TURN`.
+    3. **Replaying a previous action (`actionSeq` / `handId` mismatch)**: Every action increments `actionSeq`; if the client supplies `expectedActionSeq` (or `handId`) that does not match the current open hand's sequence or ID, the request is rejected with `409 ERR_ACTION_REPLAY` before touching the engine.
+    4. **Raising more than the player's stack or below the legal minimum**: `handleActRequest` validates integer amounts, rejects `amount > stack + committed` with `400 ERR_RAISE_EXCEEDS_STACK`, checks `legalActions(state, seat)` bounds (`minRaiseTo` / `maxRaiseTo`), and runs `apply()` which enforces full-raise and all-in rules.
+    5. **Two parallel requests racing on the same table (`act` + `act` or `act` + `leave`)**: Requests serialize per table through `withTableLock(tableId, ...)` and use compare-and-swap on the open `hands` row (`compareAndSwapHandState` checking `ended_at IS NULL` and prior `state`), returning `409 ERR_CONCURRENT_MODIFICATION` if another worker mutated the hand concurrently.
+  - **Verified**: `node --test game/tests/*.test.js` (21/21 passing, including mocked DB full lifecycle, mid-hand leave, chip conservation at every step, all 5 hostile-client attack vectors, and engine parity check). UI and `/index.html` untouched.
+  - **UNVERIFIED**: Live deployment and invocation of `table` and `act` Edge Functions on Supabase project `tibyyjnghhwwcxvlwmiq` (no Supabase MCP connected; handed over for review/deploy).
+  - **What is broken**: Nothing known.
+  - **What is next**: M4 – Heads-up (2 players) playable end-to-end on two phones once M3b Edge Functions are deployed.
 - 2026-11-02 (Gemini – M3a):
   - **What changed**: Added `supabase/migrations/20261102012000_poker_tables.sql` defining `poker_tables`, `table_seats`, `hands`, `hole_cards`, `hand_actions`, `public_hands` view, RLS policies, and `service_role`-only transactional functions `sit_down(p_table_id, p_member_id, p_seat_no, p_buyin)` and `leave_seat(p_table_id, p_member_id)`. Added `supabase/checks/chip_conservation.sql` returning zero rows when ledger + table stacks + active pots balance.
   - **5 hostile-client attacks considered & SQL defenses**:

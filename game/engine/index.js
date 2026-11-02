@@ -24,7 +24,9 @@ export {
   getClockwiseOrderFromLeftOfButton,
   orderSeatsLeftOfDealer,
   computeSidePots,
-  distributePotToWinners
+  distributePotToWinners,
+  settleFoldOutState,
+  resolveShowdownState
 } from "./pots.js";
 
 export {

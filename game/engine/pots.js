@@ -45,6 +45,10 @@ export function computeSidePots(players) {
   }));
 
   const totalCommitted = cleanPlayers.reduce((sum, p) => sum + p.totalCommitted, 0);
+  const allNonFoldedSeats = cleanPlayers
+    .filter((p) => !p.folded)
+    .map((p) => p.seat)
+    .sort((a, b) => a - b);
 
   // Distinct positive commitment levels in ascending order
   const levels = [...new Set(cleanPlayers.map((p) => p.totalCommitted).filter((v) => v > 0))].sort(
@@ -69,8 +73,8 @@ export function computeSidePots(players) {
 
     const sliceAmount = delta * contributors.length;
 
-    if (contributors.length === 1) {
-      // Only a single player committed chips in this tier: uncalled bet
+    if (contributors.length === 1 && eligibleSeats.length === 1) {
+      // Only a single non-folded player committed chips in this tier: uncalled bet
       const soleSeat = contributors[0];
       if (uncalled && uncalled.seat === soleSeat) {
         uncalled.amount += sliceAmount;
@@ -80,7 +84,7 @@ export function computeSidePots(players) {
     } else if (sliceAmount > 0) {
       rawSlices.push({
         amount: sliceAmount,
-        eligibleSeats,
+        eligibleSeats: eligibleSeats.length > 0 ? eligibleSeats : allNonFoldedSeats,
         contributors
       });
     }
