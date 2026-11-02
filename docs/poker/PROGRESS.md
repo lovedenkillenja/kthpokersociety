@@ -1,22 +1,25 @@
 # Progress log (agent: update this every session)
 
 ## Status
-M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), and M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `20261102013000_poker_tables_privilege_hardening.sql`, reviewed and applied by Claude) are complete. M3b Edge Functions (`supabase/functions/table` and `supabase/functions/act`) and M3c atomic hand persistence (`supabase/migrations/20261102020000_hand_persistence_tx.sql` + RPC-backed `supabase-store.js` + 3-open-table host cap + `game/tests/store-tx.test.js`) are written and ready for review, migration application, and Edge Function deployment.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, and M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`) are complete. M3b+M3c deployed.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
 - [x] M2 engine + tests (`game/engine/`: hand evaluation, betting rounds, pots, side pots, showdown + `node --test`)
 - [x] M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `supabase/checks/chip_conservation.sql` – reviewed and applied)
-- [ ] M3b/M3c Edge Functions (`table`, `act`) + atomic hand persistence migration (`20261102020000_hand_persistence_tx.sql`) – ready, awaiting review, migration apply & deploy
+- [x] M3b/M3c Edge Functions (`table`, `act`) + atomic hand persistence migration (`20261102020000_hand_persistence_tx.sql`) – M3b+M3c deployed
 - [ ] M4 heads-up playable on two phones
 - [ ] M5 3–6 players, timers, reconnect
 - [ ] M6 polish and tutorial
 - [ ] M7 link from website, event awards
 
 ## Decisions for Love
-- Migration `supabase/migrations/20261102020000_hand_persistence_tx.sql` and Edge Functions (`table`, `act`) are ready and NOT applied/deployed. Ask Claude to review, apply the migration, run `supabase/checks/chip_conservation.sql`, and deploy the Edge Functions.
+- None currently blocking – M3b+M3c deployed and ready for M4.
 
 ## Session log
+- 2026-11-02 (Gemini – M3b+M3c deploy):
+  - **What changed**: Verified `node --test` (24/24 passing), installed Supabase CLI (`2.122.0`), authenticated via `supabase login`, and deployed both Edge Functions (`table` and `act` from branch tip `b721d7b`) to Supabase project `tibyyjnghhwwcxvlwmiq` after Claude applied `20261102020000_hand_persistence_tx.sql`. M3b+M3c deployed.
+  - **What is next**: M4 – Heads-up (2 players) playable end-to-end on two phones.
 - 2026-11-02 (Gemini – M3c):
   - **What changed**:
     - Added migration `supabase/migrations/20261102020000_hand_persistence_tx.sql` with `SECURITY DEFINER` (`service_role` only, `REVOKE ALL FROM public, anon, authenticated`) functions `start_hand_tx(...)` and `apply_hand_tx(...)`. Each function locks the `poker_tables` and `hands` rows with `FOR UPDATE`, verifies `expected_action_seq`, and atomically updates `hands`, `table_seats.stack` (and seat `status` on mid-hand sitout), `hole_cards`, `hand_actions`, and `poker_tables.status` in one transaction while verifying table chip conservation before vs after.
