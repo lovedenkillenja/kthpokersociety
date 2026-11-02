@@ -1,7 +1,7 @@
 # Progress log (agent: update this every session)
 
 ## Status
-M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, and M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup) code & tests are complete. M5 SQL migration and updated Edge Functions are ready for Claude to review and deploy.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, and M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup) are complete: M5 migration applied by Claude; M5 functions deployed.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
@@ -9,16 +9,17 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
 - [x] M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `supabase/checks/chip_conservation.sql` – reviewed and applied)
 - [x] M3b/M3c Edge Functions (`table`, `act`) + atomic hand persistence migration (`20261102020000_hand_persistence_tx.sql`) – M3b+M3c deployed
 - [x] M4 heads-up playable on two phones (UI built & wired to deployed `table` and `act`; live two-phone Realtime play UNVERIFIED)
-- [x] M5 3–6 players, timers, reconnect (code + 36/36 `node --test` tests complete; SQL migration & Edge Functions ready and NOT deployed – awaiting Claude review/deploy)
+- [x] M5 3–6 players, timers, reconnect (code + 36/36 `node --test` tests complete; M5 migration applied by Claude; M5 functions deployed)
 - [ ] M6 polish and tutorial
 - [ ] M7 link from website, event awards
 
 ## Decisions for Love
-- **M5 SQL migration and Edge Functions are ready and NOT deployed. Ask Claude to review and deploy:**
-  1. Apply migration `supabase/migrations/20261102023000_m5_timers_sitout_cleanup.sql` to project `tibyyjnghhwwcxvlwmiq`, then run `supabase/checks/chip_conservation.sql` (must return 0 rows) and security advisors.
-  2. Deploy updated Edge Functions `table` and `act` (`supabase/functions/table/`, `supabase/functions/act/`, and shared modules in `supabase/functions/_shared/`: `handlers.js`, `state-helpers.js`, `supabase-store.js`, `engine/betting.js`) to project `tibyyjnghhwwcxvlwmiq`.
+- None right now. Ready for live 3-account testing on the Netlify `poker-game` branch deploy or starting M6 (polish and tutorial).
 
 ## Session log
+- 2026-11-02 (Gemini – M5 deploy):
+  - **What changed**: Pulled commit `ab377d1` (where Claude fixed `20261102023000_m5_timers_sitout_cleanup.sql` to preserve the `p_board text[]` signature on `apply_hand_tx`, restore table-first lock order, and make the activity trigger safe, then applied it to `tibyyjnghhwwcxvlwmiq`), verified `node --test` (36/36 passing), and deployed both Edge Functions (`table` and `act`) to Supabase project `tibyyjnghhwwcxvlwmiq`. M5 migration applied by Claude; M5 functions deployed.
+  - **What is next**: M6 – visual polish and interactive tutorial.
 - 2026-11-02 (Gemini – M5):
   - **What changed**:
     - **1. 3–6 players at one table (`game/` + `game/engine/`)**:
