@@ -1,7 +1,7 @@
 # Progress log (agent: update this every session)
 
 ## Status
-M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup), and M6 (visual & UX polish, 2–6p 375px layout, in-place turn countdown & progress bar, showdown/side-pot presentation, card/chip animations, How-to-play tutorial dialog, sound cues, and error/reconnect recovery) are complete.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup), M6 (visual & UX polish), and M6.1 (fit-to-screen no-scroll table layout across desktop, mobile portrait, and mobile landscape) are complete.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
@@ -10,16 +10,53 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
 - [x] M3b/M3c Edge Functions (`table`, `act`) + atomic hand persistence migration (`20261102020000_hand_persistence_tx.sql`) – M3b+M3c deployed
 - [x] M4 heads-up playable on two phones (UI built & wired to deployed `table` and `act`; live two-phone Realtime play UNVERIFIED)
 - [x] M5 3–6 players, timers, reconnect (code + 36/36 `node --test` tests complete; M5 migration applied by Claude; M5 functions deployed)
-- [x] M6 polish and tutorial (39/39 `node --test` passing; live mobile/desktop browser verification on Netlify branch deploy UNVERIFIED)
+- [x] M6 polish and tutorial
+- [x] M6.1 fit-to-screen game layout (no-scroll play view across desktop, mobile portrait & mobile landscape; verified in Chrome headless across 8 viewports for 2, 4, 6 players)
 - [ ] M7 link from website, event awards
 
 ## Decisions for Claude
-- None – no backend, SQL, or Edge Function changes were needed for M6.
+- None – no backend, SQL, or Edge Function changes were needed for M6.1.
 
 ## Decisions for Love
-- None right now. Ready for visual and UX testing of M6 on the Netlify `poker-game` branch deploy, or proceeding to M7 (link from website & event awards).
+- None right now. Ready for testing on the Netlify `poker-game` branch deploy or proceeding to M7 (link from website & event awards).
 
 ## Session log
+- 2026-11-02 (Gemini – M6.1):
+  - **What changed** (frontend-only in `game/`; zero SQL, backend, or Edge Function changes):
+    - **1. Fixed-height app shell (no-scroll table play view)**:
+      - Styled `body[data-active-view="table"]` with `height: 100dvh` (with `100vh` fallback), `overflow: hidden`, and `overscroll-behavior: none` (`min-height: 320px` query; fallback to scroll if height < 320px). Hides global header/footer/strip in table view.
+      - Structured `#view-table` as a 3-row CSS grid (`[slim topbar | flex table-stage | docked action bar]`) with safe-area insets (`env(safe-area-inset-*)`).
+    - **2. Desktop (>= 961px) scalable 3x3 oval ring layout**:
+      - Dynamically computes container-relative CSS variables (`--felt-w`, `--felt-h`, `--felt-radius`, `--seat-col-w`, card sizes) via `game/lib/table-layout.js` and `game/ui/table-shell-ui.js` so the table expands to available width/height at `1280x720`, `1440x900`, `1920x1080` without any page scroll.
+      - Self seat and hole cards docked at bottom-centre with action bar directly beneath.
+    - **3. Mobile portrait (375x667 & 390x844)**:
+      - Compact seat plaques with avatar initials (`extractInitials`), truncated names, and inline chip stacks.
+      - Hole cards docked side-by-side with player plaque at bottom-centre.
+      - Raise controls open as a modal bottom sheet (`.action-raise-sheet`) over the action bar, preventing layout shift or scrolling.
+    - **4. Mobile landscape (667x375, 844x390, 932x430)**:
+      - Uses `@media (orientation: landscape) and (max-height: 500px)` 2-column layout: wide oval felt on the left, vertical thumb-reachable action bar on the right. Topbar collapsed to 46px.
+    - **5. Fullscreen toggle & Android rotate hint**:
+      - Added `#table-fullscreen-btn` in topbar using Fullscreen API with WebKit fallback (`document.documentElement.requestFullscreen` / `webkitRequestFullscreen`). Hidden on devices lacking element fullscreen support (iPhone Safari).
+      - On Android portrait fullscreen success, triggers `screen.orientation.lock("landscape")` (wrapped in try/catch) and shows one-time toast: `"Rotate your phone for a bigger table"`.
+    - **6. PWA standalone meta tags**:
+      - Added `apple-mobile-web-app-capable`, `mobile-web-app-capable`, `theme-color="#06142a"`, `viewport-fit=cover`, and `apple-mobile-web-app-status-bar-style="black-translucent"` in `game/index.html`.
+    - **7. Secondary panels as overlay drawers**:
+      - Replaced inline hand history with native modal drawer dialog (`#table-drawer-dialog`), accessible via `☰` or `"Recent hands"` buttons.
+    - **8. Compliance & accessibility**:
+      - `"Play money – no cash value"` remains visible in all modes (topbar on landscape/desktop, action bar meta on portrait). Touch targets >= 44px maintained throughout.
+  - **Verified viewports (Chrome headless, 2, 4, 6 players each, 0 console errors, 0 scroll overflow)**:
+    - `1920x1080`: verified (2p, 4p, 6p)
+    - `1440x900`: verified (2p, 4p, 6p)
+    - `1280x720`: verified (2p, 4p, 6p)
+    - `1024x768`: verified (2p, 4p, 6p)
+    - `390x844`: verified (2p, 4p, 6p)
+    - `375x667`: verified (2p, 4p, 6p)
+    - `844x390`: verified (2p, 4p, 6p)
+    - `667x375`: verified (2p, 4p, 6p)
+  - **Verified unit tests**: `node --test game/tests/*.test.js` (42/42 passing, including pure layout and sizing tests in `game/tests/table-layout.test.js`).
+  - **UNVERIFIED**: Real physical touch interactions on iOS Safari dynamic address bars on a real iPhone device.
+  - **What is broken**: Nothing known.
+  - **What is next**: M7 – link from website (`/index.html`), event chip awards.
 - 2026-11-02 (Gemini – M6):
   - **What changed** (frontend-only in `game/`; zero SQL, backend, or Edge Function changes):
     - **1. 375px table layout for 2, 3, 4, 5 and 6 players & mobile raise controls (`game/lib/table-helpers.js`, `game/ui/table-render.js`, `game/styles/table.css`)**:

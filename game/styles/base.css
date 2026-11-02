@@ -17,6 +17,7 @@ html {
 
 body {
   margin: 0;
+  min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -27,6 +28,34 @@ body {
   font-weight: 400;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+}
+
+/* M6.1 Fixed-height no-scroll shell when seated in #view-table (fallback to scroll if height < 320px) */
+body[data-active-view="table"] .play-money-strip,
+body[data-active-view="table"] .game-header,
+body[data-active-view="table"] .game-footer {
+  display: none !important;
+}
+
+body[data-active-view="table"] .game-main {
+  max-width: none;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+@media (min-height: 320px) {
+  html:has(body[data-active-view="table"]),
+  body[data-active-view="table"] {
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
 }
 
 h1,

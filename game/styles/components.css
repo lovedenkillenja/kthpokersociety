@@ -234,25 +234,16 @@
   border: 1px solid var(--line);
 }
 .seat__dealer {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-pill);
   background: var(--paper);
   color: var(--ink);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   display: grid;
   place-items: center;
-}
-.action-bar {
-  position: fixed;
-  inset: auto 0 0 0;
-  padding: var(--space-2);
-  padding-bottom: max(var(--space-2), env(safe-area-inset-bottom, 0px));
-  background: var(--deep);
-  border-top: 1px solid var(--line);
-  box-shadow: 0 -8px 24px rgba(2, 8, 20, 0.5);
-  z-index: 25;
+  flex: none;
 }
 
 /* 7. Leaderboard list & rows */
@@ -502,3 +493,7 @@ dialog.game-dialog::backdrop { background: rgba(2, 8, 20, 0.76); }
   gap: var(--space-2);
 }
 .toast--error { border-color: var(--danger); color: var(--danger); }
+body[data-active-view="table"] .toast-region {
+  bottom: auto;
+  top: calc(56px + env(safe-area-inset-top, 0px));
+}

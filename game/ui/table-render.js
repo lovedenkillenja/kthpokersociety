@@ -8,6 +8,7 @@ import {
   describeHandStatus,
   summarizeShowdown
 } from "../lib/table-helpers.js";
+import { extractInitials } from "../lib/table-layout.js";
 import {
   createCard,
   createCardBack,
@@ -39,19 +40,19 @@ export function formatTurnStatusLabel(isSelf, remainingSeconds) {
   if (isSelf) {
     return hasTimer ? `${prefix}Your turn · ${remainingSeconds}s` : "● Your turn";
   }
-  return hasTimer ? `${prefix}Acting · ${remainingSeconds}s` : "● Acting…";
+  return hasTimer ? `${prefix}${remainingSeconds}s` : "● Acting";
 }
 
 function buildSeatStatusPill(seat, hand, remainingSeconds = null) {
   if (seat.status === "sitout" && (!hand || hand.status !== "playing" || seat.folded)) {
-    return createPill("⏸ Sitting out", "danger");
+    return createPill("⏸ Sit out", "danger");
   }
   if (!hand) {
     return createPill("Ready");
   }
   if (hand.status === "complete") {
     const won = Number(hand.payouts?.[seat.seatNo] || 0);
-    if (won > 0) return createPill(`★ Won +${formatChips(won)}`, "chip");
+    if (won > 0) return createPill(`★ +${formatChips(won)}`, "chip");
     if (seat.folded) return createPill("Folded");
     return createPill("Showdown");
   }
@@ -116,6 +117,7 @@ export function createSeatBox(
   const wrap = document.createElement("div");
   wrap.className = [
     "table-seat-card",
+    isSelf ? "table-seat-card--self" : "table-seat-card--opp",
     compact ? "table-seat-card--compact" : "",
     fullRow ? "table-seat-card--fullrow" : "",
     isTurn ? "table-seat-card--turn" : "",
@@ -129,7 +131,7 @@ export function createSeatBox(
   if (gridPosition) wrap.dataset.gridPos = gridPosition;
 
   const cardsRow = document.createElement("div");
-  cardsRow.className = "table-seat-cards";
+  cardsRow.className = isSelf ? "table-seat-cards table-seat-cards--self" : "table-seat-cards table-seat-cards--opp";
 
   const revealed =
     Array.isArray(seat.revealedCards) && seat.revealedCards.length === 2
@@ -149,6 +151,10 @@ export function createSeatBox(
   if (hand && revealed) {
     const c1 = createCard(revealed[0]);
     const c2 = createCard(revealed[1]);
+    if (!isSelf) {
+      c1.classList.add("playing-card--opp-reveal");
+      c2.classList.add("playing-card--opp-reveal");
+    }
     if (animateHoleCards) {
       c1.classList.add("playing-card--deal");
       c2.classList.add("playing-card--deal", "playing-card--deal-2");
@@ -168,10 +174,9 @@ export function createSeatBox(
 
   let betBadge = null;
   if (hand && Number(seat.bet) > 0) {
-    betBadge = document.createElement("div");
+    betBadge = document.createElement("span");
     betBadge.className = `table-bet-pill tabular${animateBet ? " chip-move-anim" : ""}`;
-    betBadge.appendChild(createChipAmount(seat.bet, { showDisc: true, suffix: "" }));
-    betBadge.lastChild.textContent = `Bet ${formatChips(seat.bet)}`;
+    betBadge.textContent = `Bet ${formatChips(seat.bet)}`;
   }
 
   const plaque = document.createElement("div");
@@ -183,6 +188,12 @@ export function createSeatBox(
   const nameGroup = document.createElement("div");
   nameGroup.className = "table-seat-plaque__name";
 
+  const avatar = document.createElement("span");
+  avatar.className = "seat-avatar";
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.textContent = extractInitials(seat.displayName || `S${seat.seatNo + 1}`);
+  nameGroup.appendChild(avatar);
+
   if (hand && hand.dealerSeat === seat.seatNo) {
     const dealerBtn = document.createElement("span");
     dealerBtn.className = "seat__dealer";
@@ -193,25 +204,31 @@ export function createSeatBox(
   }
 
   const strong = document.createElement("strong");
-  strong.textContent = seat.displayName || `Seat ${seat.seatNo + 1}`;
+  strong.textContent = isSelf
+    ? `${seat.displayName || "You"} (You)`
+    : seat.displayName || `Seat ${seat.seatNo + 1}`;
   nameGroup.appendChild(strong);
-
-  if (isSelf) nameGroup.appendChild(createPill("You", "brand"));
-  buildRoleBadges(seat, hand).forEach((b) => nameGroup.appendChild(b));
+  if (!isSelf) buildRoleBadges(seat, hand).forEach((b) => nameGroup.appendChild(b));
 
   topRow.append(nameGroup, buildSeatStatusPill(seat, hand, remainingSeconds));
 
   const bottomRow = document.createElement("div");
   bottomRow.className = "table-seat-plaque__bottom";
-  bottomRow.appendChild(
-    createChipAmount(seat.stack, { showDisc: true, suffix: compact ? "" : "chips" })
-  );
 
-  if (evalName) {
-    bottomRow.appendChild(createPill(evalName, "chip"));
-  } else if (compact && betBadge) {
-    bottomRow.appendChild(betBadge);
-    betBadge = null;
+  const leftMeta = document.createElement("div");
+  leftMeta.className = "table-seat-plaque__meta";
+  leftMeta.appendChild(
+    createChipAmount(seat.stack, { showDisc: true, suffix: "" })
+  );
+  if (isSelf) buildRoleBadges(seat, hand).forEach((b) => leftMeta.appendChild(b));
+  if (betBadge) leftMeta.appendChild(betBadge);
+  if (evalName) leftMeta.appendChild(createPill(evalName, "chip"));
+
+  bottomRow.appendChild(leftMeta);
+
+  // Opponent hole cards sit inline inside the pod so seat rows stay ultra-compact and never overlap
+  if (!isSelf && cardsRow.childNodes.length > 0) {
+    bottomRow.appendChild(cardsRow);
   }
 
   plaque.append(topRow, bottomRow);
@@ -239,26 +256,29 @@ export function createSeatBox(
   }
 
   if (isSelf) {
-    if (betBadge) wrap.appendChild(betBadge);
     if (cardsRow.childNodes.length > 0) wrap.appendChild(cardsRow);
     wrap.appendChild(plaque);
   } else {
     wrap.appendChild(plaque);
-    if (cardsRow.childNodes.length > 0) wrap.appendChild(cardsRow);
-    if (betBadge) wrap.appendChild(betBadge);
   }
 
   return wrap;
 }
 
-export function renderHandHistoryList(listEl, panelEl, historyEntries = []) {
-  if (!listEl || !panelEl) return;
-  if (!Array.isArray(historyEntries) || historyEntries.length === 0) {
-    panelEl.hidden = true;
+export function renderHandHistoryList(listEl, panelEl, historyEntries = [], emptyEl = null, openBtnEl = null) {
+  const count = Array.isArray(historyEntries) ? historyEntries.length : 0;
+  if (openBtnEl) {
+    openBtnEl.textContent = count > 0 ? `Recent hands (${count})` : "Recent hands";
+  }
+  if (!listEl) return;
+  if (count === 0) {
+    listEl.hidden = true;
     listEl.replaceChildren();
+    if (emptyEl) emptyEl.hidden = false;
     return;
   }
-  panelEl.hidden = false;
+  if (emptyEl) emptyEl.hidden = true;
+  listEl.hidden = false;
   listEl.replaceChildren();
 
   historyEntries.forEach((item) => {
@@ -320,7 +340,7 @@ export function renderTableFelt({
       animState.selfHoleHandId !== handId
   );
 
-  // 1. Opponent seats (1 to 5 opponents arranged clockwise around the upper felt)
+  // 1. Opponent seats (1 to 5 opponents arranged clockwise around the oval felt)
   els.opponentArea.replaceChildren();
   els.opponentArea.dataset.count = String(opponentSeats.length);
 
@@ -347,15 +367,16 @@ export function renderTableFelt({
   } else {
     const emptyBox = document.createElement("div");
     emptyBox.className = "table-seat-empty";
+    emptyBox.dataset.gridPos = "top-center";
     const title = document.createElement("strong");
     title.textContent = "Waiting for players to join";
     const sub = document.createElement("span");
-    sub.textContent = `Share room code ${currentTable.code} with friends (2–${currentTable.maxSeats || 6} seats).`;
+    sub.textContent = `Share code ${currentTable.code} (${currentTable.maxSeats || 6}-max).`;
     emptyBox.append(title, sub);
     els.opponentArea.appendChild(emptyBox);
   }
 
-  // 2. Self seat (always bottom centre)
+  // 2. Self seat (always bottom centre, side-by-side with hole cards)
   els.selfArea.replaceChildren();
   if (selfSeat) {
     els.sitDownForm.hidden = true;
@@ -388,7 +409,7 @@ export function renderTableFelt({
   // 3. Pot & Side Pots (during play and at showdown)
   const pot = hand ? Number(hand.pot || 0) : 0;
   const potIncreased = hand && (!isNewHand ? pot > animState.pot : pot > 0);
-  els.potAmount.textContent = `${formatChips(pot)} chips`;
+  els.potAmount.textContent = `Pot: ${formatChips(pot)} chips`;
   if (els.potAmount.parentElement) {
     els.potAmount.parentElement.classList.toggle("chip-move-anim", Boolean(potIncreased));
   }
@@ -398,14 +419,14 @@ export function renderTableFelt({
   const potsList = hand?.showdown?.pots?.length > 1 ? hand.showdown.pots : hand?.pots || [];
   if (hand && Array.isArray(potsList) && potsList.length > 1) {
     potsList.forEach((p, idx) => {
-      const prefix = idx === 0 ? "Main pot" : `Side pot ${idx}`;
+      const prefix = idx === 0 ? "Main" : `Side ${idx}`;
       let winnerSuffix = "";
       if (Array.isArray(p.winners) && p.winners.length > 0) {
         const names = p.winners.map((sNo) => {
           const s = seats.find((item) => item.seatNo === sNo);
           return s?.isSelf ? "You" : s?.displayName || `S${sNo + 1}`;
         });
-        winnerSuffix = ` → ${names.join(" / ")}`;
+        winnerSuffix = ` → ${names.join("/")}`;
       }
       els.sidePotsRow.appendChild(
         createPill(`${prefix}: ${formatChips(p.amount)}${winnerSuffix}`, "chip")
@@ -439,14 +460,14 @@ export function renderTableFelt({
   // 5. Status / Showdown Banner
   const status = describeHandStatus(currentTable);
   els.statusHeadline.textContent = status.headline;
-  els.statusDetail.textContent = status.detail;
+  els.statusDetail.textContent = status.detail ? ` · ${status.detail}` : "";
   const statusBanner = els.statusHeadline.parentElement;
   if (statusBanner) {
     statusBanner.classList.toggle("table-status-banner--turn", Boolean(status.isMyTurn));
     statusBanner.classList.toggle("table-status-banner--showdown", Boolean(showdownSummary));
   }
 
-  // 6. Deal / Sit-in / Sit-out / Close Table controls
+  // 6. Deal / Sit-in / Sit-out / Close Table controls (docked in action bar + drawer)
   const activeWithChips = seats.filter((s) => s.status === "active" && Number(s.stack) > 0);
   const handPlaying = Boolean(hand && hand.status === "playing");
   const canDeal =
@@ -462,9 +483,7 @@ export function renderTableFelt({
   }
 
   const isSelfSitout = Boolean(selfSeat && selfSeat.status === "sitout" && currentTable.status !== "closed");
-  if (els.sitOutBanner) {
-    els.sitOutBanner.hidden = !isSelfSitout;
-  }
+  if (els.sitOutBanner) els.sitOutBanner.hidden = !isSelfSitout;
   if (els.sitInBtn) {
     els.sitInBtn.hidden = !isSelfSitout;
     els.sitInBtn.disabled = actionBusy;

@@ -115,10 +115,9 @@ function renderViews() {
   els.viewLeaderboard.hidden = !isSignedIn || state.activeView !== "leaderboard";
   els.viewProfile.hidden = !isSignedIn || state.activeView !== "profile";
 
-  if (els.tableActionBar && (!isSignedIn || state.activeView !== "table")) {
-    els.tableActionBar.hidden = true;
-  } else if (isSignedIn && state.activeView === "table" && activeTable) {
-    tableController.openWithTable(activeTable);
+  document.body.dataset.activeView = isSignedIn ? state.activeView : "guest";
+  if (isSignedIn && state.activeView === "table" && activeTable) {
+    window.requestAnimationFrame(() => tableController.syncLayoutMetrics?.());
   }
 
   if (els.activeTableBanner) {
@@ -344,6 +343,7 @@ function wireEvents() {
     getBalance: () => state.balance,
     onChipsChanged: refreshBalanceAndLedger,
     onExitToLobby: () => setActiveView("lobby"),
+    onNavigateView: (view) => setActiveView(view),
     onOpenAuth: (mode = "login") => authDialog.open(mode)
   });
 
