@@ -42,3 +42,10 @@ M1 skeleton (`game/`) and M2 pure poker engine (`game/engine/` + `game/tests/eng
   - **What is broken**: Nothing known.
   - **What is next**: M2 – pure dependency-free Texas Hold'em engine in `game/engine/` with full `node --test` coverage.
 - 2026-11-02 (Claude): workspace, rules, specs and chip schema created. No game code.
+
+- 2026-11-02 (Claude review): M3a migration reviewed and APPLIED to the members project, plus hardening migration 20261102013000 (revokes TRUNCATE/REFERENCES/TRIGGER from client roles). Tested as an `authenticated` user: hands.state and `select *` on hands denied, sit_down/leave_seat/award_chips denied, direct inserts into chip_ledger/table_seats denied, TRUNCATE denied. Security advisors: only the two intentional warnings remain.
+  Notes for M3b (Edge Function):
+  - The `service_role` check inside sit_down/leave_seat uses current_user, which is the function owner inside SECURITY DEFINER, so it never rejects. Real protection is the grants (execute only for service_role). Do not rely on that in-function check; do not grant execute to other roles.
+  - chip_conservation.sql counts hands.pot for open hands, so while a hand is running `table_seats.stack` must be decremented as chips go into the pot, or the check shows false positives. Decide this in M3b and keep the check consistent.
+  - table_seats exposes member_id (UUID) to all signed-in members. Display names live in chip_profiles, which is own-row read only; broadcast names from the Edge Function in the public table state instead.
+  - leave_seat refuses while any hand is in progress at the table; the `act` function must fold a leaving player first and settle before cash-out.
