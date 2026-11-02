@@ -23,8 +23,12 @@ set search_path = public
 as $$
 begin
   if tg_table_name = 'table_seats' then
-    if tg_op = 'INSERT' or new.status = 'left' or (old.status = 'left' and new.status = 'active') then
+    if tg_op = 'INSERT' then
       new.consecutive_timeouts := 0;
+    elsif tg_op = 'UPDATE' then
+      if new.status = 'left' or (old.status = 'left' and new.status = 'active') then
+        new.consecutive_timeouts := 0;
+      end if;
     end if;
   end if;
   update public.poker_tables
@@ -256,11 +260,13 @@ revoke all on function public.set_seat_status(uuid, uuid, text) from public, ano
 grant execute on function public.set_seat_status(uuid, uuid, text) to service_role;
 
 
--- 7. Update `apply_hand_tx` so `p_seat_stacks` atomically updates `consecutive_timeouts` and `status`
+-- 7. Update `apply_hand_tx` IN PLACE (same signature as M3c: p_board text[]) so `p_seat_stacks`
+-- also carries `consecutiveTimeouts` and `status`. Lock order stays table -> hand (same as
+-- sit_down, start_hand_tx) to avoid deadlocks.
 create or replace function public.apply_hand_tx(
   p_hand_id uuid,
   p_expected_action_seq integer,
-  p_board jsonb,
+  p_board text[],
   p_pot integer,
   p_state jsonb,
   p_showdown jsonb default null,
@@ -276,53 +282,46 @@ security definer
 set search_path = public
 as $$
 declare
-  v_hand public.hands%rowtype;
+  v_table_id uuid;
   v_table public.poker_tables%rowtype;
+  v_hand public.hands%rowtype;
   v_current_seq integer;
-  v_next_seq integer;
-  v_chips_before integer;
-  v_seats_after integer;
-  v_pot_after integer;
-  v_seat_item jsonb;
+  v_seats_before bigint;
+  v_pots_before bigint;
+  v_chips_before bigint;
+  v_seats_after bigint;
+  v_pots_after bigint;
+  v_elem jsonb;
   v_seat_no integer;
-  v_new_stack integer;
-  v_new_status text;
-  v_new_timeouts integer;
-  v_card_item jsonb;
-  v_action_item jsonb;
-  v_resolved_table_status text;
+  v_stack integer;
+  v_seat_status text;
+  v_timeouts integer;
+  v_next_table_status text;
 begin
   if session_user in ('anon', 'authenticated')
      or coalesce(current_setting('request.jwt.claim.role', true), 'service_role') not in ('service_role', '') then
     raise exception 'ERR_FORBIDDEN: apply_hand_tx requires service_role' using errcode = '42501';
   end if;
 
-  if p_hand_id is null or p_expected_action_seq is null or p_pot is null or p_pot < 0 or p_state is null then
-    raise exception 'ERR_INVALID_ARGS: invalid hand transition arguments' using errcode = '22023';
+  if p_hand_id is null or p_expected_action_seq is null or p_pot is null or p_state is null then
+    raise exception 'ERR_INVALID_ARGS: hand_id, expected_action_seq, pot, and state are required'
+      using errcode = '22023';
   end if;
 
-  select *
-  into v_hand
-  from public.hands
-  where id = p_hand_id
-  for update;
+  if p_pot < 0 then
+    raise exception 'ERR_INVALID_ARGS: pot cannot be negative' using errcode = '22023';
+  end if;
 
+  select table_id into v_table_id from public.hands where id = p_hand_id;
   if not found then
     raise exception 'ERR_HAND_NOT_FOUND: hand % does not exist', p_hand_id using errcode = 'P0002';
   end if;
 
+  select * into v_table from public.poker_tables where id = v_table_id for update;
+  select * into v_hand from public.hands where id = p_hand_id for update;
+
   if v_hand.ended_at is not null then
     raise exception 'ERR_NO_ACTIVE_HAND: hand % has already ended', p_hand_id using errcode = '55000';
-  end if;
-
-  select *
-  into v_table
-  from public.poker_tables
-  where id = v_hand.table_id
-  for update;
-
-  if not found then
-    raise exception 'ERR_TABLE_NOT_FOUND: table % does not exist', v_hand.table_id using errcode = 'P0002';
   end if;
 
   v_current_seq := coalesce((v_hand.state->>'actionSeq')::integer, 0);
@@ -331,68 +330,16 @@ begin
       using errcode = '40001';
   end if;
 
-  v_next_seq := coalesce((p_state->>'actionSeq')::integer, -1);
-  if v_next_seq <> p_expected_action_seq + 1 then
-    raise exception 'ERR_STALE_ACTION_SEQ: next state actionSeq must be %, got %', p_expected_action_seq + 1, v_next_seq
-      using errcode = '40001';
-  end if;
+  select coalesce(sum(stack), 0)::bigint into v_seats_before
+  from public.table_seats where table_id = v_table_id and status in ('active', 'sitout');
 
-  perform 1
-  from public.table_seats
-  where table_id = v_hand.table_id
-    and status in ('active', 'sitout')
-  for update;
+  select coalesce(sum(pot), 0)::bigint into v_pots_before
+  from public.hands where table_id = v_table_id and ended_at is null;
 
-  select coalesce(sum(stack), 0)::integer + v_hand.pot
-  into v_chips_before
-  from public.table_seats
-  where table_id = v_hand.table_id
-    and status in ('active', 'sitout');
-
-  for v_seat_item in select * from jsonb_array_elements(coalesce(p_seat_stacks, '[]'::jsonb))
-  loop
-    v_seat_no := coalesce((v_seat_item->>'seatNo')::integer, (v_seat_item->>'seat_no')::integer);
-    v_new_stack := (v_seat_item->>'stack')::integer;
-    v_new_status := nullif(v_seat_item->>'status', '');
-    v_new_timeouts := coalesce(
-      (v_seat_item->>'consecutiveTimeouts')::integer,
-      (v_seat_item->>'consecutive_timeouts')::integer
-    );
-
-    if v_seat_no is null or v_new_stack is null or v_new_stack < 0 then
-      raise exception 'ERR_INVALID_ARGS: invalid seat stack update %', v_seat_item using errcode = '22023';
-    end if;
-
-    update public.table_seats
-    set stack = v_new_stack,
-        status = coalesce(v_new_status, status),
-        consecutive_timeouts = coalesce(v_new_timeouts, consecutive_timeouts)
-    where table_id = v_hand.table_id
-      and seat_no = v_seat_no
-      and status in ('active', 'sitout');
-
-    if not found then
-      raise exception 'ERR_NOT_SEATED: active seat % not found at table %', v_seat_no, v_hand.table_id
-        using errcode = 'P0002';
-    end if;
-  end loop;
-
-  select coalesce(sum(stack), 0)::integer
-  into v_seats_after
-  from public.table_seats
-  where table_id = v_hand.table_id
-    and status in ('active', 'sitout');
-
-  v_pot_after := case when p_ended_at is null then p_pot else 0 end;
-
-  if v_seats_after + v_pot_after <> v_chips_before then
-    raise exception 'ERR_CHIP_CONSERVATION: table chip total changed during apply_hand_tx (before=%, after=%)',
-      v_chips_before, v_seats_after + v_pot_after
-      using errcode = '55000';
-  end if;
+  v_chips_before := v_seats_before + v_pots_before;
 
   update public.hands
-  set board = coalesce(p_board, '[]'::jsonb),
+  set board = coalesce(p_board, board),
       pot = p_pot,
       state = p_state,
       showdown = p_showdown,
@@ -400,45 +347,86 @@ begin
   where id = p_hand_id
   returning * into v_hand;
 
-  for v_card_item in select * from jsonb_array_elements(coalesce(p_hole_cards, '[]'::jsonb))
+  for v_elem in select * from jsonb_array_elements(coalesce(p_seat_stacks, '[]'::jsonb))
+  loop
+    v_seat_no := coalesce((v_elem->>'seatNo')::integer, (v_elem->>'seat_no')::integer);
+    v_stack := (v_elem->>'stack')::integer;
+    v_seat_status := nullif(v_elem->>'status', '');
+    v_timeouts := coalesce((v_elem->>'consecutiveTimeouts')::integer, (v_elem->>'consecutive_timeouts')::integer);
+
+    if v_seat_no is null or v_stack is null or v_stack < 0 then
+      raise exception 'ERR_INVALID_ARGS: invalid seat stack entry %', v_elem using errcode = '22023';
+    end if;
+
+    update public.table_seats
+    set stack = v_stack,
+        status = coalesce(v_seat_status, status),
+        consecutive_timeouts = coalesce(v_timeouts, consecutive_timeouts)
+    where table_id = v_table_id
+      and seat_no = v_seat_no
+      and status in ('active', 'sitout');
+
+    if not found then
+      raise exception 'ERR_NOT_SEATED: active seat % not found at table %', v_seat_no, v_table.code
+        using errcode = 'P0002';
+    end if;
+  end loop;
+
+  for v_elem in select * from jsonb_array_elements(coalesce(p_hole_cards, '[]'::jsonb))
   loop
     insert into public.hole_cards (hand_id, member_id, cards)
     values (
-      p_hand_id,
-      coalesce((v_card_item->>'member_id')::uuid, (v_card_item->>'memberId')::uuid),
-      v_card_item->'cards'
+      v_hand.id,
+      coalesce((v_elem->>'member_id')::uuid, (v_elem->>'memberId')::uuid),
+      array(select jsonb_array_elements_text(v_elem->'cards'))
     )
-    on conflict (hand_id, member_id) do update
-      set cards = excluded.cards;
+    on conflict (hand_id, member_id) do update set cards = excluded.cards;
   end loop;
 
-  for v_action_item in select * from jsonb_array_elements(coalesce(p_actions, '[]'::jsonb))
+  for v_elem in select * from jsonb_array_elements(coalesce(p_actions, '[]'::jsonb))
   loop
     insert into public.hand_actions (hand_id, seat_no, action, amount)
     values (
-      p_hand_id,
-      coalesce((v_action_item->>'seat_no')::integer, (v_action_item->>'seatNo')::integer),
-      v_action_item->>'action',
-      coalesce((v_action_item->>'amount')::integer, 0)
+      v_hand.id,
+      coalesce((v_elem->>'seat_no')::integer, (v_elem->>'seatNo')::integer),
+      v_elem->>'action',
+      coalesce((v_elem->>'amount')::integer, 0)
     );
   end loop;
 
-  v_resolved_table_status := coalesce(
+  v_next_table_status := coalesce(
     nullif(p_table_status, ''),
-    case when p_ended_at is not null then 'open' else 'playing' end
+    case when p_ended_at is null then 'playing' else 'open' end
   );
 
   update public.poker_tables
-  set status = v_resolved_table_status,
+  set status = v_next_table_status,
       last_activity_at = now()
-  where id = v_hand.table_id;
+  where id = v_table_id;
+
+  select coalesce(sum(stack), 0)::bigint into v_seats_after
+  from public.table_seats where table_id = v_table_id and status in ('active', 'sitout');
+
+  select coalesce(sum(pot), 0)::bigint into v_pots_after
+  from public.hands where table_id = v_table_id and ended_at is null;
+
+  if (v_seats_after + v_pots_after) <> v_chips_before then
+    raise exception 'ERR_CHIP_CONSERVATION: table chip total changed from % to %',
+      v_chips_before, (v_seats_after + v_pots_after)
+      using errcode = '55000';
+  end if;
 
   return v_hand;
 end;
 $$;
 
-revoke all on function public.apply_hand_tx(uuid, integer, jsonb, integer, jsonb, jsonb, timestamptz, jsonb, jsonb, jsonb, text) from public, anon, authenticated;
-grant execute on function public.apply_hand_tx(uuid, integer, jsonb, integer, jsonb, jsonb, timestamptz, jsonb, jsonb, jsonb, text) to service_role;
+revoke all on function public.apply_hand_tx(
+  uuid, integer, text[], integer, jsonb, jsonb, timestamptz, jsonb, jsonb, jsonb, text
+) from public, anon, authenticated;
+
+grant execute on function public.apply_hand_tx(
+  uuid, integer, text[], integer, jsonb, jsonb, timestamptz, jsonb, jsonb, jsonb, text
+) to service_role;
 
 
 -- 8. Schedule background idle table cleanup via `pg_cron` if the extension is available
