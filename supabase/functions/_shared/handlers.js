@@ -34,6 +34,9 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
     const maxBuyIn = Math.trunc(Number(payload.maxBuyIn ?? payload.max_buyin ?? bb * 100));
     const maxSeats = Math.trunc(Number(payload.maxSeats ?? payload.max_seats ?? 6));
 
+    if (![sb, bb, minBuyIn, maxBuyIn, maxSeats].every(Number.isSafeInteger)) {
+      return errorResult(400, "ERR_INVALID_TABLE_PARAMS", "Table parameters must be whole numbers.");
+    }
     if (sb <= 0 || bb < sb || minBuyIn <= 0 || maxBuyIn < minBuyIn || maxSeats < 2 || maxSeats > 6) {
       return errorResult(400, "ERR_INVALID_TABLE_PARAMS", "Invalid table blinds, buy-in limits, or seat count.");
     }
@@ -62,6 +65,9 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
     }
 
     if (payload.buyIn !== undefined && payload.buyIn !== null) {
+      if (!Number.isSafeInteger(Math.trunc(Number(payload.buyIn)))) {
+        return errorResult(400, "ERR_INVALID_BUYIN", "Buy-in must be a whole number.");
+      }
       try {
         await store.sitDown({
           tableId: createdTable.id,
@@ -119,6 +125,9 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
       }
 
       const buyIn = Math.trunc(Number(payload.buyIn ?? payload.buyin ?? payload.amount ?? table.min_buyin));
+      if (!Number.isSafeInteger(buyIn)) {
+        return errorResult(400, "ERR_INVALID_BUYIN", "Buy-in must be a whole number.");
+      }
       try {
         await store.sitDown({
           tableId: table.id,

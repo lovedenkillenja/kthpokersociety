@@ -37,6 +37,11 @@ Deno.serve(async (req: Request) => {
   });
   const store = createSupabaseStore(supabaseAdmin);
 
-  const result = await handleTableRequest({ store, jwt, payload });
-  return jsonResponse(result.body, result.status);
+  try {
+    const result = await handleTableRequest({ store, jwt, payload });
+    return jsonResponse(result.body, result.status);
+  } catch (_err) {
+    // Never leak internals; always answer JSON with CORS headers.
+    return jsonResponse({ ok: false, code: "ERR_INTERNAL", error: "Unexpected server error." }, 500);
+  }
 });
