@@ -1,0 +1,391 @@
+/* KTH Poker Society – M4 Heads-Up Table & Action Bar styles (see docs/poker/STYLE_GUIDE.md) */
+
+.table-lobby-split {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 640px) {
+  .table-lobby-split {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.lobby-subbox {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-2);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.code-input {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.active-table-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-panel);
+  background: rgba(31, 102, 201, 0.16);
+  border: 1px solid var(--sky);
+}
+
+/* Table screen layout: generous space for fixed bottom action bar */
+#view-table {
+  padding-bottom: 196px;
+}
+
+.table-topbar {
+  background: var(--deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 12px var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+}
+
+.table-topbar__left,
+.table-topbar__right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.room-code-badge {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  color: var(--paper);
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn--compact {
+  min-height: 48px;
+  padding: 0 14px;
+  font-size: var(--text-xs);
+}
+
+/* Oval Felt Table (max 520px wide on desktop, centred, mobile-first at 375px) */
+.poker-felt {
+  width: 100%;
+  max-width: var(--table-max);
+  margin-inline: auto;
+  min-height: 460px;
+  padding: var(--space-3) var(--space-2);
+  border-radius: 140px;
+  background: radial-gradient(ellipse at center, var(--felt-highlight) 0%, var(--felt) 76%);
+  border: 3px solid var(--line);
+  box-shadow: 0 16px 40px rgba(2, 8, 20, 0.55), inset 0 0 0 1px rgba(238, 242, 248, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  position: relative;
+}
+
+@media (max-width: 420px) {
+  .poker-felt {
+    border-radius: 88px;
+    padding: var(--space-2) 12px;
+    min-height: 430px;
+  }
+}
+
+.table-seat-zone {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-seat-card {
+  width: min(100%, 340px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: transform var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+
+.table-seat-card--folded {
+  opacity: 0.68;
+}
+
+.table-seat-plaque {
+  width: 100%;
+  background: var(--deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 10px 14px;
+  display: grid;
+  gap: 6px;
+  box-shadow: 0 6px 18px rgba(2, 8, 20, 0.42);
+}
+
+.table-seat-card--turn .table-seat-plaque {
+  border-color: var(--sky);
+  box-shadow: 0 0 0 2px var(--sky), 0 8px 22px rgba(2, 8, 20, 0.5);
+}
+
+.table-seat-plaque__top,
+.table-seat-plaque__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+
+.table-seat-plaque__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.table-seat-plaque__name strong {
+  color: var(--paper);
+  font-size: var(--text-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.table-seat-cards {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.table-bet-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(6, 20, 42, 0.78);
+  border: 1px solid rgba(233, 196, 106, 0.45);
+  font-size: var(--text-xs);
+}
+
+.table-seat-empty {
+  width: min(100%, 310px);
+  padding: 12px 16px;
+  border-radius: var(--radius-panel);
+  border: 1px dashed rgba(238, 242, 248, 0.28);
+  background: rgba(6, 20, 42, 0.45);
+  text-align: center;
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.table-seat-empty strong {
+  color: var(--paper);
+  font-size: var(--text-base);
+}
+
+/* Felt Centre: Pot + 5 Community Cards + Status/Showdown Banner */
+.table-center {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding-block: 4px;
+}
+
+.table-pot-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.table-pot-label {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.table-pot-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: 1.1;
+  color: var(--chip);
+  font-variant-numeric: tabular-nums;
+}
+
+.table-side-pots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.table-board-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 78px;
+}
+
+.card-slot-empty {
+  width: 56px;
+  height: 78px;
+  border-radius: var(--radius-card);
+  border: 1px dashed rgba(238, 242, 248, 0.22);
+  background: rgba(6, 20, 42, 0.22);
+}
+
+@media (max-width: 390px) {
+  .table-board-row .playing-card,
+  .card-slot-empty {
+    width: 50px;
+    height: 72px;
+    padding: 5px 6px;
+  }
+}
+
+.table-status-banner {
+  background: rgba(6, 20, 42, 0.72);
+  border: 1px solid rgba(29, 58, 99, 0.85);
+  border-radius: var(--radius-panel);
+  padding: 8px 14px;
+  max-width: 360px;
+  width: 100%;
+  display: grid;
+  gap: 2px;
+}
+
+.table-status-banner__headline {
+  font-weight: 600;
+  color: var(--paper);
+  font-size: var(--text-base);
+}
+
+.table-status-banner__detail {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* Fixed Bottom Action Bar (Fold / Check-Call / Raise + Slider & Presets) */
+.action-bar__inner {
+  max-width: var(--table-max);
+  margin-inline: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.action-waiting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: var(--tap-min);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.action-raise-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-card);
+  background: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.preset-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.preset-btn {
+  min-height: var(--tap-min);
+  padding: 0 8px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--control);
+  background: var(--deep);
+  color: var(--paper);
+  font: 600 var(--text-xs) var(--font-body);
+  cursor: pointer;
+}
+
+.preset-btn:hover {
+  border-color: var(--sky);
+}
+
+.raise-slider-row {
+  display: grid;
+  grid-template-columns: 1fr 104px;
+  align-items: center;
+  gap: 10px;
+}
+
+.raise-slider-row input[type="range"] {
+  width: 100%;
+  height: var(--tap-min);
+  accent-color: var(--action);
+  cursor: pointer;
+}
+
+.raise-slider-row input[type="number"] {
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0 10px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--control);
+  background: var(--deep);
+  color: var(--chip);
+  font: 600 var(--text-base) var(--font-body);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.action-btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr 1.25fr;
+  gap: 8px;
+}
+
+.action-btn-grid .btn {
+  padding: 0 10px;
+  font-size: var(--text-xs);
+}
+
+@media (min-width: 440px) {
+  .action-btn-grid .btn {
+    font-size: var(--text-base);
+    padding: 0 16px;
+  }
+}

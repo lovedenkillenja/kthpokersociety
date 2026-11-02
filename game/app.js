@@ -1,131 +1,158 @@
-// KTH Poker Society – M1 entry module (sign-in, profile, chip balance, daily claim, leaderboard).
+// KTH Poker Society – Game entry module (sign-in, profile, chip balance, daily claim, leaderboard, and M4 table).
 
 import {
-  getSupabaseClient,
-  fetchMemberRecord,
-  ensureChipProfile,
-  saveChipProfile,
-  fetchChipBalance,
-  fetchRecentLedger,
-  claimDailyChipsForMember,
-  fetchLeaderboard
+  getSupabaseClient, fetchMemberRecord, ensureChipProfile, saveChipProfile,
+  fetchChipBalance, fetchRecentLedger, claimDailyChipsForMember, fetchLeaderboard
 } from "./lib/supabase.js";
 import {
-  formatChips,
-  hasClaimedToday,
-  validateDisplayName,
-  normalizeLeaderboardRows,
-  friendlyAuthError
+  formatChips, hasClaimedToday, validateDisplayName, normalizeLeaderboardRows, friendlyAuthError
 } from "./lib/format.js";
+import { normalizeRoomCode, validateBuyIn } from "./lib/table-helpers.js";
+import { createTable, joinTable } from "./lib/poker-api.js";
 import {
-  createCard,
-  createCardBack,
-  createLeaderboardRow,
-  createLedgerRow,
-  createEmptyState,
-  showToast
+  createCard, createCardBack, createLeaderboardRow, createLedgerRow, createEmptyState, showToast
 } from "./ui/components.js";
 import { createAuthDialogController } from "./ui/auth-dialog.js";
+import { createTableViewController } from "./ui/table-view.js";
 
-const VALID_VIEWS = new Set(["lobby", "leaderboard", "profile"]);
-
+const VALID_VIEWS = new Set(["lobby", "table", "leaderboard", "profile"]);
 const state = {
-  user: null,
-  member: null,
-  chipProfile: null,
-  balance: 0,
-  ledger: [],
-  leaderboard: [],
-  claimedToday: false,
-  activeView: "lobby"
+  user: null, member: null, chipProfile: null, balance: 0,
+  ledger: [], leaderboard: [], claimedToday: false, activeView: "lobby"
 };
 
+const byId = (id) => document.getElementById(id);
 const els = {
-  viewNav: document.getElementById("view-nav"),
+  viewNav: byId("view-nav"),
   viewNavBtns: Array.from(document.querySelectorAll("[data-view-btn]")),
-  headerAuthBtn: document.getElementById("header-auth-btn"),
-  brandLink: document.getElementById("brand-link"),
-
-  viewGuest: document.getElementById("view-guest"),
-  viewLobby: document.getElementById("view-lobby"),
-  viewLeaderboard: document.getElementById("view-leaderboard"),
-  viewProfile: document.getElementById("view-profile"),
-
-  guestCardShowcase: document.getElementById("guest-card-showcase"),
-  guestLoginBtn: document.getElementById("guest-login-btn"),
-  guestSignupBtn: document.getElementById("guest-signup-btn"),
-
-  lobbyMemberPill: document.getElementById("lobby-member-pill"),
-  balanceValue: document.getElementById("balance-value"),
-  claimDailyBtn: document.getElementById("claim-daily-btn"),
-  claimDailyHint: document.getElementById("claim-daily-hint"),
-  ledgerCountPill: document.getElementById("ledger-count-pill"),
-  ledgerContainer: document.getElementById("ledger-container"),
-  ledgerList: document.getElementById("ledger-list"),
-
-  refreshLeaderboardBtn: document.getElementById("refresh-leaderboard-btn"),
-  leaderboardOptoutBanner: document.getElementById("leaderboard-optout-banner"),
-  leaderboardContainer: document.getElementById("leaderboard-container"),
-  leaderboardList: document.getElementById("leaderboard-list"),
-
-  profileForm: document.getElementById("profile-form"),
-  profileDisplayName: document.getElementById("profile-display-name"),
-  profileLeaderboardOptin: document.getElementById("profile-leaderboard-optin"),
-  profileError: document.getElementById("profile-error"),
-  profileSaveBtn: document.getElementById("profile-save-btn"),
-  profileLogoutBtn: document.getElementById("profile-logout-btn"),
-  accountFullName: document.getElementById("account-full-name"),
-  accountEmail: document.getElementById("account-email"),
-  accountProgram: document.getElementById("account-program"),
-  accountSince: document.getElementById("account-since")
+  headerAuthBtn: byId("header-auth-btn"),
+  brandLink: byId("brand-link"),
+  viewGuest: byId("view-guest"),
+  viewLobby: byId("view-lobby"),
+  viewTable: byId("view-table"),
+  viewLeaderboard: byId("view-leaderboard"),
+  viewProfile: byId("view-profile"),
+  navTableBtn: byId("nav-table-btn"),
+  tableActionBar: byId("table-action-bar"),
+  activeTableBanner: byId("active-table-banner"),
+  activeTableBannerTitle: byId("active-table-banner-title"),
+  returnTableBtn: byId("return-table-btn"),
+  createTableForm: byId("create-table-form"),
+  createTableBuyIn: byId("create-table-buyin"),
+  createTableError: byId("create-table-error"),
+  createTableBtn: byId("create-table-btn"),
+  joinTableForm: byId("join-table-form"),
+  joinTableCode: byId("join-table-code"),
+  joinTableBuyIn: byId("join-table-buyin"),
+  joinTableError: byId("join-table-error"),
+  joinTableBtn: byId("join-table-btn"),
+  guestCardShowcase: byId("guest-card-showcase"),
+  guestLoginBtn: byId("guest-login-btn"),
+  guestSignupBtn: byId("guest-signup-btn"),
+  lobbyMemberPill: byId("lobby-member-pill"),
+  balanceValue: byId("balance-value"),
+  claimDailyBtn: byId("claim-daily-btn"),
+  claimDailyHint: byId("claim-daily-hint"),
+  ledgerCountPill: byId("ledger-count-pill"),
+  ledgerContainer: byId("ledger-container"),
+  ledgerList: byId("ledger-list"),
+  refreshLeaderboardBtn: byId("refresh-leaderboard-btn"),
+  leaderboardOptoutBanner: byId("leaderboard-optout-banner"),
+  leaderboardContainer: byId("leaderboard-container"),
+  leaderboardList: byId("leaderboard-list"),
+  profileForm: byId("profile-form"),
+  profileDisplayName: byId("profile-display-name"),
+  profileLeaderboardOptin: byId("profile-leaderboard-optin"),
+  profileError: byId("profile-error"),
+  profileSaveBtn: byId("profile-save-btn"),
+  profileLogoutBtn: byId("profile-logout-btn"),
+  accountFullName: byId("account-full-name"),
+  accountEmail: byId("account-email"),
+  accountProgram: byId("account-program"),
+  accountSince: byId("account-since")
 };
 
 let authDialog = null;
+let tableController = null;
 
 function renderGuestCards() {
   if (!els.guestCardShowcase) return;
   els.guestCardShowcase.replaceChildren(
-    createCard("As"),
-    createCard("Kh"),
-    createCard("Qd"),
-    createCard("Jc"),
-    createCardBack()
+    createCard("As"), createCard("Kh"), createCard("Qd"), createCard("Jc"), createCardBack()
   );
 }
 
 function getViewFromHash() {
   const raw = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
+  if (raw.startsWith("table")) return "table";
   return VALID_VIEWS.has(raw) ? raw : "lobby";
 }
 
+function getTableCodeFromHash() {
+  const parts = window.location.hash.replace(/^#\/?/, "").trim().split("/");
+  if (parts[0]?.toLowerCase() === "table" && parts[1]) {
+    const check = normalizeRoomCode(parts[1]);
+    return check.valid ? check.value : null;
+  }
+  return null;
+}
+
+async function refreshBalanceAndLedger() {
+  if (!state.user) return;
+  const [balance, ledger] = await Promise.all([
+    fetchChipBalance(state.user.id), fetchRecentLedger(state.user.id)
+  ]);
+  state.balance = balance;
+  state.ledger = ledger;
+  state.claimedToday = hasClaimedToday(ledger);
+  renderAll();
+}
+
 function setActiveView(viewName, { updateHash = true } = {}) {
-  const target = VALID_VIEWS.has(viewName) ? viewName : "lobby";
+  let target = VALID_VIEWS.has(viewName) ? viewName : "lobby";
+  if (target === "table" && !tableController?.getActiveTable()) target = "lobby";
   state.activeView = target;
 
-  if (updateHash && window.location.hash !== `#${target}`) {
-    history.replaceState(null, "", `#${target}`);
+  const activeTable = tableController?.getActiveTable();
+  const desiredHash = target === "table" && activeTable?.code ? `#table/${activeTable.code}` : `#${target}`;
+  if (updateHash && window.location.hash !== desiredHash) {
+    history.replaceState(null, "", desiredHash);
   }
-
   renderViews();
-
-  if (target === "leaderboard" && state.user) {
-    loadLeaderboard();
-  }
+  if (target === "leaderboard" && state.user) loadLeaderboard();
 }
 
 function renderViews() {
   const isSignedIn = Boolean(state.user);
+  const activeTable = tableController?.getActiveTable() || null;
 
   els.viewGuest.hidden = isSignedIn;
   els.viewNav.hidden = !isSignedIn;
+  if (els.navTableBtn) {
+    els.navTableBtn.hidden = !activeTable;
+    if (activeTable) els.navTableBtn.textContent = `Table ${activeTable.code}`;
+  }
 
   els.viewLobby.hidden = !isSignedIn || state.activeView !== "lobby";
+  els.viewTable.hidden = !isSignedIn || state.activeView !== "table";
   els.viewLeaderboard.hidden = !isSignedIn || state.activeView !== "leaderboard";
   els.viewProfile.hidden = !isSignedIn || state.activeView !== "profile";
 
+  if (els.tableActionBar && (!isSignedIn || state.activeView !== "table")) {
+    els.tableActionBar.hidden = true;
+  } else if (isSignedIn && state.activeView === "table" && activeTable) {
+    tableController.openWithTable(activeTable);
+  }
+
+  if (els.activeTableBanner) {
+    els.activeTableBanner.hidden = !activeTable;
+    if (activeTable && els.activeTableBannerTitle) {
+      els.activeTableBannerTitle.textContent = `Active table · Room ${activeTable.code}`;
+    }
+  }
+
   els.viewNavBtns.forEach((btn) => {
-    const v = btn.getAttribute("data-view-btn");
-    if (v === state.activeView) {
+    if (btn.getAttribute("data-view-btn") === state.activeView) {
       btn.setAttribute("aria-current", "page");
     } else {
       btn.removeAttribute("aria-current");
@@ -297,12 +324,126 @@ async function hydrateAuthenticatedMember(user) {
     chipProfile?.display_name
   );
 
+  const hashCode = getTableCodeFromHash();
+  const savedCode = (() => {
+    try {
+      return sessionStorage.getItem("kth_poker_active_table");
+    } catch (_err) {
+      return null;
+    }
+  })();
+  const reconnectCode = hashCode || savedCode;
+  if (reconnectCode && tableController) {
+    const opened = await tableController.openByCode(reconnectCode);
+    if (opened && hashCode) {
+      state.activeView = "table";
+    }
+  }
+
   renderAll();
 }
 
 function wireEvents() {
   authDialog = createAuthDialogController({
     onSignedIn: hydrateAuthenticatedMember
+  });
+
+  tableController = createTableViewController({
+    getUser: () => state.user,
+    getDisplayName: () => state.chipProfile?.display_name || state.member?.full_name || "",
+    getBalance: () => state.balance,
+    onChipsChanged: refreshBalanceAndLedger,
+    onExitToLobby: () => setActiveView("lobby")
+  });
+
+  els.returnTableBtn?.addEventListener("click", () => {
+    setActiveView("table");
+  });
+
+  els.createTableForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!state.user) return;
+    els.createTableError.textContent = "";
+
+    const buyInCheck = validateBuyIn(els.createTableBuyIn.value, {
+      minBuyIn: 400,
+      maxBuyIn: 2000,
+      balance: state.balance
+    });
+    if (!buyInCheck.valid) {
+      els.createTableError.textContent = buyInCheck.error;
+      return;
+    }
+
+    els.createTableBtn.setAttribute("aria-busy", "true");
+    els.createTableBtn.disabled = true;
+
+    const res = await createTable({
+      sb: 10,
+      bb: 20,
+      minBuyIn: 400,
+      maxBuyIn: 2000,
+      maxSeats: 2,
+      buyIn: buyInCheck.value,
+      seat: 0
+    });
+
+    els.createTableBtn.removeAttribute("aria-busy");
+    els.createTableBtn.disabled = false;
+
+    if (!res.ok || !res.table) {
+      els.createTableError.textContent = res.error || "Could not create table.";
+      return;
+    }
+
+    tableController.openWithTable(res.table);
+    await refreshBalanceAndLedger();
+    setActiveView("table");
+    showToast(`Room ${res.table.code} created. Share the code with a friend!`);
+  });
+
+  els.joinTableForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!state.user) return;
+    els.joinTableError.textContent = "";
+
+    const codeCheck = normalizeRoomCode(els.joinTableCode.value);
+    if (!codeCheck.valid) {
+      els.joinTableError.textContent = codeCheck.error;
+      els.joinTableCode.focus();
+      return;
+    }
+
+    const buyInCheck = validateBuyIn(els.joinTableBuyIn.value, {
+      minBuyIn: 400,
+      maxBuyIn: 2000,
+      balance: state.balance
+    });
+    if (!buyInCheck.valid) {
+      els.joinTableError.textContent = buyInCheck.error;
+      return;
+    }
+
+    els.joinTableBtn.setAttribute("aria-busy", "true");
+    els.joinTableBtn.disabled = true;
+
+    const res = await joinTable({
+      code: codeCheck.value,
+      buyIn: buyInCheck.value
+    });
+
+    els.joinTableBtn.removeAttribute("aria-busy");
+    els.joinTableBtn.disabled = false;
+
+    if (!res.ok || !res.table) {
+      els.joinTableError.textContent = res.error || "Could not join table.";
+      return;
+    }
+
+    tableController.openWithTable(res.table);
+    await refreshBalanceAndLedger();
+    setActiveView("table");
+    showToast(`Joined Room ${res.table.code}.`);
   });
 
   els.viewNavBtns.forEach((btn) => {

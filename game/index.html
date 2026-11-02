@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="./styles/tokens.css">
   <link rel="stylesheet" href="./styles/base.css">
   <link rel="stylesheet" href="./styles/components.css">
+  <link rel="stylesheet" href="./styles/table.css">
 </head>
 <body>
   <div class="play-money-strip" role="region" aria-label="Play money notice">
@@ -41,6 +42,7 @@
 
       <nav id="view-nav" class="view-nav" aria-label="Game navigation" hidden>
         <button type="button" class="view-nav__btn" data-view-btn="lobby" aria-current="page">Chips &amp; Lobby</button>
+        <button type="button" class="view-nav__btn" data-view-btn="table" id="nav-table-btn" hidden>Table</button>
         <button type="button" class="view-nav__btn" data-view-btn="leaderboard">Leaderboard</button>
         <button type="button" class="view-nav__btn" data-view-btn="profile">Profile</button>
       </nav>
@@ -128,6 +130,85 @@
           Claim +100 play-money chips once per day (resets at 00:00 Stockholm time).
         </p>
 
+        <div id="active-table-banner" class="active-table-banner" hidden>
+          <div>
+            <strong id="active-table-banner-title">Active table</strong>
+            <div class="field-hint">Your seat is waiting on the felt.</div>
+          </div>
+          <button type="button" class="btn btn--primary" id="return-table-btn">Return to table</button>
+        </div>
+
+        <hr class="panel__divider">
+
+        <div>
+          <h2>Play heads-up Hold'em</h2>
+          <p class="field-hint" style="margin-top: 4px">
+            10 / 20 blinds · Buy-in 400–2,000 chips · Share your 5-character room code with a friend.
+          </p>
+        </div>
+
+        <div class="table-lobby-split">
+          <form id="create-table-form" class="lobby-subbox" novalidate>
+            <h3>Create a table</h3>
+            <div class="field">
+              <label for="create-table-buyin">Your buy-in (400–2,000 chips)</label>
+              <input
+                id="create-table-buyin"
+                name="buyin"
+                type="number"
+                min="400"
+                max="2000"
+                step="20"
+                value="500"
+                class="tabular"
+                required
+                aria-describedby="create-table-error"
+              >
+            </div>
+            <p class="form-error" id="create-table-error" role="alert"></p>
+            <button type="submit" class="btn btn--primary btn--full" id="create-table-btn">
+              Create table &amp; sit down
+            </button>
+          </form>
+
+          <form id="join-table-form" class="lobby-subbox" novalidate>
+            <h3>Join by room code</h3>
+            <div class="field">
+              <label for="join-table-code">5-letter room code</label>
+              <input
+                id="join-table-code"
+                name="code"
+                type="text"
+                maxlength="5"
+                placeholder="KTH26"
+                autocomplete="off"
+                class="code-input"
+                required
+                aria-describedby="join-table-error"
+              >
+            </div>
+            <div class="field">
+              <label for="join-table-buyin">Your buy-in (400–2,000 chips)</label>
+              <input
+                id="join-table-buyin"
+                name="buyin"
+                type="number"
+                min="400"
+                max="2000"
+                step="20"
+                value="500"
+                class="tabular"
+                required
+                aria-describedby="join-table-error"
+              >
+            </div>
+            <p class="form-error" id="join-table-error" role="alert"></p>
+            <button type="submit" class="btn btn--ghost btn--full" id="join-table-btn">
+              Join table
+            </button>
+          </form>
+        </div>
+
         <div class="btn-row">
           <button type="button" class="btn btn--ghost" data-jump-view="leaderboard">View leaderboard</button>
           <button type="button" class="btn btn--ghost" data-jump-view="profile">Edit display name</button>
@@ -141,6 +222,81 @@
         </div>
         <div id="ledger-container">
           <ul class="ledger-list" id="ledger-list" aria-label="Recent chip transactions"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- HEADS-UP TABLE VIEW (2 elements: top bar + oval felt, plus fixed bottom action bar) -->
+    <section id="view-table" class="screen" aria-labelledby="table-code-badge" hidden>
+      <div class="table-topbar">
+        <div class="table-topbar__left">
+          <span class="room-code-badge" id="table-code-badge">Room —</span>
+          <button type="button" class="btn btn--ghost btn--compact" id="table-copy-code-btn">
+            Copy code
+          </button>
+          <span class="pill tabular" id="table-blinds-pill">10 / 20 blinds</span>
+          <span class="pill pill--chip">Play money – no cash value</span>
+          <span class="pill" id="table-conn-pill">Connecting…</span>
+        </div>
+        <div class="table-topbar__right">
+          <button type="button" class="btn btn--ghost btn--compact" id="table-refresh-btn">
+            Sync
+          </button>
+          <button type="button" class="btn btn--danger btn--compact" id="table-leave-btn">
+            Leave table
+          </button>
+        </div>
+      </div>
+
+      <div class="poker-felt" role="region" aria-label="Poker table felt">
+        <!-- Opponent seat (always top centre) -->
+        <div id="table-opponent-seat" class="table-seat-zone" aria-label="Opponent seat"></div>
+
+        <!-- Centre of felt: Pot + 5 Community Cards + Status / Showdown Banner -->
+        <div class="table-center">
+          <div class="table-pot-box" aria-live="polite">
+            <span class="table-pot-label">Total pot</span>
+            <div class="table-pot-value">
+              <span class="chip-disc" aria-hidden="true"></span>
+              <span id="table-pot-amount">0 chips</span>
+            </div>
+            <div id="table-side-pots" class="table-side-pots" hidden></div>
+          </div>
+
+          <div id="table-board-row" class="table-board-row" role="group" aria-label="Community cards"></div>
+
+          <div class="table-status-banner" aria-live="polite">
+            <div id="table-status-headline" class="table-status-banner__headline">Waiting for players</div>
+            <div id="table-status-detail" class="table-status-banner__detail">Share the room code to begin.</div>
+          </div>
+
+          <div id="table-deal-wrap" hidden>
+            <button type="button" class="btn btn--primary" id="table-deal-btn">Deal hand</button>
+          </div>
+        </div>
+
+        <!-- Player's own seat (always bottom centre) -->
+        <div class="table-seat-zone" aria-label="Your seat">
+          <div id="table-self-seat" class="table-seat-zone"></div>
+
+          <form id="table-sitdown-form" class="lobby-subbox" hidden novalidate>
+            <div class="field">
+              <label for="table-sitdown-buyin">Buy in to take your seat (chips)</label>
+              <input
+                id="table-sitdown-buyin"
+                type="number"
+                min="400"
+                max="2000"
+                step="20"
+                value="500"
+                class="tabular"
+                required
+              >
+            </div>
+            <button type="submit" class="btn btn--primary btn--full" id="table-sitdown-btn">
+              Sit down &amp; buy in
+            </button>
+          </form>
         </div>
       </div>
     </section>
@@ -332,6 +488,53 @@
       </div>
     </div>
   </dialog>
+
+  <!-- FIXED BOTTOM ACTION BAR FOR TABLE VIEW -->
+  <div id="table-action-bar" class="action-bar" role="region" aria-label="Betting actions" hidden>
+    <div class="action-bar__inner">
+      <div id="action-waiting-strip" class="action-waiting">
+        <span id="action-waiting-text">Waiting for opponent…</span>
+        <span>Keys: F Fold · C Check/Call · R Raise</span>
+      </div>
+
+      <div id="action-controls-wrap" class="form-stack" hidden>
+        <div id="action-raise-panel" class="action-raise-panel">
+          <div class="preset-row" role="group" aria-label="Quick raise sizes">
+            <button type="button" class="preset-btn" id="preset-min-btn">Min</button>
+            <button type="button" class="preset-btn" id="preset-half-btn">½ pot</button>
+            <button type="button" class="preset-btn" id="preset-pot-btn">Pot</button>
+            <button type="button" class="preset-btn" id="preset-allin-btn">All-in</button>
+          </div>
+          <div class="raise-slider-row">
+            <input
+              id="action-raise-slider"
+              type="range"
+              min="40"
+              max="500"
+              step="10"
+              value="40"
+              aria-label="Raise amount slider"
+            >
+            <input
+              id="action-raise-input"
+              type="number"
+              min="40"
+              max="500"
+              step="10"
+              value="40"
+              aria-label="Raise to chip amount"
+            >
+          </div>
+        </div>
+
+        <div class="action-btn-grid">
+          <button type="button" class="btn btn--danger" id="action-fold-btn">Fold</button>
+          <button type="button" class="btn btn--primary" id="action-check-call-btn">Check</button>
+          <button type="button" class="btn btn--primary" id="action-raise-btn">Raise</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ACCESSIBLE LIVE ANNOUNCER & TOAST CONTAINER -->
   <div id="live-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>

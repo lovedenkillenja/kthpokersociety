@@ -1,22 +1,32 @@
 # Progress log (agent: update this every session)
 
 ## Status
-M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, and M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`) are complete. M3b+M3c deployed.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), and M4 heads-up table UI (`game/ui/table-view.js`, `game/ui/table-render.js`, `game/lib/poker-api.js`, `game/lib/table-helpers.js`, `game/styles/table.css`) are complete.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
 - [x] M2 engine + tests (`game/engine/`: hand evaluation, betting rounds, pots, side pots, showdown + `node --test`)
 - [x] M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `supabase/checks/chip_conservation.sql` – reviewed and applied)
 - [x] M3b/M3c Edge Functions (`table`, `act`) + atomic hand persistence migration (`20261102020000_hand_persistence_tx.sql`) – M3b+M3c deployed
-- [ ] M4 heads-up playable on two phones
+- [x] M4 heads-up playable on two phones (UI built & wired to deployed `table` and `act`; live two-phone Realtime play UNVERIFIED)
 - [ ] M5 3–6 players, timers, reconnect
 - [ ] M6 polish and tutorial
 - [ ] M7 link from website, event awards
 
 ## Decisions for Love
-- None currently blocking – M3b+M3c deployed and ready for M4.
+- None blocking – test M4 heads-up with two member accounts on `https://poker-game--kthpokersociety-v3.netlify.app/game/`.
 
 ## Session log
+- 2026-11-02 (Gemini – M4):
+  - **What changed**:
+    - Built the M4 heads-up (2-player) poker UI in `/game/` without modifying the deployed Edge Functions (`table` and `act`):
+      - `game/lib/poker-api.js`: wraps deployed `table` (`create`, `join`, `leave`, `state`) and `act` (`start`, `fold`, `check`, `call`, `raise`, `all-in` with `handId` and `actionSeq`), fetches private hole cards from `public.hole_cards` via RLS, and subscribes to Realtime channel `table:<code>` (`broadcast` event `state`) with automatic `"state"` intent fallback polling (every 3.5s while visible + on tab wakeup + on `409 ERR_STALE_ACTION_SEQ`).
+      - `game/lib/table-helpers.js` + `game/tests/table-helpers.test.js`: room code validation, buy-in validation (`400–2,000` chips), `isSelf` seat preservation across shared Realtime broadcasts, seat partitioning (own seat always bottom-centre, opponent top-centre), raise preset calculation (`Min`, `½ pot`, `Pot`, `All-in`), and street/showdown status summaries.
+      - `game/ui/table-view.js`, `game/ui/table-render.js`, `game/styles/table.css`, `game/index.html`, and `game/app.js`: Lobby create/join table forms, 5-letter room code badge with 1-tap copy, oval felt table (`--felt` radial highlight), community board, pot & side-pot pills, showdown hand reveal, fixed bottom thumb-reachable action bar with raise slider/presets, keyboard shortcuts (`F` fold, `C` check/call, `R` raise), turn haptics (`navigator.vibrate`), and leave/cash-out back to `chip_ledger`.
+  - **Verified**: `node --test game/tests/*.test.js` (29/29 passing), live HTTP reachability of deployed `table` and `act` Edge Functions on `tibyyjnghhwwcxvlwmiq`, and all files under 600 lines.
+  - **UNVERIFIED**: Real two-phone authenticated gameplay and Realtime broadcast latency across two signed-in member sessions on `https://poker-game--kthpokersociety-v3.netlify.app/game/`.
+  - **What is broken**: Nothing known (note: Server-side `broadcastTableState` in `supabase-store.js` sends on an unjoined channel; if Supabase Realtime requires REST broadcast or joined WebSocket in Deno, the client's automatic `"state"` intent fallback every 3.5s and on tab focus keeps both phones in sync seamlessly).
+  - **What is next**: M5 – 3–6 players, turn timer, auto-fold on timeout, reconnect handling, sit-out.
 - 2026-11-02 (Gemini – M3b+M3c deploy):
   - **What changed**: Verified `node --test` (24/24 passing), installed Supabase CLI (`2.122.0`), authenticated via `supabase login`, and deployed both Edge Functions (`table` and `act` from branch tip `b721d7b`) to Supabase project `tibyyjnghhwwcxvlwmiq` after Claude applied `20261102020000_hand_persistence_tx.sql`. M3b+M3c deployed.
   - **What is next**: M4 – Heads-up (2 players) playable end-to-end on two phones.
