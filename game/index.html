@@ -73,7 +73,7 @@
         </div>
         <h1 id="guest-heading">Texas Hold'em for KTH Poker Society</h1>
         <p class="panel__lede">
-          A quiet, mobile-first poker room for KTH students. Sign in with your society member account to claim daily play-money chips, set your display name, and play 2–6 player tables with friends.
+          A quiet, mobile-first poker room for KTH students. Sign in with your society member account to invite friends for play-money chips, set your display name, and play 2–6 player tables with friends.
         </p>
         <div class="btn-row">
           <button type="button" class="btn btn--primary" id="guest-login-btn">Log in with member account</button>
@@ -98,10 +98,10 @@
           </li>
           <li class="ledger-row">
             <div>
-              <div class="ledger-row__title">Daily check-in</div>
-              <div class="ledger-row__meta">Claim once every Stockholm calendar day</div>
+              <div class="ledger-row__title">Invite friends</div>
+              <div class="ledger-row__meta">Earn chips for each friend who joins via your invite link</div>
             </div>
-            <span class="ledger-row__delta tabular">+100 chips</span>
+            <span class="ledger-row__delta tabular">+250 chips</span>
           </li>
           <li class="ledger-row">
             <div>
@@ -131,14 +131,38 @@
             <span class="chip-balance-hero__value" id="balance-value">0</span>
             <span class="chip-balance-hero__unit">chips</span>
           </div>
-          <button type="button" class="btn btn--primary" id="claim-daily-btn">
-            Claim daily +100 chips
-          </button>
         </div>
 
-        <p class="field-hint" id="claim-daily-hint">
-          Claim +100 play-money chips once per day (resets at 00:00 Stockholm time).
-        </p>
+        <!-- Invite friends to earn chips (replaces daily check-in) -->
+        <div class="referral-box" id="lobby-referral-box">
+          <div class="referral-box__head">
+            <div>
+              <span class="referral-box__title">Invite friends</span>
+              <p class="field-hint" id="referral-box-explanation"></p>
+            </div>
+            <span class="pill pill--chip tabular">+250 chips / friend</span>
+          </div>
+
+          <div class="referral-box__copy-row">
+            <input type="text" id="referral-link-input" class="referral-link-input tabular" readonly aria-label="Your referral invite link" value="Loading link…">
+            <button type="button" class="btn btn--primary btn--compact" id="referral-copy-btn">Copy link</button>
+          </div>
+
+          <div class="referral-box__stats" id="referral-stats">
+            <div class="referral-stat">
+              <span class="referral-stat__num tabular" id="ref-stat-invited">0</span>
+              <span class="referral-stat__lbl">Friends joined</span>
+            </div>
+            <div class="referral-stat">
+              <span class="referral-stat__num tabular" id="ref-stat-rewarded">0</span>
+              <span class="referral-stat__lbl">Rewarded (max 20)</span>
+            </div>
+            <div class="referral-stat">
+              <span class="referral-stat__num tabular" id="ref-stat-earned">0</span>
+              <span class="referral-stat__lbl">Chips earned</span>
+            </div>
+          </div>
+        </div>
 
         <div id="active-table-banner" class="active-table-banner" hidden>
           <div>
@@ -446,43 +470,19 @@
         </div>
 
         <form id="login-form" class="form-stack" role="tabpanel" aria-labelledby="tab-login" novalidate style="margin-top: 16px">
-          <div class="field">
-            <label for="li-email">Email</label>
-            <input id="li-email" name="email" type="email" autocomplete="email" required aria-describedby="login-error">
-          </div>
-          <div class="field">
-            <label for="li-password">Password</label>
-            <input id="li-password" name="password" type="password" autocomplete="current-password" required aria-describedby="login-error">
-          </div>
+          <div class="field"><label for="li-email">Email</label><input id="li-email" name="email" type="email" autocomplete="email" required aria-describedby="login-error"></div>
+          <div class="field"><label for="li-password">Password</label><input id="li-password" name="password" type="password" autocomplete="current-password" required aria-describedby="login-error"></div>
           <button type="button" class="link-btn" id="forgot-password-btn">Forgot your password?</button>
           <p class="form-error" id="login-error" role="alert"></p>
           <button type="submit" class="btn btn--primary btn--full" id="login-submit-btn">Log in</button>
         </form>
 
         <form id="signup-form" class="form-stack" role="tabpanel" aria-labelledby="tab-signup" novalidate hidden style="margin-top: 16px">
-          <div class="field">
-            <label for="su-name">Full name</label>
-            <input id="su-name" name="name" type="text" autocomplete="name" required aria-describedby="signup-error">
-          </div>
-          <div class="field">
-            <label for="su-email">Email</label>
-            <input id="su-email" name="email" type="email" autocomplete="email" required aria-describedby="signup-error">
-          </div>
-          <div class="field">
-            <label for="su-program">Program (optional)</label>
-            <input id="su-program" name="program" type="text" placeholder="e.g. CDATE, CINEK" autocomplete="off">
-          </div>
-          <div class="field">
-            <label for="su-password">Password</label>
-            <input id="su-password" name="password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="signup-error">
-            <span class="field-hint">At least 8 characters.</span>
-          </div>
-          <label class="check-field" for="su-consent">
-            <input id="su-consent" type="checkbox" required>
-            <span class="check-field__label">
-              <span>I agree to KTH Poker Society storing my membership details.</span>
-            </span>
-          </label>
+          <div class="field"><label for="su-name">Full name</label><input id="su-name" name="name" type="text" autocomplete="name" required aria-describedby="signup-error"></div>
+          <div class="field"><label for="su-email">Email</label><input id="su-email" name="email" type="email" autocomplete="email" required aria-describedby="signup-error"></div>
+          <div class="field"><label for="su-program">Program (optional)</label><input id="su-program" name="program" type="text" placeholder="e.g. CDATE, CINEK" autocomplete="off"></div>
+          <div class="field"><label for="su-password">Password</label><input id="su-password" name="password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="signup-error"><span class="field-hint">At least 8 characters.</span></div>
+          <label class="check-field" for="su-consent"><input id="su-consent" type="checkbox" required><span class="check-field__label"><span>I agree to KTH Poker Society storing my membership details.</span></span></label>
           <p class="form-error" id="signup-error" role="alert"></p>
           <button type="submit" class="btn btn--primary btn--full" id="signup-submit-btn">Create account (+1,000 chips)</button>
         </form>
@@ -490,10 +490,7 @@
 
       <form id="reset-form" class="form-stack" novalidate hidden>
         <p class="field-hint">Enter the email you signed up with and we will send you a password reset link.</p>
-        <div class="field">
-          <label for="rs-email">Email</label>
-          <input id="rs-email" type="email" autocomplete="email" required aria-describedby="reset-error">
-        </div>
+        <div class="field"><label for="rs-email">Email</label><input id="rs-email" type="email" autocomplete="email" required aria-describedby="reset-error"></div>
         <p class="form-error" id="reset-error" role="alert"></p>
         <button type="submit" class="btn btn--primary btn--full" id="reset-submit-btn">Send reset link</button>
         <button type="button" class="link-btn" id="back-to-login-btn">Back to log in</button>
@@ -501,11 +498,7 @@
 
       <form id="recovery-form" class="form-stack" novalidate hidden>
         <p class="field-hint">Choose a new password for your member account.</p>
-        <div class="field">
-          <label for="rc-password">New password</label>
-          <input id="rc-password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="recovery-error">
-          <span class="field-hint">At least 8 characters.</span>
-        </div>
+        <div class="field"><label for="rc-password">New password</label><input id="rc-password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="recovery-error"><span class="field-hint">At least 8 characters.</span></div>
         <p class="form-error" id="recovery-error" role="alert"></p>
         <button type="submit" class="btn btn--primary btn--full" id="recovery-submit-btn">Save new password</button>
       </form>

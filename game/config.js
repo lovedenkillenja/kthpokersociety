@@ -6,7 +6,6 @@ export const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdX
 
 export const GAME_CONFIG = Object.freeze({
   welcomeChips: 1000,
-  dailyClaimChips: 100,
   defaultSmallBlind: 10,
   defaultBigBlind: 20,
   minBuyIn: 400,
@@ -14,4 +13,14 @@ export const GAME_CONFIG = Object.freeze({
   leaderboardLimit: 50,
   recentLedgerLimit: 10,
   stockholmTimeZone: "Europe/Stockholm"
+});
+
+export const REFERRAL_CONFIG = Object.freeze({
+  codeLength: 8,
+  alphabet: "23456789ABCDEFGHJKLMNPQRSTUVWXYZ",
+  alphabetRegex: /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/,
+  rewardChips: 250,
+  maxRewarded: 20,
+  storageKey: "kth_poker_ref_code",
+  explanationText: "You get 250 chips for every friend who joins with your link."
 });
