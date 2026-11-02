@@ -5,13 +5,6 @@ const numberFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0
 });
 
-const stockholmDateFormat = new Intl.DateTimeFormat("sv-SE", {
-  timeZone: "Europe/Stockholm",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit"
-});
-
 /**
  * Formats an integer chip amount with thousands separators (e.g. 1250 -> "1,250").
  * Never prefixes with currency symbols (chips have no cash value).
@@ -32,30 +25,7 @@ export function formatDelta(delta) {
   return n > 0 ? `+${absFormatted}` : `−${absFormatted}`;
 }
 
-/**
- * Returns YYYY-MM-DD in Europe/Stockholm time for a Date, timestamp, or ISO string.
- */
-export function stockholmDateString(input = new Date()) {
-  const date = input instanceof Date ? input : new Date(input);
-  if (Number.isNaN(date.getTime())) return "";
-  return stockholmDateFormat.format(date);
-}
 
-/**
- * Checks whether the member's ledger rows already include a daily claim for today (Europe/Stockholm).
- */
-export function hasClaimedToday(ledgerRows, now = new Date()) {
-  if (!Array.isArray(ledgerRows) || ledgerRows.length === 0) return false;
-  const today = stockholmDateString(now);
-  if (!today) return false;
-
-  return ledgerRows.some((row) => {
-    if (!row || row.source !== "daily") return false;
-    if (typeof row.ref === "string" && row.ref.includes(today)) return true;
-    if (row.created_at && stockholmDateString(row.created_at) === today) return true;
-    return false;
-  });
-}
 
 /**
  * Validates a member's chosen display name (1..40 chars, no control characters).
@@ -136,84 +106,14 @@ export function normalizeLeaderboardRows(rows, currentUserId = null, currentDisp
 }
 
 /**
- * Interprets the response from `claim_daily_chips()` combined with before/after balances.
- */
-export function interpretDailyClaimResult({ rpcData, rpcError, previousBalance, nextBalance }) {
-  if (rpcError) {
-    const msg = String(rpcError.message || "").toLowerCase();
-    const code = String(rpcError.code || "");
-    if (
-      code === "23505" ||
-      msg.includes("already") ||
-      msg.includes("duplicate") ||
-      msg.includes("today") ||
-      msg.includes("claimed")
-    ) {
-      return {
-        status: "already_claimed",
-        delta: 0,
-        message: "Daily +100 chips already claimed today. Next claim resets at 00:00 Stockholm time."
-      };
-    }
-    return {
-      status: "error",
-      delta: 0,
-      message: friendlyAuthError(rpcError)
-    };
-  }
-
-  const prev = Number(previousBalance ?? 0);
-  const next = Number(nextBalance ?? prev);
-  const diff = next - prev;
-
-  // Handle explicit boolean/numeric/object return shapes from claim_daily_chips()
-  if (rpcData === false || rpcData === 0) {
-    return {
-      status: "already_claimed",
-      delta: 0,
-      message: "Daily +100 chips already claimed today. Next claim resets at 00:00 Stockholm time."
-    };
-  }
-  if (rpcData && typeof rpcData === "object" && !Array.isArray(rpcData)) {
-    if (rpcData.claimed === false || rpcData.awarded === 0 || rpcData.delta === 0) {
-      return {
-        status: "already_claimed",
-        delta: 0,
-        message: "Daily +100 chips already claimed today. Next claim resets at 00:00 Stockholm time."
-      };
-    }
-  }
-
-  if (diff > 0) {
-    return {
-      status: "claimed",
-      delta: diff,
-      message: `Added +${formatChips(diff)} daily chips to your balance.`
-    };
-  }
-
-  if (rpcData === true || (typeof rpcData === "number" && rpcData > 0)) {
-    return {
-      status: "claimed",
-      delta: 100,
-      message: "Added +100 daily chips to your balance."
-    };
-  }
-
-  return {
-    status: "already_claimed",
-    delta: 0,
-    message: "Daily +100 chips already claimed today. Next claim resets at 00:00 Stockholm time."
-  };
-}
-
-/**
  * Formats a human-friendly source label for `chip_ledger` rows.
  */
 export function formatLedgerSource(source) {
   switch (source) {
     case "welcome":
       return "Welcome";
+    case "referral":
+      return "Referral";
     case "daily":
       return "Daily";
     case "event":

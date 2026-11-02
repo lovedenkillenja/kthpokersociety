@@ -3,12 +3,10 @@ import assert from "node:assert/strict";
 import {
   formatChips,
   formatDelta,
-  stockholmDateString,
-  hasClaimedToday,
+  formatLedgerSource,
   validateDisplayName,
   deriveDefaultDisplayName,
   normalizeLeaderboardRows,
-  interpretDailyClaimResult,
   friendlyAuthError
 } from "../lib/format.js";
 
@@ -28,20 +26,13 @@ test("formatDelta formats positive and negative chip changes", () => {
   assert.equal(formatDelta(0), "0");
 });
 
-test("stockholmDateString and hasClaimedToday respect Europe/Stockholm calendar day", () => {
-  // 2026-11-01T23:30:00Z is 2026-11-02 00:30 in Stockholm (CET, UTC+1)
-  const nowUtc = new Date("2026-11-01T23:30:00Z");
-  assert.equal(stockholmDateString(nowUtc), "2026-11-02");
-
-  const ledgerToday = [
-    { source: "daily", delta: 100, ref: "daily:2026-11-02", created_at: "2026-11-01T23:10:00Z" }
-  ];
-  assert.equal(hasClaimedToday(ledgerToday, nowUtc), true);
-
-  const ledgerYesterday = [
-    { source: "daily", delta: 100, ref: "daily:2026-11-01", created_at: "2026-11-01T12:00:00Z" }
-  ];
-  assert.equal(hasClaimedToday(ledgerYesterday, nowUtc), false);
+test("formatLedgerSource formats labels for welcome, referral, table, and legacy daily rows", () => {
+  assert.equal(formatLedgerSource("welcome"), "Welcome");
+  assert.equal(formatLedgerSource("referral"), "Referral");
+  assert.equal(formatLedgerSource("daily"), "Daily");
+  assert.equal(formatLedgerSource("game"), "Table");
+  assert.equal(formatLedgerSource("event"), "Event");
+  assert.equal(formatLedgerSource("admin"), "Society");
 });
 
 test("validateDisplayName enforces 1..40 chars and strips control chars", () => {
@@ -88,26 +79,6 @@ test("normalizeLeaderboardRows normalizes various RPC row shapes", () => {
     memberId: "u-2",
     isCurrentUser: true
   });
-});
-
-test("interpretDailyClaimResult handles new claim, duplicate claim, and errors", () => {
-  const claimed = interpretDailyClaimResult({
-    rpcData: { claimed: true, delta: 100 },
-    rpcError: null,
-    previousBalance: 1000,
-    nextBalance: 1100
-  });
-  assert.equal(claimed.status, "claimed");
-  assert.equal(claimed.delta, 100);
-
-  const dup = interpretDailyClaimResult({
-    rpcData: null,
-    rpcError: { code: "23505", message: "duplicate key value violates unique constraint" },
-    previousBalance: 1100,
-    nextBalance: 1100
-  });
-  assert.equal(dup.status, "already_claimed");
-  assert.equal(dup.delta, 0);
 });
 
 test("friendlyAuthError provides actionable guidance", () => {

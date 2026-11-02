@@ -1,11 +1,11 @@
-// KTH Poker Society – Game entry module (sign-in, profile, chip balance, daily claim, leaderboard, and M4 table).
+// KTH Poker Society – Game entry module (sign-in, profile, chip balance, referrals, leaderboard, and M4 table).
 
 import {
   getSupabaseClient, fetchMemberRecord, ensureChipProfile, saveChipProfile,
-  fetchChipBalance, fetchRecentLedger, claimDailyChipsForMember, fetchLeaderboard
+  fetchChipBalance, fetchRecentLedger, fetchLeaderboard, fetchMyReferral
 } from "./lib/supabase.js";
 import {
-  formatChips, hasClaimedToday, validateDisplayName, normalizeLeaderboardRows, friendlyAuthError
+  formatChips, validateDisplayName, normalizeLeaderboardRows, friendlyAuthError
 } from "./lib/format.js";
 import { normalizeRoomCode, validateBuyIn } from "./lib/table-helpers.js";
 import { createTable, joinTable, setUnauthorizedHandler } from "./lib/poker-api.js";
@@ -15,11 +15,15 @@ import {
 import { createAuthDialogController } from "./ui/auth-dialog.js";
 import { createTableViewController } from "./ui/table-view.js";
 import { createTutorialDialogController } from "./ui/tutorial-dialog.js";
+import {
+  captureReferralCodeFromUrl, redeemStoredReferralOnAuth,
+  claimDeferredReferralRewards, renderReferralPanel, wireReferralCopyButton
+} from "./ui/referral-panel.js";
 
 const VALID_VIEWS = new Set(["lobby", "table", "leaderboard", "profile"]);
 const state = {
   user: null, member: null, chipProfile: null, balance: 0,
-  ledger: [], leaderboard: [], claimedToday: false, activeView: "lobby", hydrating: false
+  ledger: [], leaderboard: [], referral: null, activeView: "lobby", hydrating: false
 };
 
 const byId = (id) => document.getElementById(id);
@@ -38,7 +42,9 @@ const els = {
   joinTableBtn: byId("join-table-btn"), guestCardShowcase: byId("guest-card-showcase"),
   guestLoginBtn: byId("guest-login-btn"), guestSignupBtn: byId("guest-signup-btn"),
   lobbyMemberPill: byId("lobby-member-pill"), balanceValue: byId("balance-value"),
-  claimDailyBtn: byId("claim-daily-btn"), claimDailyHint: byId("claim-daily-hint"),
+  referralBox: byId("lobby-referral-box"), referralExplanation: byId("referral-box-explanation"),
+  referralLinkInput: byId("referral-link-input"), referralCopyBtn: byId("referral-copy-btn"),
+  refStatInvited: byId("ref-stat-invited"), refStatRewarded: byId("ref-stat-rewarded"), refStatEarned: byId("ref-stat-earned"),
   ledgerCountPill: byId("ledger-count-pill"), ledgerContainer: byId("ledger-container"),
   ledgerList: byId("ledger-list"), refreshLeaderboardBtn: byId("refresh-leaderboard-btn"),
   leaderboardOptoutBanner: byId("leaderboard-optout-banner"), leaderboardContainer: byId("leaderboard-container"),
@@ -81,7 +87,6 @@ async function refreshBalanceAndLedger() {
   ]);
   state.balance = balance;
   state.ledger = ledger;
-  state.claimedToday = hasClaimedToday(ledger);
   renderAll();
 }
 
@@ -153,16 +158,7 @@ function renderLobby() {
   els.lobbyMemberPill.textContent = displayName;
   els.balanceValue.textContent = formatChips(state.balance);
 
-  state.claimedToday = hasClaimedToday(state.ledger);
-  if (state.claimedToday) {
-    els.claimDailyBtn.disabled = true;
-    els.claimDailyBtn.textContent = "Daily +100 claimed today";
-    els.claimDailyHint.textContent = "You have claimed today's +100 chips. Next claim opens at 00:00 Stockholm time.";
-  } else {
-    els.claimDailyBtn.disabled = false;
-    els.claimDailyBtn.textContent = "Claim daily +100 chips";
-    els.claimDailyHint.textContent = "Claim +100 play-money chips once per day (resets at 00:00 Stockholm time).";
-  }
+  renderReferralPanel(els, state.referral, Boolean(state.user));
 
   els.ledgerCountPill.textContent = `${state.ledger.length} recent`;
   els.ledgerList.replaceChildren();
@@ -177,7 +173,7 @@ function renderLobby() {
         title: state.hydrating ? "Loading chip history…" : "No chip entries yet",
         message: state.hydrating
           ? "Fetching your balance and recent transactions."
-          : "Claim your daily +100 chips above to record your first entry."
+          : "Invite friends with your link above to record your first entry."
       })
     );
   } else {
@@ -277,7 +273,7 @@ async function hydrateAuthenticatedMember(user) {
     state.balance = 0;
     state.ledger = [];
     state.leaderboard = [];
-    state.claimedToday = false;
+    state.referral = null;
     state.hydrating = false;
     renderAll();
     return;
@@ -286,21 +282,41 @@ async function hydrateAuthenticatedMember(user) {
   state.hydrating = true;
   renderAll();
 
+  // Redeem stored referral code from URL if present
+  redeemStoredReferralOnAuth(user, ({ balance, ledger }) => {
+    state.balance = balance;
+    state.ledger = ledger;
+    renderHeader();
+    renderLobby();
+  });
+
+  // Claim any pending deferred referral rewards on lobby load
+  claimDeferredReferralRewards(user, ({ balance, ledger, referral }) => {
+    state.balance = balance;
+    state.ledger = ledger;
+    if (referral) state.referral = referral;
+    renderHeader();
+    renderLobby();
+  });
+
   const member = await fetchMemberRecord(user);
   state.member = member;
 
-  const [chipProfile, balance, ledger, lbResult] = await Promise.all([
+  const [chipProfile, balance, ledger, lbResult, refResult] = await Promise.all([
     ensureChipProfile(user, member),
     fetchChipBalance(user.id),
     fetchRecentLedger(user.id),
-    fetchLeaderboard()
+    fetchLeaderboard(),
+    fetchMyReferral()
   ]);
 
   state.hydrating = false;
   state.chipProfile = chipProfile;
   state.balance = balance;
   state.ledger = ledger;
-  state.claimedToday = hasClaimedToday(ledger);
+  if (!refResult.error && refResult.code) {
+    state.referral = refResult;
+  }
   state.leaderboard = normalizeLeaderboardRows(
     lbResult.rows,
     user.id,
@@ -483,30 +499,7 @@ function wireEvents() {
   els.guestLoginBtn.addEventListener("click", () => authDialog.open("login"));
   els.guestSignupBtn.addEventListener("click", () => authDialog.open("signup"));
 
-  els.claimDailyBtn.addEventListener("click", async () => {
-    if (!state.user || state.claimedToday) return;
-    els.claimDailyBtn.setAttribute("aria-busy", "true");
-    els.claimDailyBtn.disabled = true;
-
-    const result = await claimDailyChipsForMember(state.user.id, state.balance);
-    els.claimDailyBtn.removeAttribute("aria-busy");
-
-    state.balance = result.balance;
-    if (Array.isArray(result.ledger) && result.ledger.length > 0) {
-      state.ledger = result.ledger;
-    }
-    state.claimedToday =
-      result.status === "claimed" ||
-      result.status === "already_claimed" ||
-      hasClaimedToday(state.ledger);
-
-    renderAll();
-    loadLeaderboard();
-
-    showToast(result.message, {
-      variant: result.status === "error" ? "error" : "default"
-    });
-  });
+  wireReferralCopyButton(els);
 
   els.refreshLeaderboardBtn.addEventListener("click", () => {
     loadLeaderboard();
@@ -564,6 +557,7 @@ function wireEvents() {
 }
 
 async function init() {
+  captureReferralCodeFromUrl();
   renderGuestCards();
   state.activeView = getViewFromHash();
   wireEvents();

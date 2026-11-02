@@ -43,7 +43,7 @@ export function validateBuyIn(rawAmount, { minBuyIn = 400, maxBuyIn = 2000, bala
     return {
       valid: false,
       value: num,
-      error: `You have ${formatChips(balance)} chips available. Claim daily chips or lower your buy-in.`
+      error: `You have ${formatChips(balance)} chips available. Invite friends for chips or lower your buy-in.`
     };
   }
   return { valid: true, value: num, error: "" };
@@ -194,7 +194,7 @@ export function friendlyTableError({ code = "", status = 0, error = "" } = {}) {
     return "That seat was just taken. Try joining again to take another open seat.";
   }
   if (matchCode("ERR_INSUFFICIENT_CHIPS")) {
-    return "Not enough chips in your balance for that buy-in. Claim daily +100 chips or lower your buy-in.";
+    return "Not enough chips in your balance for that buy-in. Invite friends for chips or lower your buy-in.";
   }
   if (matchCode("ERR_TOO_MANY_OPEN_TABLES")) {
     return "You already host 3 open tables. Close an empty table you created or return to an active room.";

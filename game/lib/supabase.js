@@ -1,11 +1,11 @@
 // Supabase client wrapper for KTH Poker Society.
 // Handles member authentication, profile management (`chip_profiles`),
 // read-only chip balance/ledger queries (`chip_balances`, `chip_ledger`),
-// and server RPCs (`claim_daily_chips`, `get_leaderboard`).
+// and server RPCs (`get_my_referral`, `redeem_referral`, `claim_referral_rewards`, `get_leaderboard`).
 // Never writes to `chip_ledger` from the browser.
 
 import { SUPABASE_URL, SUPABASE_KEY, GAME_CONFIG } from "../config.js";
-import { deriveDefaultDisplayName, interpretDailyClaimResult } from "./format.js";
+import { deriveDefaultDisplayName } from "./format.js";
 
 let clientInstance = null;
 
@@ -174,38 +174,76 @@ export async function fetchRecentLedger(userId, limit = GAME_CONFIG.recentLedger
 }
 
 /**
- * Calls the server-side `claim_daily_chips()` RPC and refreshes the member's balance and ledger.
+ * Calls the server-side `get_my_referral()` RPC to fetch or lazily generate the member's referral code and stats.
+ *
+ * @returns {Promise<{ code: string, invitedCount: number, rewardedCount: number, totalEarned: number, error: any }>}
  */
-export async function claimDailyChipsForMember(userId, previousBalance) {
+export async function fetchMyReferral() {
   const sb = getSupabaseClient();
-  if (!sb || !userId) {
-    return {
-      status: "error",
-      delta: 0,
-      balance: previousBalance ?? 0,
-      ledger: [],
-      message: "Connection lost. Check your internet connection and try again."
-    };
+  if (!sb) {
+    return { code: "", invitedCount: 0, rewardedCount: 0, totalEarned: 0, error: new Error("No client") };
   }
+  try {
+    const { data, error } = await sb.rpc("get_my_referral");
+    if (error) {
+      return { code: "", invitedCount: 0, rewardedCount: 0, totalEarned: 0, error };
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    return {
+      code: row?.code || "",
+      invitedCount: Number(row?.invited_count) || 0,
+      rewardedCount: Number(row?.rewarded_count) || 0,
+      totalEarned: Number(row?.total_earned) || 0,
+      error: null
+    };
+  } catch (err) {
+    return { code: "", invitedCount: 0, rewardedCount: 0, totalEarned: 0, error: err };
+  }
+}
 
-  const { data: rpcData, error: rpcError } = await sb.rpc("claim_daily_chips");
-  const [nextBalance, ledger] = await Promise.all([
-    fetchChipBalance(userId),
-    fetchRecentLedger(userId)
-  ]);
+/**
+ * Calls `redeem_referral(p_code)` to redeem a friend's referral code upon sign-in.
+ * Returns status: 'ok', 'already_referred', 'invalid_code', 'too_old', 'self', or 'error'.
+ *
+ * @param {string} code
+ * @returns {Promise<{ status: string, error: any }>}
+ */
+export async function redeemReferralCode(code) {
+  const sb = getSupabaseClient();
+  if (!sb || !code) {
+    return { status: "error", error: new Error("No client or code") };
+  }
+  try {
+    const { data, error } = await sb.rpc("redeem_referral", { p_code: code });
+    if (error) {
+      return { status: "error", error };
+    }
+    return { status: typeof data === "string" ? data : "ok", error: null };
+  } catch (err) {
+    return { status: "error", error: err };
+  }
+}
 
-  const interpreted = interpretDailyClaimResult({
-    rpcData,
-    rpcError,
-    previousBalance,
-    nextBalance
-  });
-
-  return {
-    ...interpreted,
-    balance: nextBalance,
-    ledger
-  };
+/**
+ * Calls `claim_referral_rewards()` to claim any deferred referral rewards for the calling member.
+ * Returns total chips paid (integer).
+ *
+ * @returns {Promise<{ chipsPaid: number, error: any }>}
+ */
+export async function claimReferralRewards() {
+  const sb = getSupabaseClient();
+  if (!sb) {
+    return { chipsPaid: 0, error: new Error("No client") };
+  }
+  try {
+    const { data, error } = await sb.rpc("claim_referral_rewards");
+    if (error) {
+      return { chipsPaid: 0, error };
+    }
+    return { chipsPaid: Number(data) || 0, error: null };
+  } catch (err) {
+    return { chipsPaid: 0, error: err };
+  }
 }
 
 /**

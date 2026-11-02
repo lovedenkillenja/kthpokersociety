@@ -1,7 +1,7 @@
 # Progress log (agent: update this every session)
 
 ## Status
-M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup), M6 (visual & UX polish), and M6.1 (fit-to-screen no-scroll table layout across desktop, mobile portrait, and mobile landscape) are complete.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup), M6 (visual & UX polish), M6.1 (fit-to-screen no-scroll table layout), and M7.1 (referral rewards replacing daily check-in; migration `supabase/migrations/20261102170000_m7_1_referrals.sql` written, NOT applied, awaiting Claude review) are complete.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
@@ -12,15 +12,49 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
 - [x] M5 3–6 players, timers, reconnect (code + 36/36 `node --test` tests complete; M5 migration applied by Claude; M5 functions deployed)
 - [x] M6 polish and tutorial
 - [x] M6.1 fit-to-screen game layout (no-scroll play view across desktop, mobile portrait & mobile landscape; verified in Chrome headless across 8 viewports for 2, 4, 6 players)
+- [x] M7.1 Replace daily chip claim with referral reward (migration `supabase/migrations/20261102170000_m7_1_referrals.sql` written, NOT applied; client updated & tested)
 - [ ] M7 link from website, event awards
 
 ## Decisions for Claude
-- None – no backend, SQL, or Edge Function changes were needed for M6.1.
+- **Migration review & apply (`supabase/migrations/20261102170000_m7_1_referrals.sql`)**:
+  - NOT applied, awaiting Claude review. Do NOT apply from client or CLI.
+  - Replaces inflationary daily check-in (+100 chips via `claim_daily_chips()`) with referral reward system (+250 chips to the inviter for each member joining via their link, capped at 20 rewarded invites = 5,000 chips). Invited member receives the normal +1,000 welcome chips.
+  - Payout delay constant `payout_delay = interval '0 seconds'` configured in `public.referral_config()` for immediate payout during dev; switching to 7 days later is a single-line change.
+  - Enforces cap safely with `pg_advisory_xact_lock` on `referrer_id` (salt = 2) and `FOR UPDATE` lock on `referrals`.
+  - Drops `public.claim_daily_chips()` while preserving historical ledger rows.
 
 ## Decisions for Love
-- None right now. Ready for testing on the Netlify `poker-game` branch deploy or proceeding to M7 (link from website & event awards).
+- Once Claude reviews and applies `20261102170000_m7_1_referrals.sql`, verify the invite flow with two member accounts on the Netlify branch deploy (`https://poker-game--kthpokersociety-v3.netlify.app/game/`).
 
 ## Session log
+- 2026-11-02 (Gemini – M7.1):
+  - **What changed**:
+    - **1. Database migration `supabase/migrations/20261102170000_m7_1_referrals.sql` (NOT applied, awaiting Claude review)**:
+      - Recreated `chip_ledger_source_check` on `public.chip_ledger` to permit `'referral'` alongside `'welcome'`, `'daily'`, `'game'`, `'event'`, and `'admin'` (keeps old ledger rows valid).
+      - Created table `public.referral_codes(member_id uuid primary key references public.members(id) on delete cascade, code text not null unique check (code ~ '^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$'), created_at timestamptz not null default now())` with RLS (`select to authenticated using ((select auth.uid()) = member_id)`).
+      - Created table `public.referrals(referred_id uuid primary key references public.members(id) on delete cascade, referrer_id uuid not null references public.members(id) on delete cascade, created_at timestamptz not null default now(), rewarded_at timestamptz, check (referred_id <> referrer_id))` with RLS (`select to authenticated using ((select auth.uid()) in (referred_id, referrer_id))`) and index on `(referrer_id, created_at desc)`.
+      - Declared central configuration function `public.referral_config()` returning `reward_chips = 250`, `max_rewarded = 20`, `payout_delay = interval '0 seconds'`, `max_account_age = interval '7 days'`.
+      - Implemented `public.generate_referral_code()` using 32 unambiguous characters (excludes 0, O, 1, I) with zero modulo bias ($256 \pmod{32} = 0$).
+      - Implemented internal helper `public.pay_referral(p_referred_id uuid)` (no client grants) with row `FOR UPDATE` lock, advisory transaction lock on `referrer_id` (salt = 2) to serialize cap checks, idempotent `chip_ledger` insert (`ref = 'referral:' || p_referred_id`), and `rewarded_at` timestamp.
+      - Implemented RPC `public.get_my_referral()` returning code (lazy generation), invited count, rewarded count, and total chips earned from ledger.
+      - Implemented RPC `public.redeem_referral(p_code text)` enforcing single referral per member, non-self referral, code existence, member account age <= 7 days, and immediate payout call to `pay_referral`.
+      - Implemented RPC `public.claim_referral_rewards()` to batch-process deferred unrewarded referrals for the calling member.
+      - Dropped `public.claim_daily_chips()`.
+    - **2. Client refactor & referral panel (`game/`)**:
+      - Removed daily check-in button, hints, and RPC callers from `game/index.html`, `game/app.js`, `game/lib/supabase.js`, `game/lib/format.js`, and `game/lib/table-helpers.js`.
+      - Added `game/lib/referral.js` with pure helpers for 8-char code validation, canonical invite link generation (`${location.origin}/game/?ref=CODE`), URL query parameter extraction, `history.replaceState` URL parameter cleanup, localStorage persistence, clipboard copying, and stats formatting.
+      - Added `game/ui/referral-panel.js` controller to manage the "Invite friends" UI, URL code capture on load, automatic redemption upon sign-in, and deferred reward claims on lobby hydration.
+      - Updated `game/index.html` with the "Invite friends" panel under the balance hero showing copyable link, friends joined, rewarded/20, chips earned, and explanation copy: `"You get 250 chips for every friend who joins with your link."`.
+      - Added component styling in `game/styles/components.css` maintaining mobile-first responsive layout (min 44px touch targets, zero page scroll overflow in table mode).
+      - Added unit tests in `game/tests/referral.test.js` covering code validation, unambiguous alphabet enforcement, URL extraction/stripping, storage mocking, and stats formatting.
+  - **Verified**:
+    - `node --test game/tests/*.test.js`: 48/48 tests PASS (including 6 new referral tests and all existing engine/store/layout tests).
+    - Headless Chrome CDP verification: 24/24 viewport configurations PASS with 0 console errors and 0 scroll overflow.
+    - Zero `innerHTML` usage across `game/`.
+    - File size check: all files in `game/` are strictly <= 600 lines (e.g. `app.js` is 593 lines, `index.html` is 585 lines).
+    - Migration file `supabase/migrations/20261102170000_m7_1_referrals.sql` NOT applied (awaiting Claude review).
+  - **What is broken**: Nothing known.
+  - **What is next**: Claude review and application of `20261102170000_m7_1_referrals.sql`; then M7 website link & event awards.
 - 2026-11-02 (Gemini – M6.1):
   - **What changed** (frontend-only in `game/`; zero SQL, backend, or Edge Function changes):
     - **1. Fixed-height app shell (no-scroll table play view)**:
