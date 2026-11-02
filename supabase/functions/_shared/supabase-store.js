@@ -1,7 +1,9 @@
 // Production Supabase (`service_role`) adapter for the `table` and `act` Edge Functions.
 // Reads `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` exclusively from the Edge Function environment.
+// Uses atomic SECURITY DEFINER RPCs (`sit_down`, `leave_seat`, `start_hand_tx`, `apply_hand_tx`).
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_OPEN_TABLES_PER_HOST = 3;
 
 export function createSupabaseStore(supabaseAdmin) {
   return {
@@ -11,7 +13,27 @@ export function createSupabaseStore(supabaseAdmin) {
       return data.user;
     },
 
+    async countOpenTablesByHost(hostId) {
+      const { count, error } = await supabaseAdmin
+        .from("poker_tables")
+        .select("id", { count: "exact", head: true })
+        .eq("host_id", hostId)
+        .in("status", ["open", "playing"]);
+
+      if (error) throw error;
+      return Number(count ?? 0);
+    },
+
     async createTable({ code, hostId, sb, bb, minBuyIn, maxBuyIn, maxSeats }) {
+      const openCount = await this.countOpenTablesByHost(hostId);
+      if (openCount >= MAX_OPEN_TABLES_PER_HOST) {
+        const err = new Error(
+          `ERR_TOO_MANY_OPEN_TABLES: Host already has ${openCount} open tables (max ${MAX_OPEN_TABLES_PER_HOST}).`
+        );
+        err.code = "ERR_TOO_MANY_OPEN_TABLES";
+        throw err;
+      }
+
       const { data, error } = await supabaseAdmin
         .from("poker_tables")
         .insert({
@@ -105,83 +127,66 @@ export function createSupabaseStore(supabaseAdmin) {
       return data;
     },
 
-    async updateSeatStatus(tableId, seatNo, status) {
-      const { error } = await supabaseAdmin
-        .from("table_seats")
-        .update({ status })
-        .eq("table_id", tableId)
-        .eq("seat_no", seatNo);
-      if (error) throw error;
-    },
-
-    async syncSeatStacks(tableId, seatStacks) {
-      for (const { seatNo, stack } of seatStacks) {
-        const { error } = await supabaseAdmin
-          .from("table_seats")
-          .update({ stack: Math.trunc(Number(stack)) })
-          .eq("table_id", tableId)
-          .eq("seat_no", seatNo);
-        if (error) throw error;
-      }
-    },
-
-    async updateTableStatus(tableId, status) {
-      const { error } = await supabaseAdmin
-        .from("poker_tables")
-        .update({ status })
-        .eq("id", tableId);
-      if (error) throw error;
-    },
-
-    async insertHand({ tableId, handNo, dealerSeat, board, pot, state, showdown, endedAt }) {
-      const { data, error } = await supabaseAdmin
-        .from("hands")
-        .insert({
-          table_id: tableId,
-          hand_no: handNo,
-          dealer_seat: dealerSeat,
-          board,
-          pot,
-          state,
-          showdown,
-          ended_at: endedAt
-        })
-        .select("*")
-        .single();
+    async startHandTx({
+      tableId,
+      handNo,
+      dealerSeat,
+      board,
+      pot,
+      state,
+      showdown = null,
+      endedAt = null,
+      seatStacks = [],
+      holeCards = [],
+      actions = [],
+      tableStatus = "playing"
+    }) {
+      const { data, error } = await supabaseAdmin.rpc("start_hand_tx", {
+        p_table_id: tableId,
+        p_hand_no: handNo,
+        p_dealer_seat: dealerSeat,
+        p_board: board,
+        p_pot: pot,
+        p_state: state,
+        p_showdown: showdown,
+        p_ended_at: endedAt,
+        p_seat_stacks: seatStacks,
+        p_hole_cards: holeCards,
+        p_actions: actions,
+        p_table_status: tableStatus
+      });
       if (error) throw error;
       return data;
     },
 
-    async updateHand({ handId, expectedActionSeq, board, pot, state, showdown, endedAt }) {
-      const { data, error } = await supabaseAdmin
-        .from("hands")
-        .update({
-          board,
-          pot,
-          state,
-          showdown,
-          ended_at: endedAt
-        })
-        .eq("id", handId)
-        .is("ended_at", null)
-        .eq("state->>actionSeq", String(expectedActionSeq))
-        .select("*")
-        .maybeSingle();
-
+    async applyHandTx({
+      handId,
+      expectedActionSeq,
+      board,
+      pot,
+      state,
+      showdown = null,
+      endedAt = null,
+      seatStacks = [],
+      holeCards = [],
+      actions = [],
+      tableStatus = null
+    }) {
+      const { data, error } = await supabaseAdmin.rpc("apply_hand_tx", {
+        p_hand_id: handId,
+        p_expected_action_seq: expectedActionSeq,
+        p_board: board,
+        p_pot: pot,
+        p_state: state,
+        p_showdown: showdown,
+        p_ended_at: endedAt,
+        p_seat_stacks: seatStacks,
+        p_hole_cards: holeCards,
+        p_actions: actions,
+        p_table_status: tableStatus
+      });
       if (error) throw error;
       return data;
-    },
-
-    async insertHoleCards(rows) {
-      if (!Array.isArray(rows) || rows.length === 0) return;
-      const { error } = await supabaseAdmin.from("hole_cards").insert(rows);
-      if (error) throw error;
-    },
-
-    async insertHandActions(rows) {
-      if (!Array.isArray(rows) || rows.length === 0) return;
-      const { error } = await supabaseAdmin.from("hand_actions").insert(rows);
-      if (error) throw error;
     },
 
     async broadcastTableState(tableCode, publicState) {

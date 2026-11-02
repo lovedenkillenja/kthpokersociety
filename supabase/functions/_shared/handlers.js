@@ -41,6 +41,21 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
       return errorResult(400, "ERR_INVALID_TABLE_PARAMS", "Invalid table blinds, buy-in limits, or seat count.");
     }
 
+    if (typeof store.countOpenTablesByHost === "function") {
+      try {
+        const openCount = await store.countOpenTablesByHost(callerId);
+        if (openCount >= 3) {
+          return errorResult(
+            400,
+            "ERR_TOO_MANY_OPEN_TABLES",
+            "You can host at most 3 open tables at a time."
+          );
+        }
+      } catch (err) {
+        return mapStoreError(err);
+      }
+    }
+
     let createdTable = null;
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const code = generateRoomCode(rng);
@@ -55,7 +70,10 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
           maxSeats
         });
         if (createdTable) break;
-      } catch (_err) {
+      } catch (err) {
+        if (String(err?.message || err || "").includes("ERR_TOO_MANY_OPEN_TABLES")) {
+          return mapStoreError(err);
+        }
         // Retry if 5-char code collided
       }
     }
@@ -170,7 +188,8 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
             table,
             handRow: hand,
             prevState: hand.state,
-            nextState
+            nextState,
+            seatStatusOverrides: handStillRunning ? { [callerSeat.seat_no]: "sitout" } : null
           });
         } catch (err) {
           return mapStoreError(err);
@@ -178,7 +197,6 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
       }
 
       if (handStillRunning) {
-        await store.updateSeatStatus(table.id, callerSeat.seat_no, "sitout");
         const publicState = await loadAndBroadcastTableState(store, table.id, callerId);
         return {
           status: 200,
@@ -277,40 +295,39 @@ export async function handleActRequest({ store, jwt, payload = {}, rng = cryptoR
       handState.actionSeq = 0;
 
       const endedAt = handState.status === "complete" ? new Date().toISOString() : null;
-      const insertedHand = await store.insertHand({
-        tableId: table.id,
-        handNo: nextHandNo,
-        dealerSeat: handState.dealerSeat,
-        board: handState.board,
-        pot: handState.pot,
-        state: handState,
-        showdown: handState.showdownResult || null,
-        endedAt
-      });
-
+      const tableStatus = handState.status === "complete" ? "open" : "playing";
+      const seatStacks = handState.seats.map((p) => ({
+        seatNo: p.seat,
+        stack: Math.trunc(Number(p.stack))
+      }));
       const holeCardRows = handState.seats.map((p) => ({
-        hand_id: insertedHand.id,
         member_id: p.id,
         cards: p.holeCards
       }));
-      await store.insertHoleCards(holeCardRows);
-
-      await store.syncSeatStacks(
-        table.id,
-        handState.seats.map((p) => ({ seatNo: p.seat, stack: p.stack }))
-      );
-
       const initialActions = handState.actions.map((a) => ({
-        hand_id: insertedHand.id,
         seat_no: a.seat,
         action: a.type,
         amount: a.amount
       }));
-      if (initialActions.length > 0) {
-        await store.insertHandActions(initialActions);
-      }
 
-      await store.updateTableStatus(table.id, handState.status === "complete" ? "open" : "playing");
+      try {
+        await store.startHandTx({
+          tableId: table.id,
+          handNo: nextHandNo,
+          dealerSeat: handState.dealerSeat,
+          board: handState.board,
+          pot: handState.pot,
+          state: handState,
+          showdown: handState.showdownResult || null,
+          endedAt,
+          seatStacks,
+          holeCards: holeCardRows,
+          actions: initialActions,
+          tableStatus
+        });
+      } catch (err) {
+        return mapStoreError(err);
+      }
 
       const publicState = await loadAndBroadcastTableState(store, table.id, callerId);
       return { status: 200, body: { ok: true, table: publicState } };

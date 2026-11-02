@@ -83,7 +83,23 @@ function createMockStore() {
       return usersByJwt.get(jwt) || null;
     },
 
+    async countOpenTablesByHost(hostId) {
+      let count = 0;
+      for (const t of tables.values()) {
+        if (t.host_id === hostId && (t.status === "open" || t.status === "playing")) {
+          count += 1;
+        }
+      }
+      return count;
+    },
+
     async createTable({ code, hostId, sb, bb, minBuyIn, maxBuyIn, maxSeats }) {
+      const openCount = await this.countOpenTablesByHost(hostId);
+      if (openCount >= 3) {
+        const err = new Error(`ERR_TOO_MANY_OPEN_TABLES: host already has ${openCount} open tables (max 3)`);
+        err.code = "ERR_TOO_MANY_OPEN_TABLES";
+        throw err;
+      }
       for (const t of tables.values()) {
         if (t.code === code) throw new Error("duplicate code");
       }
@@ -209,30 +225,44 @@ function createMockStore() {
       return { ...seatRow };
     },
 
-    async updateSeatStatus(tableId, seatNo, status) {
-      const seatRow = tableSeats.find((s) => s.table_id === tableId && s.seat_no === seatNo);
-      if (seatRow) seatRow.status = status;
-    },
-
-    async syncSeatStacks(tableId, seatStacks) {
-      for (const { seatNo, stack } of seatStacks) {
-        const seatRow = tableSeats.find((s) => s.table_id === tableId && s.seat_no === seatNo);
-        if (seatRow) seatRow.stack = stack;
-      }
-    },
-
-    async updateTableStatus(tableId, status) {
+    async startHandTx({
+      tableId,
+      handNo,
+      dealerSeat,
+      board,
+      pot,
+      state,
+      showdown = null,
+      endedAt = null,
+      seatStacks = [],
+      holeCards: newHoleCards = [],
+      actions = [],
+      tableStatus = "playing"
+    }) {
       const table = tables.get(tableId);
-      if (table) table.status = status;
-    },
+      if (!table) throw new Error("ERR_TABLE_NOT_FOUND: table does not exist");
+      if (table.status === "closed") throw new Error("ERR_TABLE_CLOSED: table is closed");
 
-    async insertHand({ tableId, handNo, dealerSeat, board, pot, state, showdown, endedAt }) {
+      const tableHands = hands
+        .filter((h) => h.table_id === tableId)
+        .sort((a, b) => b.hand_no - a.hand_no);
+      const prevHand = tableHands[0] || null;
+      if (prevHand && prevHand.ended_at === null) {
+        throw new Error("ERR_HAND_IN_PROGRESS: a hand is already in progress at this table");
+      }
+      if (handNo !== (prevHand ? prevHand.hand_no : 0) + 1) {
+        throw new Error("ERR_STALE_HAND: unexpected hand_no");
+      }
+      if (Number(state?.actionSeq ?? 0) !== 0) {
+        throw new Error("ERR_STALE_ACTION_SEQ: expected initial actionSeq 0");
+      }
+
       const row = {
         id: `hand-${seq++}`,
         table_id: tableId,
         hand_no: handNo,
         dealer_seat: dealerSeat,
-        board: [...board],
+        board: [...(board || [])],
         pot,
         state: structuredClone(state),
         showdown: showdown ? structuredClone(showdown) : null,
@@ -240,29 +270,96 @@ function createMockStore() {
         ended_at: endedAt
       };
       hands.push(row);
+
+      for (const entry of seatStacks) {
+        const seatNo = entry.seatNo ?? entry.seat_no;
+        const seatRow = tableSeats.find(
+          (s) => s.table_id === tableId && s.seat_no === seatNo && s.status !== "left"
+        );
+        if (!seatRow) throw new Error(`ERR_NOT_SEATED: seat ${seatNo} not found`);
+        seatRow.stack = entry.stack;
+        if (entry.status) seatRow.status = entry.status;
+      }
+
+      for (const hc of newHoleCards) {
+        holeCards.push({
+          hand_id: row.id,
+          member_id: hc.member_id ?? hc.memberId,
+          cards: [...hc.cards]
+        });
+      }
+
+      for (const act of actions) {
+        handActions.push({
+          hand_id: row.id,
+          seat_no: act.seat_no ?? act.seatNo,
+          action: act.action,
+          amount: act.amount ?? 0
+        });
+      }
+
+      table.status = tableStatus || (endedAt ? "open" : "playing");
       return structuredClone(row);
     },
 
-    async updateHand({ handId, expectedActionSeq, board, pot, state, showdown, endedAt }) {
-      const row = hands.find((h) => h.id === handId && h.ended_at === null);
-      if (!row) return null;
+    async applyHandTx({
+      handId,
+      expectedActionSeq,
+      board,
+      pot,
+      state,
+      showdown = null,
+      endedAt = null,
+      seatStacks = [],
+      holeCards: updatedHoleCards = [],
+      actions = [],
+      tableStatus = null
+    }) {
+      const row = hands.find((h) => h.id === handId);
+      if (!row) throw new Error("ERR_HAND_NOT_FOUND: hand does not exist");
+      if (row.ended_at !== null) throw new Error("ERR_NO_ACTIVE_HAND: hand has already ended");
       if (Number(row.state?.actionSeq ?? 0) !== Number(expectedActionSeq)) {
-        return null;
+        throw new Error("ERR_STALE_ACTION_SEQ: expected actionSeq mismatch");
       }
-      row.board = [...board];
+
+      const table = tables.get(row.table_id);
+      row.board = [...(board || [])];
       row.pot = pot;
       row.state = structuredClone(state);
       row.showdown = showdown ? structuredClone(showdown) : null;
       row.ended_at = endedAt;
+
+      for (const entry of seatStacks) {
+        const seatNo = entry.seatNo ?? entry.seat_no;
+        const seatRow = tableSeats.find(
+          (s) => s.table_id === row.table_id && s.seat_no === seatNo && s.status !== "left"
+        );
+        if (!seatRow) throw new Error(`ERR_NOT_SEATED: seat ${seatNo} not found`);
+        seatRow.stack = entry.stack;
+        if (entry.status) seatRow.status = entry.status;
+      }
+
+      for (const hc of updatedHoleCards) {
+        holeCards.push({
+          hand_id: row.id,
+          member_id: hc.member_id ?? hc.memberId,
+          cards: [...hc.cards]
+        });
+      }
+
+      for (const act of actions) {
+        handActions.push({
+          hand_id: row.id,
+          seat_no: act.seat_no ?? act.seatNo,
+          action: act.action,
+          amount: act.amount ?? 0
+        });
+      }
+
+      if (table) {
+        table.status = tableStatus || (endedAt ? "open" : "playing");
+      }
       return structuredClone(row);
-    },
-
-    async insertHoleCards(rows) {
-      holeCards.push(...structuredClone(rows));
-    },
-
-    async insertHandActions(rows) {
-      handActions.push(...structuredClone(rows));
     },
 
     async broadcastTableState(tableCode, publicState) {

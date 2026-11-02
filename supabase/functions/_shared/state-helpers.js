@@ -52,27 +52,37 @@ export function mapStoreError(err) {
     "ERR_INVALID_ARGS",
     "ERR_NOT_A_MEMBER",
     "ERR_TABLE_NOT_FOUND",
+    "ERR_HAND_NOT_FOUND",
     "ERR_TABLE_CLOSED",
     "ERR_INVALID_SEAT",
     "ERR_INVALID_BUYIN",
     "ERR_ALREADY_SEATED",
     "ERR_SEAT_TAKEN",
     "ERR_TABLE_FULL",
+    "ERR_TOO_MANY_OPEN_TABLES",
     "ERR_INSUFFICIENT_CHIPS",
     "ERR_NOT_SEATED",
     "ERR_HAND_IN_PROGRESS",
-    "ERR_CONCURRENT_ACTION"
+    "ERR_NO_ACTIVE_HAND",
+    "ERR_STALE_HAND",
+    "ERR_STALE_ACTION_SEQ",
+    "ERR_CONCURRENT_ACTION",
+    "ERR_CHIP_CONSERVATION"
   ];
   for (const code of knownCodes) {
     if (msg.includes(code)) {
       const status =
         code === "ERR_FORBIDDEN"
           ? 403
-          : code === "ERR_TABLE_NOT_FOUND" || code === "ERR_NOT_SEATED"
+          : code === "ERR_TABLE_NOT_FOUND" ||
+              code === "ERR_HAND_NOT_FOUND" ||
+              code === "ERR_NOT_SEATED"
             ? 404
             : code === "ERR_ALREADY_SEATED" ||
                 code === "ERR_SEAT_TAKEN" ||
                 code === "ERR_HAND_IN_PROGRESS" ||
+                code === "ERR_STALE_HAND" ||
+                code === "ERR_STALE_ACTION_SEQ" ||
                 code === "ERR_CONCURRENT_ACTION"
               ? 409
               : 400;
@@ -215,7 +225,15 @@ export function foldSeatInHandState(handState, seatNo) {
   return cloned;
 }
 
-export async function persistHandTransition({ store, table, handRow, prevState, nextState }) {
+export async function persistHandTransition({
+  store,
+  table,
+  handRow,
+  prevState,
+  nextState,
+  seatStatusOverrides = null,
+  holeCards = []
+}) {
   const prevActionCount = prevState?.actions?.length || 0;
   const prevActionSeq = Number(prevState?.actionSeq ?? 0);
   nextState.actionSeq = prevActionSeq + 1;
@@ -249,40 +267,41 @@ export async function persistHandTransition({ store, table, handRow, prevState, 
   }
 
   const endedAt = nextState.status === "complete" ? new Date().toISOString() : null;
-  const updatedHand = await store.updateHand({
+  const tableStatus = nextState.status === "complete" ? "open" : "playing";
+  const seatStacks = nextState.seats.map((p) => {
+    const entry = { seatNo: p.seat, stack: Math.trunc(Number(p.stack)) };
+    if (seatStatusOverrides && seatStatusOverrides[p.seat]) {
+      entry.status = seatStatusOverrides[p.seat];
+    }
+    return entry;
+  });
+
+  const updatedHand = await store.applyHandTx({
     handId: handRow.id,
     expectedActionSeq: prevActionSeq,
     board: nextState.board,
     pot: nextState.pot,
     state: nextState,
     showdown: nextState.showdownResult || null,
-    endedAt
+    endedAt,
+    seatStacks,
+    holeCards,
+    actions: newActions,
+    tableStatus
   });
 
   if (!updatedHand) {
-    const err = new Error("ERR_CONCURRENT_ACTION: Hand state changed concurrently; retry.");
-    err.code = "ERR_CONCURRENT_ACTION";
+    const err = new Error("ERR_STALE_ACTION_SEQ: Hand state changed concurrently; retry.");
+    err.code = "ERR_STALE_ACTION_SEQ";
     throw err;
   }
 
-  await store.syncSeatStacks(
-    table.id,
-    nextState.seats.map((p) => ({ seatNo: p.seat, stack: p.stack }))
-  );
-
-  if (newActions.length > 0) {
-    await store.insertHandActions(newActions);
-  }
-
-  if (nextState.status === "complete") {
-    await store.updateTableStatus(table.id, "open");
-    if (Array.isArray(nextState.pendingLeaveMemberIds)) {
-      for (const leavingMemberId of nextState.pendingLeaveMemberIds) {
-        try {
-          await store.leaveSeat({ tableId: table.id, memberId: leavingMemberId });
-        } catch (_err) {
-          // Already cashed out
-        }
+  if (nextState.status === "complete" && Array.isArray(nextState.pendingLeaveMemberIds)) {
+    for (const leavingMemberId of nextState.pendingLeaveMemberIds) {
+      try {
+        await store.leaveSeat({ tableId: table.id, memberId: leavingMemberId });
+      } catch (_err) {
+        // Already cashed out
       }
     }
   }

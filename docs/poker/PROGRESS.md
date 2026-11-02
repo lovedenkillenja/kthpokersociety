@@ -1,22 +1,32 @@
 # Progress log (agent: update this every session)
 
 ## Status
-M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), and M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `20261102013000_poker_tables_privilege_hardening.sql`, reviewed and applied by Claude) are complete. M3b Edge Functions (`supabase/functions/table` and `supabase/functions/act`) and tests (`game/tests/edge-functions.test.js`, `game/tests/engine-sync.test.js`) are written and ready for review and deployment.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), and M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `20261102013000_poker_tables_privilege_hardening.sql`, reviewed and applied by Claude) are complete. M3b Edge Functions (`supabase/functions/table` and `supabase/functions/act`) and M3c atomic hand persistence (`supabase/migrations/20261102020000_hand_persistence_tx.sql` + RPC-backed `supabase-store.js` + 3-open-table host cap + `game/tests/store-tx.test.js`) are written and ready for review, migration application, and Edge Function deployment.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
 - [x] M2 engine + tests (`game/engine/`: hand evaluation, betting rounds, pots, side pots, showdown + `node --test`)
 - [x] M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `supabase/checks/chip_conservation.sql` – reviewed and applied)
-- [ ] M3b Edge Function `act` + Realtime broadcast (`supabase/functions/table` & `supabase/functions/act` – ready, awaiting review & deploy)
+- [ ] M3b/M3c Edge Functions (`table`, `act`) + atomic hand persistence migration (`20261102020000_hand_persistence_tx.sql`) – ready, awaiting review, migration apply & deploy
 - [ ] M4 heads-up playable on two phones
 - [ ] M5 3–6 players, timers, reconnect
 - [ ] M6 polish and tutorial
 - [ ] M7 link from website, event awards
 
 ## Decisions for Love
-- Edge Functions are ready and NOT deployed. Ask Claude to review and deploy.
+- Migration `supabase/migrations/20261102020000_hand_persistence_tx.sql` and Edge Functions (`table`, `act`) are ready and NOT applied/deployed. Ask Claude to review, apply the migration, run `supabase/checks/chip_conservation.sql`, and deploy the Edge Functions.
 
 ## Session log
+- 2026-11-02 (Gemini – M3c):
+  - **What changed**:
+    - Added migration `supabase/migrations/20261102020000_hand_persistence_tx.sql` with `SECURITY DEFINER` (`service_role` only, `REVOKE ALL FROM public, anon, authenticated`) functions `start_hand_tx(...)` and `apply_hand_tx(...)`. Each function locks the `poker_tables` and `hands` rows with `FOR UPDATE`, verifies `expected_action_seq`, and atomically updates `hands`, `table_seats.stack` (and seat `status` on mid-hand sitout), `hole_cards`, `hand_actions`, and `poker_tables.status` in one transaction while verifying table chip conservation before vs after.
+    - Updated `supabase/functions/_shared/supabase-store.js`, `handlers.js`, and `state-helpers.js` to call `start_hand_tx` and `apply_hand_tx` via `.rpc(...)` instead of separate table writes, keeping `withTableLock` in `handlers.js` as an in-memory optimization.
+    - Capped open (`status in ('open', 'playing')`) tables per host at 3 in the `create` path (`handlers.js` + `supabase-store.js` `countOpenTablesByHost` + DB trigger `poker_tables_max_open_per_host_trg`).
+    - Added unit tests in `game/tests/store-tx.test.js` covering the `createSupabaseStore` RPC paths, the 3-open-table host cap, atomic rollback on stale `actionSeq` / conservation mismatch, and all 4 checks in `supabase/checks/chip_conservation.sql`.
+  - **Verified**: `node --test game/tests/*.test.js` (24/24 passing).
+  - **UNVERIFIED**: Live execution of `20261102020000_hand_persistence_tx.sql` and `supabase/checks/chip_conservation.sql` against Supabase project `tibyyjnghhwwcxvlwmiq` (no Supabase MCP or `psql` in this environment; handed over to Claude).
+  - **What is broken**: Nothing known.
+  - **What is next**: M4 – Heads-up (2 players) playable end-to-end on two phones once M3c migration is applied and Edge Functions are deployed.
 - 2026-11-02 (Gemini – M3b):
   - **What changed**:
     - Added Edge Functions `supabase/functions/table/index.ts` (intents: `create`, `join`, `leave`, `state`) and `supabase/functions/act/index.ts` (intents: `start_hand`, `fold`, `check`, `call`, `raise`, `all_in`), backed by shared modules in `supabase/functions/_shared/` (`handlers.js`, `state-helpers.js`, `supabase-store.js`, `cors.js`).
