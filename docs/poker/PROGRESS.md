@@ -1,7 +1,7 @@
 # Progress log (agent: update this every session)
 
 ## Status
-M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup), M6 (visual & UX polish), M6.1 (fit-to-screen no-scroll table layout), and M7.1 (referral rewards replacing daily check-in; migration `supabase/migrations/20261102170000_m7_1_referrals.sql` written, NOT applied, awaiting Claude review) are complete.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup), M6 (visual & UX polish), M6.1 (fit-to-screen no-scroll table layout), and M7.1 (referral rewards replacing daily check-in; migration `supabase/migrations/20261102170000_m7_1_referrals.sql` applied by Claude 2026-11-02 with fixes) are complete.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
@@ -12,12 +12,12 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
 - [x] M5 3–6 players, timers, reconnect (code + 36/36 `node --test` tests complete; M5 migration applied by Claude; M5 functions deployed)
 - [x] M6 polish and tutorial
 - [x] M6.1 fit-to-screen game layout (no-scroll play view across desktop, mobile portrait & mobile landscape; verified in Chrome headless across 8 viewports for 2, 4, 6 players)
-- [x] M7.1 Replace daily chip claim with referral reward (migration `supabase/migrations/20261102170000_m7_1_referrals.sql` written, NOT applied; client updated & tested)
+- [x] M7.1 Replace daily chip claim with referral reward (migration `supabase/migrations/20261102170000_m7_1_referrals.sql` APPLIED by Claude 2026-11-02 (fixes: partial-index ON CONFLICT, btrim, grants); client updated & tested)
 - [ ] M7 link from website, event awards
 
 ## Decisions for Claude
 - **Migration review & apply (`supabase/migrations/20261102170000_m7_1_referrals.sql`)**:
-  - NOT applied, awaiting Claude review. Do NOT apply from client or CLI.
+  - APPLIED by Claude on 2026-11-02 (tested in a rolled-back block, 23 checks pass). Do not edit the file.
   - Replaces inflationary daily check-in (+100 chips via `claim_daily_chips()`) with referral reward system (+250 chips to the inviter for each member joining via their link, capped at 20 rewarded invites = 5,000 chips). Invited member receives the normal +1,000 welcome chips.
   - Payout delay constant `payout_delay = interval '0 seconds'` configured in `public.referral_config()` for immediate payout during dev; switching to 7 days later is a single-line change.
   - Enforces cap safely with `pg_advisory_xact_lock` on `referrer_id` (salt = 2) and `FOR UPDATE` lock on `referrals`.
@@ -29,7 +29,7 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
 ## Session log
 - 2026-11-02 (Gemini – M7.1):
   - **What changed**:
-    - **1. Database migration `supabase/migrations/20261102170000_m7_1_referrals.sql` (NOT applied, awaiting Claude review)**:
+    - **1. Database migration `supabase/migrations/20261102170000_m7_1_referrals.sql` (APPLIED by Claude)**:
       - Recreated `chip_ledger_source_check` on `public.chip_ledger` to permit `'referral'` alongside `'welcome'`, `'daily'`, `'game'`, `'event'`, and `'admin'` (keeps old ledger rows valid).
       - Created table `public.referral_codes(member_id uuid primary key references public.members(id) on delete cascade, code text not null unique check (code ~ '^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$'), created_at timestamptz not null default now())` with RLS (`select to authenticated using ((select auth.uid()) = member_id)`).
       - Created table `public.referrals(referred_id uuid primary key references public.members(id) on delete cascade, referrer_id uuid not null references public.members(id) on delete cascade, created_at timestamptz not null default now(), rewarded_at timestamptz, check (referred_id <> referrer_id))` with RLS (`select to authenticated using ((select auth.uid()) in (referred_id, referrer_id))`) and index on `(referrer_id, created_at desc)`.
@@ -52,7 +52,7 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
     - Headless Chrome CDP verification: 24/24 viewport configurations PASS with 0 console errors and 0 scroll overflow.
     - Zero `innerHTML` usage across `game/`.
     - File size check: all files in `game/` are strictly <= 600 lines (e.g. `app.js` is 593 lines, `index.html` is 585 lines).
-    - Migration file `supabase/migrations/20261102170000_m7_1_referrals.sql` NOT applied (awaiting Claude review).
+    - Migration file `supabase/migrations/20261102170000_m7_1_referrals.sql` applied by Claude.
   - **What is broken**: Nothing known.
   - **What is next**: Claude review and application of `20261102170000_m7_1_referrals.sql`; then M7 website link & event awards.
 - 2026-11-02 (Gemini – M6.1):
