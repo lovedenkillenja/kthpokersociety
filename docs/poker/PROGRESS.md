@@ -1,7 +1,7 @@
 # Progress log (agent: update this every session)
 
 ## Status
-M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, and M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup) are complete: M5 migration applied by Claude; M5 functions deployed.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup), and M6 (visual & UX polish, 2–6p 375px layout, in-place turn countdown & progress bar, showdown/side-pot presentation, card/chip animations, How-to-play tutorial dialog, sound cues, and error/reconnect recovery) are complete.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
@@ -10,13 +10,41 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
 - [x] M3b/M3c Edge Functions (`table`, `act`) + atomic hand persistence migration (`20261102020000_hand_persistence_tx.sql`) – M3b+M3c deployed
 - [x] M4 heads-up playable on two phones (UI built & wired to deployed `table` and `act`; live two-phone Realtime play UNVERIFIED)
 - [x] M5 3–6 players, timers, reconnect (code + 36/36 `node --test` tests complete; M5 migration applied by Claude; M5 functions deployed)
-- [ ] M6 polish and tutorial
+- [x] M6 polish and tutorial (39/39 `node --test` passing; live mobile/desktop browser verification on Netlify branch deploy UNVERIFIED)
 - [ ] M7 link from website, event awards
 
+## Decisions for Claude
+- None – no backend, SQL, or Edge Function changes were needed for M6.
+
 ## Decisions for Love
-- None right now. Ready for live 3-account testing on the Netlify `poker-game` branch deploy or starting M6 (polish and tutorial).
+- None right now. Ready for visual and UX testing of M6 on the Netlify `poker-game` branch deploy, or proceeding to M7 (link from website & event awards).
 
 ## Session log
+- 2026-11-02 (Gemini – M6):
+  - **What changed** (frontend-only in `game/`; zero SQL, backend, or Edge Function changes):
+    - **1. 375px table layout for 2, 3, 4, 5 and 6 players & mobile raise controls (`game/lib/table-helpers.js`, `game/ui/table-render.js`, `game/styles/table.css`)**:
+      - Added `layoutOpponentSeatsForGrid(opponentSeats)` to arrange 1–5 opponents in clockwise visual order around the upper felt, centering the top 12 o'clock seat across both columns (`fullRow: true`) for 2, 4, and 6 players while pairing left/right flank seats cleanly.
+      - Refined `.poker-felt` border radius (`34px` mobile, `56px` desktop) and compact opponent seat plaques (`min-width: 0`, ellipsis on long names, crisp `D`/`SB`/`BB` badges) so 2–6 seats never clip or overlap at 375px.
+      - Added `−` and `+` 1-BB step buttons (`#table-raise-dec-btn`, `#table-raise-inc-btn`, `44x44px`) beside the mobile raise slider and numeric input (`17px` font size to prevent iOS auto-zoom, `inputmode="numeric"`), plus `Min`, `½ pot`, `Pot`, and `All-in` presets.
+    - **2. Turn indicator, in-place 30s countdown bar & Sitting-out UX (`game/ui/table-render.js`, `game/ui/table-view.js`, `game/index.html`)**:
+      - Added `.seat-timer-bar` (`role="progressbar"`) and `updateTurnTimerInPlace()` so 1-second timer ticks update the active seat's countdown pill (`● Your turn · 24s` / `⚠ 7s` in danger red at `<=7s`) and progress bar width in place without rebuilding the felt DOM or re-triggering card deal animations every second.
+      - Added a dedicated `#table-sitout-banner` above the felt when the player is sitting out (including after 2 consecutive timeouts) with a 1-tap **"Sit back in"** button, plus a topbar `Sit out` / `Sit back in` toggle (`#table-sit-toggle-btn`).
+    - **3. Showdown & win presentation, last-10-hands log, and reduced-motion animations (`game/lib/table-helpers.js`, `game/ui/table-render.js`, `game/styles/table.css`)**:
+      - Added `summarizeShowdown()` and `buildHandHistoryEntry()` to display winners, winning hand rank (`Royal Flush`..`High Card`), split pots, and side-pot breakdowns (`Main: 400 → Alice`, `Side 1: 200 → Bob`), plus `.table-seat-card--winner` gold highlights and `★ Won +X` badges on winning seats.
+      - Added a collapsible **"Recent hands (last 10)"** panel (`#table-history-details`) below the felt and tracked animation state so `.playing-card--deal` (`200ms ease-out`) and `.chip-move-anim` (`180ms ease-out`) fire only when new cards or bets appear and are disabled under `@media (prefers-reduced-motion: reduce)`.
+    - **4. Empty, loading, and error states (`game/lib/table-helpers.js`, `game/lib/poker-api.js`, `game/ui/table-view.js`)**:
+      - Added `friendlyTableError()` mapping `ERR_TABLE_NOT_FOUND` (wrong room code), `ERR_TABLE_FULL`, `ERR_TABLE_CLOSED`, `ERR_SEAT_TAKEN`, `ERR_INSUFFICIENT_CHIPS`, `ERR_TOO_MANY_OPEN_TABLES`, `ERR_OUT_OF_TURN`, `ERR_STALE_ACTION_SEQ`, `ERR_UNAUTHORIZED` (401), and `ERR_NETWORK` (`"Connection lost. Reconnecting…"`) to clear, actionable messages.
+      - Added `#table-conn-banner` for live connection loss (`"Connection lost. Reconnecting…"`) with a **Retry now** button, automatic one-time `sb.auth.refreshSession()` retry on `401` before prompting **Sign in again**, and a closed-table notice with a 1-tap **Back to Lobby** button.
+    - **5. Interactive tutorial, optional sound cues & accessibility (`game/ui/tutorial-dialog.js`, `game/index.html`, `game/styles/base.css`, `game/styles/components.css`)**:
+      - Added `game/ui/tutorial-dialog.js` (`#tutorial-dialog`) accessible from both the Lobby (**"How to play & hand rankings"**) and Table topbar (**"? Rules"** or `?` shortcut), covering the 3-step Hold'em walkthrough, all 10 hand rankings rendered with mini CSS cards, table etiquette (30s timer, 2x timeout sit-out, play-money rules), and keyboard shortcuts (`F`, `C`, `R`, `?`, `Esc`).
+      - Added synthesized Web Audio sound cues (turn chime, card deal, pot win) defaulting to **Sound: Off** per `STYLE_GUIDE.md`.
+      - Added `.skip-link` (`Skip to main content`), visible `:focus-visible` outlines on all interactive controls, and verified all text is HTML/CSS (never baked into images).
+    - **6. "Play money – no cash value" on every screen (`game/index.html`, `game/styles/components.css`)**:
+      - Added `.view-play-money-note` badges so `"Play money – no cash value"` is visible inside `#view-lobby`, `#view-table`, `#view-leaderboard`, `#view-profile`, `#auth-dialog`, and `#tutorial-dialog`, in addition to the global header and footer.
+  - **Verified**: `node --test game/tests/*.test.js` (39/39 passing, including new M6 unit tests in `game/tests/table-helpers.test.js` and `game/tests/m5.test.js`), all files in `game/` `<= 600` lines, and zero changes outside `game/` and `docs/poker/PROGRESS.md`.
+  - **UNVERIFIED**: Live visual/UX inspection on a physical 375px phone and desktop browser against the Netlify branch deploy (`https://poker-game--kthpokersociety-v3.netlify.app/game/`), including real network-drop reconnect banner and multi-player showdown animations.
+  - **What is broken**: Nothing known.
+  - **What is next**: M7 – link from the society website (`/index.html`) when approved, plus admin event chip awards UI/workflow.
 - 2026-11-02 (Gemini – M5 deploy):
   - **What changed**: Pulled commit `ab377d1` (where Claude fixed `20261102023000_m5_timers_sitout_cleanup.sql` to preserve the `p_board text[]` signature on `apply_hand_tx`, restore table-first lock order, and make the activity trigger safe, then applied it to `tibyyjnghhwwcxvlwmiq`), verified `node --test` (36/36 passing), and deployed both Edge Functions (`table` and `act`) to Supabase project `tibyyjnghhwwcxvlwmiq`. M5 migration applied by Claude; M5 functions deployed.
   - **What is next**: M6 – visual polish and interactive tutorial.

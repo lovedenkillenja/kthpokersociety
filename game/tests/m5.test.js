@@ -540,47 +540,31 @@ test("M5: 30-minute idle empty table auto-cleanup and host close-table intent", 
   // At +10 minutes, Alice is still blocked from creating a 4th table
   admin.setClock(10_000_000 + 10 * 60 * 1000);
   const blockedRes = await handleTableRequest({
-    store,
-    jwt: "jwt-alice",
-    payload: { intent: "create", sb: 10, bb: 20 },
-    rng,
-    now
+    store, jwt: "jwt-alice", payload: { intent: "create", sb: 10, bb: 20 }, rng, now
   });
   assert.equal(blockedRes.status, 400);
   assert.equal(blockedRes.body.code, "ERR_TOO_MANY_OPEN_TABLES");
 
   // Non-host (Bob) cannot close Alice's table
   const nonHostClose = await handleTableRequest({
-    store,
-    jwt: "jwt-bob",
-    payload: { intent: "close", table: codes[0] },
-    now
+    store, jwt: "jwt-bob", payload: { intent: "close", table: codes[0] }, now
   });
   assert.equal(nonHostClose.status, 403);
   assert.equal(nonHostClose.body.code, "ERR_NOT_HOST");
 
   // If Bob sits down at codes[0], Alice cannot close codes[0] while it is occupied
   await handleTableRequest({
-    store,
-    jwt: "jwt-bob",
-    payload: { intent: "join", table: codes[0], buyIn: 500 },
-    now
+    store, jwt: "jwt-bob", payload: { intent: "join", table: codes[0], buyIn: 500 }, now
   });
   const occupiedClose = await handleTableRequest({
-    store,
-    jwt: "jwt-alice",
-    payload: { intent: "close", table: codes[0] },
-    now
+    store, jwt: "jwt-alice", payload: { intent: "close", table: codes[0] }, now
   });
   assert.equal(occupiedClose.status, 409);
   assert.equal(occupiedClose.body.code, "ERR_TABLE_NOT_EMPTY");
 
   // Host (Alice) explicitly closes empty table codes[1] via `intent: "close"`
   const hostClose = await handleTableRequest({
-    store,
-    jwt: "jwt-alice",
-    payload: { intent: "close", table: codes[1] },
-    now
+    store, jwt: "jwt-alice", payload: { intent: "close", table: codes[1] }, now
   });
   assert.equal(hostClose.status, 200);
   assert.equal(hostClose.body.table.status, "closed");

@@ -2,13 +2,27 @@
 // Separated from `table-view.js` to keep each UI module well under 600 lines.
 
 import { formatChips } from "../lib/format.js";
-import { partitionTableSeats, describeHandStatus } from "../lib/table-helpers.js";
+import {
+  partitionTableSeats,
+  layoutOpponentSeatsForGrid,
+  describeHandStatus,
+  summarizeShowdown
+} from "../lib/table-helpers.js";
 import {
   createCard,
   createCardBack,
   createPill,
   createChipAmount
 } from "./components.js";
+
+// Tracks last-seen hand/board/bet state so deal & chip animations only fire on real transitions
+const animState = {
+  handId: null,
+  boardCount: 0,
+  selfHoleHandId: null,
+  pot: 0,
+  betsBySeat: new Map()
+};
 
 function buildRoleBadges(seat, hand) {
   const pills = [];
@@ -18,34 +32,63 @@ function buildRoleBadges(seat, hand) {
   return pills;
 }
 
+export function formatTurnStatusLabel(isSelf, remainingSeconds) {
+  const hasTimer = remainingSeconds !== null && remainingSeconds !== undefined;
+  const urgent = hasTimer && remainingSeconds <= 8;
+  const prefix = urgent ? "⚠ " : "● ";
+  if (isSelf) {
+    return hasTimer ? `${prefix}Your turn · ${remainingSeconds}s` : "● Your turn";
+  }
+  return hasTimer ? `${prefix}Acting · ${remainingSeconds}s` : "● Acting…";
+}
+
 function buildSeatStatusPill(seat, hand, remainingSeconds = null) {
   if (seat.status === "sitout" && (!hand || hand.status !== "playing" || seat.folded)) {
-    return createPill("Sitting out", "danger");
+    return createPill("⏸ Sitting out", "danger");
   }
   if (!hand) {
     return createPill("Ready");
   }
   if (hand.status === "complete") {
     const won = Number(hand.payouts?.[seat.seatNo] || 0);
-    if (won > 0) return createPill(`Won +${formatChips(won)}`, "chip");
+    if (won > 0) return createPill(`★ Won +${formatChips(won)}`, "chip");
     if (seat.folded) return createPill("Folded");
-    return createPill("Complete");
+    return createPill("Showdown");
   }
   if (seat.folded) return createPill("Folded", "danger");
-  if (seat.allIn) return createPill("All-in", "chip");
+  if (seat.allIn) return createPill("▲ All-in", "chip");
   if (hand.actingSeat === seat.seatNo) {
     const hasTimer = remainingSeconds !== null && remainingSeconds !== undefined;
-    const label = seat.isSelf
-      ? hasTimer
-        ? `Your turn · ${remainingSeconds}s`
-        : "Your turn"
-      : hasTimer
-        ? `Acting · ${remainingSeconds}s`
-        : "Thinking…";
     const variant = hasTimer && remainingSeconds <= 8 ? "danger" : "brand";
-    return createPill(label, variant);
+    const pill = createPill(formatTurnStatusLabel(seat.isSelf, remainingSeconds), variant);
+    pill.dataset.turnTimerPill = "true";
+    pill.dataset.isSelf = seat.isSelf ? "true" : "false";
+    return pill;
   }
   return createPill("In hand");
+}
+
+/**
+ * Updates the active seat's countdown pill and progress bar in-place without rebuilding the felt DOM.
+ */
+export function updateTurnTimerInPlace(rootEl, remainingSeconds, totalSeconds = 30) {
+  if (!rootEl) return;
+  const pill = rootEl.querySelector("[data-turn-timer-pill='true']");
+  if (pill) {
+    const isSelf = pill.dataset.isSelf === "true";
+    pill.textContent = formatTurnStatusLabel(isSelf, remainingSeconds);
+    const urgent = remainingSeconds !== null && remainingSeconds <= 8;
+    pill.className = `pill tabular ${urgent ? "pill--danger" : "pill--brand"}`;
+  }
+  const barFill = rootEl.querySelector("[data-turn-timer-bar='true']");
+  if (barFill) {
+    const sec = Math.max(0, Number(remainingSeconds ?? 0));
+    const pct = Math.min(100, Math.max(0, Math.round((sec / totalSeconds) * 100)));
+    barFill.style.width = `${pct}%`;
+    barFill.classList.toggle("seat-timer-bar__fill--urgent", sec <= 8);
+    const barTrack = barFill.parentElement;
+    if (barTrack) barTrack.setAttribute("aria-valuenow", String(sec));
+  }
 }
 
 export function createSeatBox(
@@ -54,15 +97,36 @@ export function createSeatBox(
   {
     isSelf = false,
     compact = false,
+    fullRow = false,
+    gridPosition = "",
     myHoleCards = null,
     lastHoleCardsHandId = null,
-    remainingSeconds = null
+    remainingSeconds = null,
+    animateHoleCards = false,
+    animateBet = false
   } = {}
 ) {
+  const isTurn = Boolean(hand?.status === "playing" && hand?.actingSeat === seat.seatNo);
+  const isWinner = Boolean(
+    hand?.status === "complete" && Number(hand?.payouts?.[seat.seatNo] || 0) > 0
+  );
+  const isSitout = seat.status === "sitout";
+  const isFolded = Boolean(seat.folded);
+
   const wrap = document.createElement("div");
-  wrap.className = `table-seat-card${compact ? " table-seat-card--compact" : ""}${
-    hand?.status === "playing" && hand?.actingSeat === seat.seatNo ? " table-seat-card--turn" : ""
-  }${seat.folded || seat.status === "sitout" ? " table-seat-card--folded" : ""}`;
+  wrap.className = [
+    "table-seat-card",
+    compact ? "table-seat-card--compact" : "",
+    fullRow ? "table-seat-card--fullrow" : "",
+    isTurn ? "table-seat-card--turn" : "",
+    isWinner ? "table-seat-card--winner" : "",
+    isFolded ? "table-seat-card--folded" : "",
+    isSitout ? "table-seat-card--sitout" : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+  wrap.dataset.seatNo = String(seat.seatNo);
+  if (gridPosition) wrap.dataset.gridPos = gridPosition;
 
   const cardsRow = document.createElement("div");
   cardsRow.className = "table-seat-cards";
@@ -83,9 +147,21 @@ export function createSeatBox(
     (isSelf || seat.status === "active" || Number(seat.totalCommitted) > 0 || revealed);
 
   if (hand && revealed) {
-    cardsRow.append(createCard(revealed[0]), createCard(revealed[1]));
+    const c1 = createCard(revealed[0]);
+    const c2 = createCard(revealed[1]);
+    if (animateHoleCards) {
+      c1.classList.add("playing-card--deal");
+      c2.classList.add("playing-card--deal", "playing-card--deal-2");
+    }
+    cardsRow.append(c1, c2);
   } else if (isSeatInHand && !seat.folded) {
-    cardsRow.append(createCardBack(), createCardBack());
+    const b1 = createCardBack();
+    const b2 = createCardBack();
+    if (animateHoleCards) {
+      b1.classList.add("playing-card--deal");
+      b2.classList.add("playing-card--deal", "playing-card--deal-2");
+    }
+    cardsRow.append(b1, b2);
   }
 
   const evalName = hand?.showdown?.hands?.[seat.seatNo]?.name || "";
@@ -93,7 +169,7 @@ export function createSeatBox(
   let betBadge = null;
   if (hand && Number(seat.bet) > 0) {
     betBadge = document.createElement("div");
-    betBadge.className = "table-bet-pill tabular";
+    betBadge.className = `table-bet-pill tabular${animateBet ? " chip-move-anim" : ""}`;
     betBadge.appendChild(createChipAmount(seat.bet, { showDisc: true, suffix: "" }));
     betBadge.lastChild.textContent = `Bet ${formatChips(seat.bet)}`;
   }
@@ -127,11 +203,40 @@ export function createSeatBox(
 
   const bottomRow = document.createElement("div");
   bottomRow.className = "table-seat-plaque__bottom";
-  bottomRow.appendChild(createChipAmount(seat.stack, { showDisc: true, suffix: "chips" }));
+  bottomRow.appendChild(
+    createChipAmount(seat.stack, { showDisc: true, suffix: compact ? "" : "chips" })
+  );
 
-  if (evalName) bottomRow.appendChild(createPill(evalName, "chip"));
+  if (evalName) {
+    bottomRow.appendChild(createPill(evalName, "chip"));
+  } else if (compact && betBadge) {
+    bottomRow.appendChild(betBadge);
+    betBadge = null;
+  }
 
   plaque.append(topRow, bottomRow);
+
+  if (isTurn && remainingSeconds !== null && remainingSeconds !== undefined) {
+    const totalSec = Math.max(1, Math.round(Number(hand?.turnTimeoutMs || 30_000) / 1000));
+    const sec = Math.max(0, Number(remainingSeconds));
+    const pct = Math.min(100, Math.max(0, Math.round((sec / totalSec) * 100)));
+
+    const barTrack = document.createElement("div");
+    barTrack.className = "seat-timer-bar";
+    barTrack.setAttribute("role", "progressbar");
+    barTrack.setAttribute("aria-label", "Turn time remaining");
+    barTrack.setAttribute("aria-valuemin", "0");
+    barTrack.setAttribute("aria-valuemax", String(totalSec));
+    barTrack.setAttribute("aria-valuenow", String(sec));
+
+    const barFill = document.createElement("div");
+    barFill.className = `seat-timer-bar__fill${sec <= 8 ? " seat-timer-bar__fill--urgent" : ""}`;
+    barFill.dataset.turnTimerBar = "true";
+    barFill.style.width = `${pct}%`;
+
+    barTrack.appendChild(barFill);
+    plaque.appendChild(barTrack);
+  }
 
   if (isSelf) {
     if (betBadge) wrap.appendChild(betBadge);
@@ -144,6 +249,49 @@ export function createSeatBox(
   }
 
   return wrap;
+}
+
+export function renderHandHistoryList(listEl, panelEl, historyEntries = []) {
+  if (!listEl || !panelEl) return;
+  if (!Array.isArray(historyEntries) || historyEntries.length === 0) {
+    panelEl.hidden = true;
+    listEl.replaceChildren();
+    return;
+  }
+  panelEl.hidden = false;
+  listEl.replaceChildren();
+
+  historyEntries.forEach((item) => {
+    const li = document.createElement("li");
+    li.className = "hand-history-row";
+
+    const top = document.createElement("div");
+    top.className = "hand-history-row__top";
+    const title = document.createElement("strong");
+    title.textContent = `Hand #${item.handNo} · ${item.headline}`;
+    const potPill = createPill(`Pot ${formatChips(item.pot)}`, "chip");
+    top.append(title, potPill);
+
+    const sub = document.createElement("div");
+    sub.className = "hand-history-row__sub";
+    const detailSpan = document.createElement("span");
+    detailSpan.textContent = item.detail || "";
+    sub.appendChild(detailSpan);
+
+    if (Array.isArray(item.board) && item.board.length > 0) {
+      const boardWrap = document.createElement("div");
+      boardWrap.className = "hand-history-row__board";
+      item.board.forEach((c) => {
+        const cardEl = createCard(c);
+        cardEl.classList.add("playing-card--mini");
+        boardWrap.appendChild(cardEl);
+      });
+      sub.appendChild(boardWrap);
+    }
+
+    li.append(top, sub);
+    listEl.appendChild(li);
+  });
 }
 
 export function renderTableFelt({
@@ -160,20 +308,39 @@ export function renderTableFelt({
   const hand = currentTable.hand || null;
   const seats = Array.isArray(currentTable.seats) ? currentTable.seats : [];
 
+  const handId = hand?.id || null;
+  const isNewHand = Boolean(handId && handId !== animState.handId);
+  const prevBoardCount = isNewHand ? 0 : animState.boardCount;
+  const board = Array.isArray(hand?.board) ? hand.board : [];
+  const animateSelfHole = Boolean(
+    handId &&
+      Array.isArray(myHoleCards) &&
+      myHoleCards.length === 2 &&
+      lastHoleCardsHandId === handId &&
+      animState.selfHoleHandId !== handId
+  );
+
   // 1. Opponent seats (1 to 5 opponents arranged clockwise around the upper felt)
   els.opponentArea.replaceChildren();
   els.opponentArea.dataset.count = String(opponentSeats.length);
 
   if (opponentSeats.length > 0) {
     const useCompact = opponentSeats.length >= 2;
-    opponentSeats.forEach((oppSeat) => {
+    const gridSlots = layoutOpponentSeatsForGrid(opponentSeats);
+    gridSlots.forEach(({ seat: oppSeat, position, fullRow }) => {
+      const prevBet = isNewHand ? 0 : Number(animState.betsBySeat.get(oppSeat.seatNo) || 0);
+      const animateBet = Number(oppSeat.bet || 0) > prevBet;
       els.opponentArea.appendChild(
         createSeatBox(oppSeat, hand, {
           isSelf: false,
           compact: useCompact,
+          fullRow,
+          gridPosition: position,
           myHoleCards,
           lastHoleCardsHandId,
-          remainingSeconds
+          remainingSeconds,
+          animateHoleCards: isNewHand || Boolean(hand?.status === "complete" && oppSeat.revealedCards),
+          animateBet
         })
       );
     });
@@ -181,9 +348,9 @@ export function renderTableFelt({
     const emptyBox = document.createElement("div");
     emptyBox.className = "table-seat-empty";
     const title = document.createElement("strong");
-    title.textContent = "Waiting for players";
+    title.textContent = "Waiting for players to join";
     const sub = document.createElement("span");
-    sub.textContent = `Share room code ${currentTable.code} (up to ${currentTable.maxSeats || 6} seats)`;
+    sub.textContent = `Share room code ${currentTable.code} with friends (2–${currentTable.maxSeats || 6} seats).`;
     emptyBox.append(title, sub);
     els.opponentArea.appendChild(emptyBox);
   }
@@ -192,13 +359,18 @@ export function renderTableFelt({
   els.selfArea.replaceChildren();
   if (selfSeat) {
     els.sitDownForm.hidden = true;
+    const prevSelfBet = isNewHand ? 0 : Number(animState.betsBySeat.get(selfSeat.seatNo) || 0);
+    const animateSelfBet = Number(selfSeat.bet || 0) > prevSelfBet;
     els.selfArea.appendChild(
       createSeatBox(selfSeat, hand, {
         isSelf: true,
         compact: false,
+        gridPosition: "self",
         myHoleCards,
         lastHoleCardsHandId,
-        remainingSeconds
+        remainingSeconds,
+        animateHoleCards: isNewHand || animateSelfHole,
+        animateBet: animateSelfBet
       })
     );
   } else {
@@ -215,20 +387,25 @@ export function renderTableFelt({
 
   // 3. Pot & Side Pots (during play and at showdown)
   const pot = hand ? Number(hand.pot || 0) : 0;
+  const potIncreased = hand && (!isNewHand ? pot > animState.pot : pot > 0);
   els.potAmount.textContent = `${formatChips(pot)} chips`;
+  if (els.potAmount.parentElement) {
+    els.potAmount.parentElement.classList.toggle("chip-move-anim", Boolean(potIncreased));
+  }
 
   els.sidePotsRow.replaceChildren();
+  const showdownSummary = summarizeShowdown(currentTable);
   const potsList = hand?.showdown?.pots?.length > 1 ? hand.showdown.pots : hand?.pots || [];
   if (hand && Array.isArray(potsList) && potsList.length > 1) {
     potsList.forEach((p, idx) => {
-      const prefix = idx === 0 ? "Main" : `Side ${idx}`;
+      const prefix = idx === 0 ? "Main pot" : `Side pot ${idx}`;
       let winnerSuffix = "";
       if (Array.isArray(p.winners) && p.winners.length > 0) {
         const names = p.winners.map((sNo) => {
           const s = seats.find((item) => item.seatNo === sNo);
           return s?.isSelf ? "You" : s?.displayName || `S${sNo + 1}`;
         });
-        winnerSuffix = ` → ${names.join("/")}`;
+        winnerSuffix = ` → ${names.join(" / ")}`;
       }
       els.sidePotsRow.appendChild(
         createPill(`${prefix}: ${formatChips(p.amount)}${winnerSuffix}`, "chip")
@@ -239,12 +416,18 @@ export function renderTableFelt({
     els.sidePotsRow.hidden = true;
   }
 
-  // 4. Community Board
+  // 4. Community Board (animate newly dealt cards, respecting prefers-reduced-motion)
   els.boardRow.replaceChildren();
-  const board = Array.isArray(hand?.board) ? hand.board : [];
   for (let i = 0; i < 5; i += 1) {
     if (board[i]) {
-      els.boardRow.appendChild(createCard(board[i]));
+      const cardEl = createCard(board[i]);
+      if (i >= prevBoardCount) {
+        cardEl.classList.add("playing-card--deal");
+        const stepIdx = Math.min(2, Math.max(0, i - prevBoardCount));
+        if (stepIdx === 1) cardEl.classList.add("playing-card--deal-2");
+        if (stepIdx === 2) cardEl.classList.add("playing-card--deal-3");
+      }
+      els.boardRow.appendChild(cardEl);
     } else {
       const slot = document.createElement("div");
       slot.className = "card-slot-empty";
@@ -253,14 +436,19 @@ export function renderTableFelt({
     }
   }
 
+  // 5. Status / Showdown Banner
   const status = describeHandStatus(currentTable);
   els.statusHeadline.textContent = status.headline;
   els.statusDetail.textContent = status.detail;
+  const statusBanner = els.statusHeadline.parentElement;
+  if (statusBanner) {
+    statusBanner.classList.toggle("table-status-banner--turn", Boolean(status.isMyTurn));
+    statusBanner.classList.toggle("table-status-banner--showdown", Boolean(showdownSummary));
+  }
 
-  const activeWithChips = seats.filter(
-    (s) => s.status === "active" && Number(s.stack) > 0
-  );
-  const handPlaying = hand && hand.status === "playing";
+  // 6. Deal / Sit-in / Sit-out / Close Table controls
+  const activeWithChips = seats.filter((s) => s.status === "active" && Number(s.stack) > 0);
+  const handPlaying = Boolean(hand && hand.status === "playing");
   const canDeal =
     activeWithChips.length >= 2 &&
     !handPlaying &&
@@ -273,20 +461,34 @@ export function renderTableFelt({
     els.dealBtn.disabled = actionBusy;
   }
 
+  const isSelfSitout = Boolean(selfSeat && selfSeat.status === "sitout" && currentTable.status !== "closed");
+  if (els.sitOutBanner) {
+    els.sitOutBanner.hidden = !isSelfSitout;
+  }
   if (els.sitInBtn) {
-    const showSitIn = Boolean(selfSeat && selfSeat.status === "sitout" && currentTable.status !== "closed");
-    els.sitInBtn.hidden = !showSitIn;
+    els.sitInBtn.hidden = !isSelfSitout;
     els.sitInBtn.disabled = actionBusy;
+  }
+  if (els.sitOutToggleBtn) {
+    const canToggleSit = Boolean(selfSeat && currentTable.status !== "closed");
+    els.sitOutToggleBtn.hidden = !canToggleSit;
+    els.sitOutToggleBtn.disabled = actionBusy;
+    els.sitOutToggleBtn.textContent = isSelfSitout ? "Sit back in" : "Sit out";
   }
 
   if (els.closeTableBtn) {
     const canClose = Boolean(
-      currentTable.isHost &&
-        seats.length === 0 &&
-        !handPlaying &&
-        currentTable.status !== "closed"
+      currentTable.isHost && seats.length === 0 && !handPlaying && currentTable.status !== "closed"
     );
     els.closeTableBtn.hidden = !canClose;
     els.closeTableBtn.disabled = actionBusy;
   }
+
+  // Update animation state snapshot
+  animState.handId = handId;
+  animState.boardCount = board.length;
+  if (animateSelfHole) animState.selfHoleHandId = handId;
+  animState.pot = pot;
+  animState.betsBySeat.clear();
+  seats.forEach((s) => animState.betsBySeat.set(s.seatNo, Number(s.bet || 0)));
 }

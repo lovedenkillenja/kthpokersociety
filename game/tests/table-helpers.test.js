@@ -5,6 +5,10 @@ import {
   validateBuyIn,
   normalizeIncomingTableState,
   partitionTableSeats,
+  layoutOpponentSeatsForGrid,
+  friendlyTableError,
+  summarizeShowdown,
+  buildHandHistoryEntry,
   computeRemainingTurnSeconds,
   computeRaisePresets,
   describeHandStatus
@@ -177,4 +181,113 @@ test("computeRemainingTurnSeconds accounts for server clock skew and clamps at 0
   assert.equal(computeRemainingTurnSeconds(hand, 100_000, 5_000), 25);
   assert.equal(computeRemainingTurnSeconds(hand, 135_000, 0), 0);
   assert.equal(computeRemainingTurnSeconds({ status: "complete", turnDeadlineAt: 130_000 }, 105_000), null);
+});
+
+test("layoutOpponentSeatsForGrid places 1..5 opponents in true clockwise visual order around the felt", () => {
+  const mk = (n) => Array.from({ length: n }, (_, i) => ({ seatNo: i + 1 }));
+
+  // 2 players (1 opponent): centered at top (12h)
+  const g1 = layoutOpponentSeatsForGrid(mk(1));
+  assert.equal(g1.length, 1);
+  assert.equal(g1[0].fullRow, true);
+  assert.equal(g1[0].position, "top-center");
+
+  // 3 players (2 opponents): top-left (10h), top-right (2h)
+  const g2 = layoutOpponentSeatsForGrid(mk(2));
+  assert.deepEqual(
+    g2.map((x) => [x.seat.seatNo, x.position, x.fullRow]),
+    [
+      [1, "top-left", false],
+      [2, "top-right", false]
+    ]
+  );
+
+  // 4 players (3 opponents): middle opponent at 12h top-center, flanks at 9h left & 3h right
+  const g3 = layoutOpponentSeatsForGrid(mk(3));
+  assert.deepEqual(
+    g3.map((x) => [x.seat.seatNo, x.position, x.fullRow]),
+    [
+      [2, "top-center", true],
+      [1, "mid-left", false],
+      [3, "mid-right", false]
+    ]
+  );
+
+  // 5 players (4 opponents): upper flanks (10h, 2h) then lower flanks (8h, 4h)
+  const g4 = layoutOpponentSeatsForGrid(mk(4));
+  assert.deepEqual(
+    g4.map((x) => [x.seat.seatNo, x.position, x.fullRow]),
+    [
+      [2, "top-left", false],
+      [3, "top-right", false],
+      [1, "mid-left", false],
+      [4, "mid-right", false]
+    ]
+  );
+
+  // 6 players (5 opponents): 12h top-center, 10h/2h upper flanks, 8h/4h lower flanks
+  const g5 = layoutOpponentSeatsForGrid(mk(5));
+  assert.deepEqual(
+    g5.map((x) => [x.seat.seatNo, x.position, x.fullRow]),
+    [
+      [3, "top-center", true],
+      [2, "top-left", false],
+      [4, "top-right", false],
+      [1, "mid-left", false],
+      [5, "mid-right", false]
+    ]
+  );
+});
+
+test("friendlyTableError returns actionable copy for wrong code, full/closed table, offline, and expired login", () => {
+  assert.match(friendlyTableError({ code: "ERR_TABLE_NOT_FOUND", status: 404 }), /Room code not found/i);
+  assert.match(friendlyTableError({ code: "ERR_TABLE_FULL", status: 409 }), /table is full/i);
+  assert.match(friendlyTableError({ code: "ERR_TABLE_CLOSED", status: 400 }), /table has closed/i);
+  assert.equal(friendlyTableError({ code: "ERR_NETWORK", status: 0 }), "Connection lost. Reconnecting…");
+  assert.match(friendlyTableError({ code: "ERR_UNAUTHORIZED", status: 401 }), /session expired/i);
+  assert.match(friendlyTableError({ code: "ERR_INSUFFICIENT_CHIPS", status: 400 }), /Not enough chips/i);
+});
+
+test("summarizeShowdown and buildHandHistoryEntry structure split pots, side pots, and hand ranks", () => {
+  const tableState = {
+    code: "KTH26",
+    seats: [
+      { seatNo: 0, displayName: "Alice K.", isSelf: true, revealedCards: ["As", "Ad"] },
+      { seatNo: 1, displayName: "Bob L.", isSelf: false, revealedCards: ["Kh", "Kd"] },
+      { seatNo: 2, displayName: "Carol M.", isSelf: false, revealedCards: ["Qs", "Jd"] }
+    ],
+    hand: {
+      id: "hand-42",
+      handNo: 7,
+      status: "complete",
+      pot: 300,
+      board: ["Ah", "Ks", "7c", "2d", "9s"],
+      winners: [0, 1],
+      payouts: { 0: 200, 1: 100 },
+      showdown: {
+        pots: [
+          { amount: 180, winners: [0] },
+          { amount: 120, winners: [0, 1] }
+        ],
+        hands: {
+          0: { name: "Three of a Kind" },
+          1: { name: "Three of a Kind" }
+        }
+      }
+    }
+  };
+
+  const summary = summarizeShowdown(tableState);
+  assert.equal(summary.isShowdown, true);
+  assert.equal(summary.isSplitPot, true);
+  assert.equal(summary.winnerRows.length, 2);
+  assert.equal(summary.potBreakdowns.length, 2);
+  assert.equal(summary.potBreakdowns[0].label, "Main pot");
+  assert.equal(summary.potBreakdowns[1].label, "Side pot 1");
+  assert.equal(summary.potBreakdowns[1].isSplit, true);
+
+  const hist = buildHandHistoryEntry(tableState);
+  assert.equal(hist.handNo, 7);
+  assert.equal(hist.pot, 300);
+  assert.equal(hist.board.length, 5);
 });

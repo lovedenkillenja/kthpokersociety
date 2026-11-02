@@ -3,31 +3,58 @@
 
 import { SUPABASE_URL, SUPABASE_KEY } from "../config.js";
 import { getSupabaseClient } from "./supabase.js";
+import { friendlyTableError } from "./table-helpers.js";
 
 const holeCardsCache = new Map();
+let unauthorizedHandler = null;
 
 /**
- * Retrieves the current user's JWT access token from the active Supabase session.
+ * Registers a callback invoked whenever an Edge Function call fails with 401 / ERR_UNAUTHORIZED.
  */
-async function getAccessToken() {
+export function setUnauthorizedHandler(fn) {
+  unauthorizedHandler = typeof fn === "function" ? fn : null;
+}
+
+/**
+ * Retrieves the current user's JWT access token from the active Supabase session,
+ * attempting a one-time refresh if the session is missing or near expiry.
+ */
+async function getAccessToken({ forceRefresh = false } = {}) {
   const sb = getSupabaseClient();
   if (!sb) return null;
-  const { data } = await sb.auth.getSession();
-  return data?.session?.access_token || null;
+  if (!forceRefresh) {
+    const { data } = await sb.auth.getSession();
+    if (data?.session?.access_token) {
+      return data.session.access_token;
+    }
+  }
+  if (typeof sb.auth.refreshSession === "function") {
+    try {
+      const { data: refreshed } = await sb.auth.refreshSession();
+      if (refreshed?.session?.access_token) {
+        return refreshed.session.access_token;
+      }
+    } catch (_err) {
+      // Fall through
+    }
+  }
+  return null;
 }
 
 /**
  * Invokes a deployed Supabase Edge Function (`table` or `act`) with the signed-in member's JWT.
  * Returns `{ ok, status, code, error, table, pendingCashout }`.
  */
-async function callEdgeFunction(fnName, payload) {
-  const token = await getAccessToken();
+async function callEdgeFunction(fnName, payload, { isRetry = false } = {}) {
+  const token = await getAccessToken({ forceRefresh: isRetry });
   if (!token) {
+    const errMsg = friendlyTableError({ status: 401, code: "ERR_UNAUTHORIZED" });
+    if (unauthorizedHandler) unauthorizedHandler(errMsg);
     return {
       ok: false,
       status: 401,
       code: "ERR_UNAUTHORIZED",
-      error: "Your session expired. Log in again to continue."
+      error: errMsg
     };
   }
 
@@ -42,13 +69,27 @@ async function callEdgeFunction(fnName, payload) {
       body: JSON.stringify(payload || {})
     });
 
+    if (response.status === 401 && !isRetry) {
+      return callEdgeFunction(fnName, payload, { isRetry: true });
+    }
+
     const body = await response.json().catch(() => ({}));
     if (!response.ok || body?.ok === false) {
+      const code = body?.code || (response.status === 401 ? "ERR_UNAUTHORIZED" : "ERR_REQUEST_FAILED");
+      const rawError = body?.error || body?.message || "";
+      const friendly = friendlyTableError({
+        code,
+        status: response.status,
+        error: rawError
+      });
+      if (response.status === 401 || code === "ERR_UNAUTHORIZED") {
+        if (unauthorizedHandler) unauthorizedHandler(friendly);
+      }
       return {
         ok: false,
         status: response.status,
-        code: body?.code || "ERR_REQUEST_FAILED",
-        error: body?.error || body?.message || "Could not complete table action. Try again."
+        code,
+        error: friendly
       };
     }
 
@@ -66,7 +107,7 @@ async function callEdgeFunction(fnName, payload) {
       ok: false,
       status: 0,
       code: "ERR_NETWORK",
-      error: "Connection lost. Reconnecting…"
+      error: friendlyTableError({ status: 0, code: "ERR_NETWORK" })
     };
   }
 }
@@ -246,11 +287,21 @@ export function subscribeToTableChannel(tableCode, { onState, onConnectionChange
 
   async function triggerFallbackStateFetch() {
     if (stopped || pollInFlight) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      if (typeof onConnectionChange === "function") onConnectionChange("OFFLINE");
+      return;
+    }
     pollInFlight = true;
     try {
       const res = await fetchTableState(code);
-      if (!stopped && res.ok && res.table && typeof onState === "function") {
-        onState(res.table, "poll");
+      if (stopped) return;
+      if (res.ok && res.table) {
+        if (typeof onConnectionChange === "function") onConnectionChange("ONLINE");
+        if (typeof onState === "function") onState(res.table, "poll");
+      } else if (res.code === "ERR_NETWORK" || res.status === 0) {
+        if (typeof onConnectionChange === "function") onConnectionChange("OFFLINE");
+      } else if (res.code === "ERR_UNAUTHORIZED" || res.status === 401) {
+        if (typeof onConnectionChange === "function") onConnectionChange("UNAUTHORIZED");
       }
     } finally {
       pollInFlight = false;
@@ -262,11 +313,13 @@ export function subscribeToTableChannel(tableCode, { onState, onConnectionChange
     channel
       .on("broadcast", { event: "state" }, (msg) => {
         if (!stopped && msg?.payload && typeof onState === "function") {
+          if (typeof onConnectionChange === "function") onConnectionChange("ONLINE");
           onState(msg.payload, "broadcast");
         }
       })
       .on("broadcast", { event: "table_state" }, (msg) => {
         if (!stopped && msg?.payload && typeof onState === "function") {
+          if (typeof onConnectionChange === "function") onConnectionChange("ONLINE");
           onState(msg.payload, "broadcast");
         }
       })
@@ -293,7 +346,19 @@ export function subscribeToTableChannel(tableCode, { onState, onConnectionChange
       triggerFallbackStateFetch();
     }
   }
+  function handleOffline() {
+    if (!stopped && typeof onConnectionChange === "function") {
+      onConnectionChange("OFFLINE");
+    }
+  }
+  function handleOnline() {
+    if (!stopped) {
+      triggerFallbackStateFetch();
+    }
+  }
   document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("offline", handleOffline);
+  window.addEventListener("online", handleOnline);
 
   return {
     refreshNow: triggerFallbackStateFetch,
@@ -304,6 +369,8 @@ export function subscribeToTableChannel(tableCode, { onState, onConnectionChange
         pollTimer = null;
       }
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
       if (sb && channel) {
         sb.removeChannel(channel).catch(() => {});
         channel = null;

@@ -171,6 +171,57 @@
   );
   border: 2px solid var(--paper);
 }
+.playing-card--mini {
+  width: 34px;
+  height: 48px;
+  padding: 3px 4px;
+  border-radius: 6px;
+}
+.playing-card--mini .playing-card__rank {
+  font-size: 13px;
+}
+.playing-card--mini .playing-card__suit {
+  font-size: 14px;
+}
+@keyframes cardDealIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes chipMovePulse {
+  0% {
+    transform: translateY(4px) scale(0.95);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+.playing-card--deal {
+  animation: cardDealIn var(--duration-normal) var(--ease-out) both;
+}
+.playing-card--deal-2 {
+  animation-delay: 40ms;
+}
+.playing-card--deal-3 {
+  animation-delay: 80ms;
+}
+.chip-move-anim {
+  animation: chipMovePulse var(--duration-fast) var(--ease-out) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .playing-card--deal,
+  .playing-card--deal-2,
+  .playing-card--deal-3,
+  .chip-move-anim {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 
 /* 6. Seat & ActionBar primitives (reused in M4+) */
 .seat {
@@ -336,6 +387,48 @@ dialog.game-dialog {
   padding: 0;
   width: min(460px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+dialog.game-dialog.game-dialog--wide {
+  width: min(620px, calc(100vw - 24px));
+}
+.tutorial-steps {
+  display: grid;
+  gap: 8px;
+}
+.tutorial-step {
+  padding: 10px 12px;
+  border-radius: var(--radius-card);
+  background: var(--ink);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-xs);
+}
+.tutorial-rankings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.tutorial-rank-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.tutorial-rank-meta {
+  display: grid;
+  gap: 2px;
+  font-size: var(--text-xs);
+}
+.tutorial-mini-cards {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 dialog.game-dialog::backdrop { background: rgba(2, 8, 20, 0.76); }
 .dialog-inner { padding: var(--space-3); display: grid; gap: var(--space-2); }

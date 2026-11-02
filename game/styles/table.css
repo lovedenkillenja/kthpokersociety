@@ -1,4 +1,4 @@
-/* KTH Poker Society – M4 Heads-Up Table & Action Bar styles (see docs/poker/STYLE_GUIDE.md) */
+/* KTH Poker Society – 2–6 Player Table, Timer, Showdown & Action Bar styles (see docs/poker/STYLE_GUIDE.md) */
 
 .table-lobby-split {
   display: grid;
@@ -40,16 +40,16 @@
   border: 1px solid var(--sky);
 }
 
-/* Table screen layout: generous space for fixed bottom action bar */
+/* Table screen layout: generous bottom clearance so fixed action bar never covers player seat */
 #view-table {
-  padding-bottom: 196px;
+  padding-bottom: calc(256px + env(safe-area-inset-bottom, 0px));
 }
 
 .table-topbar {
   background: var(--deep);
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
-  padding: 12px var(--space-2);
+  padding: 10px var(--space-2);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -74,9 +74,31 @@
 }
 
 .btn--compact {
-  min-height: 48px;
+  min-height: var(--tap-min);
   padding: 0 14px;
   font-size: var(--text-xs);
+}
+
+.table-conn-banner,
+.table-sitout-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px var(--space-2);
+  padding: 10px 14px;
+  border-radius: var(--radius-panel);
+  background: rgba(255, 155, 143, 0.14);
+  border: 1px solid var(--danger);
+  color: var(--paper);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.table-sitout-banner {
+  max-width: 380px;
+  width: 100%;
+  background: rgba(6, 20, 42, 0.88);
 }
 
 /* Oval Felt Table (max 520px wide on desktop, centred, mobile-first at 375px) */
@@ -84,9 +106,9 @@
   width: 100%;
   max-width: var(--table-max);
   margin-inline: auto;
-  min-height: 460px;
-  padding: var(--space-3) var(--space-2);
-  border-radius: 140px;
+  min-height: 440px;
+  padding: 20px 16px;
+  border-radius: 56px;
   background: radial-gradient(ellipse at center, var(--felt-highlight) 0%, var(--felt) 76%);
   border: 3px solid var(--line);
   box-shadow: 0 16px 40px rgba(2, 8, 20, 0.55), inset 0 0 0 1px rgba(238, 242, 248, 0.08);
@@ -98,11 +120,11 @@
   position: relative;
 }
 
-@media (max-width: 420px) {
+@media (max-width: 440px) {
   .poker-felt {
-    border-radius: 88px;
-    padding: var(--space-2) 12px;
-    min-height: 430px;
+    border-radius: 34px;
+    padding: 16px 10px;
+    min-height: 410px;
   }
 }
 
@@ -130,10 +152,10 @@
   align-items: start;
 }
 
-.table-opponents-grid[data-count="3"] > :last-child,
-.table-opponents-grid[data-count="5"] > :last-child {
+.table-seat-card--fullrow {
   grid-column: 1 / -1;
-  width: min(100%, 220px);
+  width: min(100%, 240px) !important;
+  justify-self: center;
 }
 
 .table-seat-card {
@@ -141,9 +163,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  transition: transform var(--duration-fast) var(--ease-out),
-    opacity var(--duration-fast) var(--ease-out);
+  gap: 6px;
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 
 .table-seat-card--compact {
@@ -152,28 +173,32 @@
 }
 
 .table-seat-card--compact .table-seat-plaque {
-  padding: 8px 10px;
+  padding: 8px 9px;
   gap: 4px;
 }
 
 .table-seat-card--compact .table-seat-plaque__name strong {
   font-size: var(--text-xs);
-  max-width: 88px;
+  max-width: 96px;
+}
+
+.table-seat-card--compact .pill {
+  padding: 2px 8px;
+  font-size: 12px;
 }
 
 .table-seat-card--compact .playing-card {
-  width: 40px;
-  height: 56px;
-  padding: 4px;
-  font-size: var(--text-xs);
+  width: 38px;
+  height: 54px;
+  padding: 4px 5px;
 }
 
-.table-seat-card--compact .playing-card__suit-center {
-  font-size: var(--text-md);
+.table-seat-card--compact .playing-card__rank {
+  font-size: 14px;
 }
 
-.table-seat-card--folded {
-  opacity: 0.68;
+.table-seat-card--compact .playing-card__suit {
+  font-size: 16px;
 }
 
 .table-seat-plaque {
@@ -192,20 +217,51 @@
   box-shadow: 0 0 0 2px var(--sky), 0 8px 22px rgba(2, 8, 20, 0.5);
 }
 
+.table-seat-card--winner .table-seat-plaque {
+  border-color: var(--chip);
+  box-shadow: 0 0 0 2px var(--chip), 0 8px 22px rgba(2, 8, 20, 0.5);
+}
+
+.table-seat-card--folded .table-seat-plaque,
+.table-seat-card--sitout .table-seat-plaque {
+  background: rgba(6, 20, 42, 0.9);
+  border-style: dashed;
+}
+
+.seat-timer-bar {
+  width: 100%;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: rgba(29, 58, 99, 0.7);
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.seat-timer-bar__fill {
+  height: 100%;
+  background: var(--sky);
+  border-radius: var(--radius-pill);
+  transition: width 220ms linear, background-color var(--duration-fast) var(--ease-out);
+}
+
+.seat-timer-bar__fill--urgent {
+  background: var(--danger);
+}
+
 .table-seat-plaque__top,
 .table-seat-plaque__bottom {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 6px 10px;
+  gap: 4px 8px;
 }
 
 .table-seat-plaque__name {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -222,26 +278,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .table-bet-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 12px;
+  gap: 5px;
+  padding: 2px 10px;
   border-radius: var(--radius-pill);
-  background: rgba(6, 20, 42, 0.78);
-  border: 1px solid rgba(233, 196, 106, 0.45);
-  font-size: var(--text-xs);
+  background: rgba(6, 20, 42, 0.85);
+  border: 1px solid rgba(233, 196, 106, 0.5);
+  font-size: 12px;
 }
 
 .table-seat-empty {
   width: min(100%, 310px);
   padding: 12px 16px;
   border-radius: var(--radius-panel);
-  border: 1px dashed rgba(238, 242, 248, 0.28);
-  background: rgba(6, 20, 42, 0.45);
+  border: 1px dashed rgba(238, 242, 248, 0.32);
+  background: rgba(6, 20, 42, 0.55);
   text-align: center;
   display: grid;
   gap: 4px;
@@ -309,28 +365,40 @@
   width: 56px;
   height: 78px;
   border-radius: var(--radius-card);
-  border: 1px dashed rgba(238, 242, 248, 0.22);
-  background: rgba(6, 20, 42, 0.22);
+  border: 1px dashed rgba(238, 242, 248, 0.24);
+  background: rgba(6, 20, 42, 0.25);
 }
 
-@media (max-width: 390px) {
+@media (max-width: 400px) {
+  .table-board-row {
+    gap: 5px;
+    min-height: 70px;
+  }
   .table-board-row .playing-card,
   .card-slot-empty {
-    width: 50px;
-    height: 72px;
+    width: 48px;
+    height: 68px;
     padding: 5px 6px;
   }
 }
 
 .table-status-banner {
-  background: rgba(6, 20, 42, 0.72);
-  border: 1px solid rgba(29, 58, 99, 0.85);
+  background: rgba(6, 20, 42, 0.82);
+  border: 1px solid rgba(29, 58, 99, 0.9);
   border-radius: var(--radius-panel);
   padding: 8px 14px;
-  max-width: 360px;
+  max-width: 380px;
   width: 100%;
   display: grid;
-  gap: 2px;
+  gap: 3px;
+}
+
+.table-status-banner--turn {
+  border-color: var(--sky);
+}
+
+.table-status-banner--showdown {
+  border-color: var(--chip);
 }
 
 .table-status-banner__headline {
@@ -344,7 +412,67 @@
   color: var(--muted);
 }
 
+/* Recent Hand History drawer below felt */
+.table-history-panel {
+  width: 100%;
+  max-width: var(--table-max);
+  margin-inline: auto;
+  background: var(--deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 10px 14px;
+  font-size: var(--text-xs);
+}
+
+.table-history-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--paper);
+  padding-block: 4px;
+}
+
+.hand-history-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.hand-history-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+}
+
+.hand-history-row__top,
+.hand-history-row__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+
+.hand-history-row__sub {
+  color: var(--muted);
+}
+
+.hand-history-row__board {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Fixed Bottom Action Bar (Fold / Check-Call / Raise + Slider & Presets) */
+.action-bar--my-turn {
+  border-top: 2px solid var(--sky);
+}
+
+.action-bar--urgent {
+  border-top: 2px solid var(--danger);
+}
+
 .action-bar__inner {
   max-width: var(--table-max);
   margin-inline: auto;
@@ -358,7 +486,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 36px;
+  min-height: 32px;
   color: var(--paper);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -396,18 +524,12 @@
 .action-raise-panel {
   display: grid;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 10px;
   border-radius: var(--radius-card);
   background: var(--ink);
   border: 1px solid var(--line);
 }
-
-.preset-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-
+.preset-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .preset-btn {
   min-height: var(--tap-min);
   padding: 0 8px;
@@ -418,29 +540,24 @@
   font: 600 var(--text-xs) var(--font-body);
   cursor: pointer;
 }
-
-.preset-btn:hover {
-  border-color: var(--sky);
-}
-
+.preset-btn:hover { border-color: var(--sky); }
 .raise-slider-row {
   display: grid;
-  grid-template-columns: 1fr 104px;
+  grid-template-columns: var(--tap-min) minmax(0, 1fr) var(--tap-min) 88px;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
-
+.raise-step-btn { font-size: var(--text-md); padding: 0; }
 .raise-slider-row input[type="range"] {
   width: 100%;
   height: var(--tap-min);
   accent-color: var(--action);
   cursor: pointer;
 }
-
 .raise-slider-row input[type="number"] {
   width: 100%;
   min-height: var(--tap-min);
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: var(--radius-card);
   border: 1px solid var(--control);
   background: var(--deep);
@@ -449,21 +566,8 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-
-.action-btn-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.25fr 1.25fr;
-  gap: 8px;
-}
-
-.action-btn-grid .btn {
-  padding: 0 10px;
-  font-size: var(--text-xs);
-}
-
+.action-btn-grid { display: grid; grid-template-columns: 1fr 1.25fr 1.25fr; gap: 8px; }
+.action-btn-grid .btn { padding: 0 10px; font-size: var(--text-xs); }
 @media (min-width: 440px) {
-  .action-btn-grid .btn {
-    font-size: var(--text-base);
-    padding: 0 16px;
-  }
+  .action-btn-grid .btn { font-size: var(--text-base); padding: 0 16px; }
 }
