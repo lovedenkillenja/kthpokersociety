@@ -141,15 +141,25 @@
         <hr class="panel__divider">
 
         <div>
-          <h2>Play heads-up Hold'em</h2>
+          <h2>Play Hold'em (2–6 players)</h2>
           <p class="field-hint" style="margin-top: 4px">
-            10 / 20 blinds · Buy-in 400–2,000 chips · Share your 5-character room code with a friend.
+            10 / 20 blinds · Buy-in 400–2,000 chips · 30s action clock · Share your 5-character room code.
           </p>
         </div>
 
         <div class="table-lobby-split">
           <form id="create-table-form" class="lobby-subbox" novalidate>
             <h3>Create a table</h3>
+            <div class="field">
+              <label for="create-table-max-seats">Table size (seats)</label>
+              <select id="create-table-max-seats" name="max_seats" class="tabular">
+                <option value="6" selected>6 seats (6-max)</option>
+                <option value="5">5 seats</option>
+                <option value="4">4 seats</option>
+                <option value="3">3 seats</option>
+                <option value="2">2 seats (Heads-up)</option>
+              </select>
+            </div>
             <div class="field">
               <label for="create-table-buyin">Your buy-in (400–2,000 chips)</label>
               <input
@@ -242,6 +252,9 @@
           <button type="button" class="btn btn--ghost btn--compact" id="table-refresh-btn">
             Sync
           </button>
+          <button type="button" class="btn btn--ghost btn--compact" id="table-close-btn" hidden>
+            Close table
+          </button>
           <button type="button" class="btn btn--danger btn--compact" id="table-leave-btn">
             Leave table
           </button>
@@ -249,8 +262,8 @@
       </div>
 
       <div class="poker-felt" role="region" aria-label="Poker table felt">
-        <!-- Opponent seat (always top centre) -->
-        <div id="table-opponent-seat" class="table-seat-zone" aria-label="Opponent seat"></div>
+        <!-- Opponent seats (1 to 5 opponents arranged clockwise around the upper felt) -->
+        <div id="table-opponent-seat" class="table-seat-zone table-opponents-grid" aria-label="Opponent seats"></div>
 
         <!-- Centre of felt: Pot + 5 Community Cards + Status / Showdown Banner -->
         <div class="table-center">
@@ -270,8 +283,11 @@
             <div id="table-status-detail" class="table-status-banner__detail">Share the room code to begin.</div>
           </div>
 
-          <div id="table-deal-wrap" hidden>
-            <button type="button" class="btn btn--primary" id="table-deal-btn">Deal hand</button>
+          <div class="btn-row" id="table-center-actions">
+            <div id="table-deal-wrap" hidden>
+              <button type="button" class="btn btn--primary" id="table-deal-btn">Deal hand</button>
+            </div>
+            <button type="button" class="btn btn--primary" id="table-sitin-btn" hidden>Sit back in</button>
           </div>
         </div>
 
@@ -492,10 +508,14 @@
   <!-- FIXED BOTTOM ACTION BAR FOR TABLE VIEW -->
   <div id="table-action-bar" class="action-bar" role="region" aria-label="Betting actions" hidden>
     <div class="action-bar__inner">
-      <div id="action-waiting-strip" class="action-waiting">
+      <div class="action-bar__head">
         <span id="action-waiting-text">Waiting for opponent…</span>
-        <span>Keys: F Fold · C Check/Call · R Raise</span>
+        <div class="action-bar__meta">
+          <span id="action-timer-pill" class="pill tabular" hidden>30s</span>
+          <span class="action-bar__keys">F Fold · C Check/Call · R Raise</span>
+        </div>
       </div>
+      <div id="action-waiting-strip" class="action-waiting" hidden></div>
 
       <div id="action-controls-wrap" class="form-stack" hidden>
         <div id="action-raise-panel" class="action-raise-panel">

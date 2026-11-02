@@ -1,4 +1,4 @@
-// Pure DOM rendering builders for the M4 oval felt table (`#view-table`).
+// Pure DOM rendering builders for the 2–6 player oval felt table (`#view-table`).
 // Separated from `table-view.js` to keep each UI module well under 600 lines.
 
 import { formatChips } from "../lib/format.js";
@@ -18,9 +18,12 @@ function buildRoleBadges(seat, hand) {
   return pills;
 }
 
-function buildSeatStatusPill(seat, hand) {
+function buildSeatStatusPill(seat, hand, remainingSeconds = null) {
+  if (seat.status === "sitout" && (!hand || hand.status !== "playing" || seat.folded)) {
+    return createPill("Sitting out", "danger");
+  }
   if (!hand) {
-    return createPill(seat.status === "sitout" ? "Sitting out" : "Ready");
+    return createPill("Ready");
   }
   if (hand.status === "complete") {
     const won = Number(hand.payouts?.[seat.seatNo] || 0);
@@ -31,7 +34,16 @@ function buildSeatStatusPill(seat, hand) {
   if (seat.folded) return createPill("Folded", "danger");
   if (seat.allIn) return createPill("All-in", "chip");
   if (hand.actingSeat === seat.seatNo) {
-    return createPill(seat.isSelf ? "Your turn" : "Thinking…", "brand");
+    const hasTimer = remainingSeconds !== null && remainingSeconds !== undefined;
+    const label = seat.isSelf
+      ? hasTimer
+        ? `Your turn · ${remainingSeconds}s`
+        : "Your turn"
+      : hasTimer
+        ? `Acting · ${remainingSeconds}s`
+        : "Thinking…";
+    const variant = hasTimer && remainingSeconds <= 8 ? "danger" : "brand";
+    return createPill(label, variant);
   }
   return createPill("In hand");
 }
@@ -39,12 +51,18 @@ function buildSeatStatusPill(seat, hand) {
 export function createSeatBox(
   seat,
   hand,
-  { isSelf = false, myHoleCards = null, lastHoleCardsHandId = null } = {}
+  {
+    isSelf = false,
+    compact = false,
+    myHoleCards = null,
+    lastHoleCardsHandId = null,
+    remainingSeconds = null
+  } = {}
 ) {
   const wrap = document.createElement("div");
-  wrap.className = `table-seat-card${
+  wrap.className = `table-seat-card${compact ? " table-seat-card--compact" : ""}${
     hand?.status === "playing" && hand?.actingSeat === seat.seatNo ? " table-seat-card--turn" : ""
-  }${seat.folded ? " table-seat-card--folded" : ""}`;
+  }${seat.folded || seat.status === "sitout" ? " table-seat-card--folded" : ""}`;
 
   const cardsRow = document.createElement("div");
   cardsRow.className = "table-seat-cards";
@@ -59,9 +77,14 @@ export function createSeatBox(
         ? myHoleCards
         : null;
 
+  const isSeatInHand =
+    hand &&
+    (!seat.folded || hand.status === "playing") &&
+    (isSelf || seat.status === "active" || Number(seat.totalCommitted) > 0 || revealed);
+
   if (hand && revealed) {
     cardsRow.append(createCard(revealed[0]), createCard(revealed[1]));
-  } else if (hand && (!seat.folded || hand.status === "playing")) {
+  } else if (isSeatInHand && !seat.folded) {
     cardsRow.append(createCardBack(), createCardBack());
   }
 
@@ -100,7 +123,7 @@ export function createSeatBox(
   if (isSelf) nameGroup.appendChild(createPill("You", "brand"));
   buildRoleBadges(seat, hand).forEach((b) => nameGroup.appendChild(b));
 
-  topRow.append(nameGroup, buildSeatStatusPill(seat, hand));
+  topRow.append(nameGroup, buildSeatStatusPill(seat, hand, remainingSeconds));
 
   const bottomRow = document.createElement("div");
   bottomRow.className = "table-seat-plaque__bottom";
@@ -129,46 +152,57 @@ export function renderTableFelt({
   myHoleCards,
   lastHoleCardsHandId,
   getBalance,
-  actionBusy
+  actionBusy,
+  remainingSeconds = null
 }) {
   if (!currentTable) return;
-  const { selfSeat, opponentSeat } = partitionTableSeats(currentTable);
+  const { selfSeat, opponentSeats } = partitionTableSeats(currentTable);
   const hand = currentTable.hand || null;
+  const seats = Array.isArray(currentTable.seats) ? currentTable.seats : [];
 
-  // 1. Opponent seat (top centre)
+  // 1. Opponent seats (1 to 5 opponents arranged clockwise around the upper felt)
   els.opponentArea.replaceChildren();
-  if (opponentSeat) {
-    els.opponentArea.appendChild(
-      createSeatBox(opponentSeat, hand, {
-        isSelf: false,
-        myHoleCards,
-        lastHoleCardsHandId
-      })
-    );
+  els.opponentArea.dataset.count = String(opponentSeats.length);
+
+  if (opponentSeats.length > 0) {
+    const useCompact = opponentSeats.length >= 2;
+    opponentSeats.forEach((oppSeat) => {
+      els.opponentArea.appendChild(
+        createSeatBox(oppSeat, hand, {
+          isSelf: false,
+          compact: useCompact,
+          myHoleCards,
+          lastHoleCardsHandId,
+          remainingSeconds
+        })
+      );
+    });
   } else {
     const emptyBox = document.createElement("div");
     emptyBox.className = "table-seat-empty";
     const title = document.createElement("strong");
-    title.textContent = "Waiting for opponent";
+    title.textContent = "Waiting for players";
     const sub = document.createElement("span");
-    sub.textContent = `Share room code ${currentTable.code} to play heads-up`;
+    sub.textContent = `Share room code ${currentTable.code} (up to ${currentTable.maxSeats || 6} seats)`;
     emptyBox.append(title, sub);
     els.opponentArea.appendChild(emptyBox);
   }
 
-  // 2. Self seat (bottom centre)
+  // 2. Self seat (always bottom centre)
   els.selfArea.replaceChildren();
   if (selfSeat) {
     els.sitDownForm.hidden = true;
     els.selfArea.appendChild(
       createSeatBox(selfSeat, hand, {
         isSelf: true,
+        compact: false,
         myHoleCards,
-        lastHoleCardsHandId
+        lastHoleCardsHandId,
+        remainingSeconds
       })
     );
   } else {
-    els.sitDownForm.hidden = false;
+    els.sitDownForm.hidden = currentTable.status === "closed";
     const minB = currentTable.minBuyIn || 400;
     const maxB = currentTable.maxBuyIn || 2000;
     els.sitDownBuyInInput.min = String(minB);
@@ -179,22 +213,33 @@ export function renderTableFelt({
     }
   }
 
-  // 3. Pot & Community Board
+  // 3. Pot & Side Pots (during play and at showdown)
   const pot = hand ? Number(hand.pot || 0) : 0;
   els.potAmount.textContent = `${formatChips(pot)} chips`;
 
   els.sidePotsRow.replaceChildren();
-  if (hand && Array.isArray(hand.pots) && hand.pots.length > 1) {
-    hand.pots.forEach((p, idx) => {
-      const label =
-        idx === 0 ? `Main: ${formatChips(p.amount)}` : `Side ${idx}: ${formatChips(p.amount)}`;
-      els.sidePotsRow.appendChild(createPill(label, "chip"));
+  const potsList = hand?.showdown?.pots?.length > 1 ? hand.showdown.pots : hand?.pots || [];
+  if (hand && Array.isArray(potsList) && potsList.length > 1) {
+    potsList.forEach((p, idx) => {
+      const prefix = idx === 0 ? "Main" : `Side ${idx}`;
+      let winnerSuffix = "";
+      if (Array.isArray(p.winners) && p.winners.length > 0) {
+        const names = p.winners.map((sNo) => {
+          const s = seats.find((item) => item.seatNo === sNo);
+          return s?.isSelf ? "You" : s?.displayName || `S${sNo + 1}`;
+        });
+        winnerSuffix = ` → ${names.join("/")}`;
+      }
+      els.sidePotsRow.appendChild(
+        createPill(`${prefix}: ${formatChips(p.amount)}${winnerSuffix}`, "chip")
+      );
     });
     els.sidePotsRow.hidden = false;
   } else {
     els.sidePotsRow.hidden = true;
   }
 
+  // 4. Community Board
   els.boardRow.replaceChildren();
   const board = Array.isArray(hand?.board) ? hand.board : [];
   for (let i = 0; i < 5; i += 1) {
@@ -212,15 +257,36 @@ export function renderTableFelt({
   els.statusHeadline.textContent = status.headline;
   els.statusDetail.textContent = status.detail;
 
-  const activeWithChips = (currentTable.seats || []).filter(
+  const activeWithChips = seats.filter(
     (s) => s.status === "active" && Number(s.stack) > 0
   );
   const handPlaying = hand && hand.status === "playing";
-  const canDeal = activeWithChips.length >= 2 && !handPlaying && Boolean(selfSeat);
+  const canDeal =
+    activeWithChips.length >= 2 &&
+    !handPlaying &&
+    Boolean(selfSeat && selfSeat.status === "active") &&
+    currentTable.status !== "closed";
 
   els.dealBtnWrap.hidden = !canDeal;
   if (canDeal) {
     els.dealBtn.textContent = hand ? `Deal hand #${Number(hand.handNo || 0) + 1}` : "Deal hand #1";
     els.dealBtn.disabled = actionBusy;
+  }
+
+  if (els.sitInBtn) {
+    const showSitIn = Boolean(selfSeat && selfSeat.status === "sitout" && currentTable.status !== "closed");
+    els.sitInBtn.hidden = !showSitIn;
+    els.sitInBtn.disabled = actionBusy;
+  }
+
+  if (els.closeTableBtn) {
+    const canClose = Boolean(
+      currentTable.isHost &&
+        seats.length === 0 &&
+        !handPlaying &&
+        currentTable.status !== "closed"
+    );
+    els.closeTableBtn.hidden = !canClose;
+    els.closeTableBtn.disabled = actionBusy;
   }
 }

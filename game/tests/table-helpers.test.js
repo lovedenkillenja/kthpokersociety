@@ -5,6 +5,7 @@ import {
   validateBuyIn,
   normalizeIncomingTableState,
   partitionTableSeats,
+  computeRemainingTurnSeconds,
   computeRaisePresets,
   describeHandStatus
 } from "../lib/table-helpers.js";
@@ -95,16 +96,16 @@ test("computeRaisePresets calculates Min, 1/2 pot, Pot, and All-in clamped to le
 test("describeHandStatus summarizes waiting, active turns, and showdown winners", () => {
   const waiting = describeHandStatus({
     code: "KTH26",
-    seats: [{ seatNo: 0, displayName: "Alice K.", isSelf: true }],
+    seats: [{ seatNo: 0, displayName: "Alice K.", status: "active", stack: 500, isSelf: true }],
     hand: null
   });
-  assert.match(waiting.headline, /Waiting for a second player/);
+  assert.match(waiting.headline, /Waiting for players/);
 
   const myTurn = describeHandStatus({
     code: "KTH26",
     seats: [
-      { seatNo: 0, displayName: "Alice K.", isSelf: true },
-      { seatNo: 1, displayName: "Bob L.", isSelf: false }
+      { seatNo: 0, displayName: "Alice K.", status: "active", stack: 500, isSelf: true },
+      { seatNo: 1, displayName: "Bob L.", status: "active", stack: 500, isSelf: false }
     ],
     hand: {
       handNo: 1,
@@ -121,8 +122,8 @@ test("describeHandStatus summarizes waiting, active turns, and showdown winners"
   const showdownDone = describeHandStatus({
     code: "KTH26",
     seats: [
-      { seatNo: 0, displayName: "Alice K.", isSelf: true },
-      { seatNo: 1, displayName: "Bob L.", isSelf: false }
+      { seatNo: 0, displayName: "Alice K.", status: "active", stack: 560, isSelf: true },
+      { seatNo: 1, displayName: "Bob L.", status: "active", stack: 440, isSelf: false }
     ],
     hand: {
       handNo: 1,
@@ -132,6 +133,10 @@ test("describeHandStatus summarizes waiting, active turns, and showdown winners"
       winners: [0],
       payouts: { 0: 120 },
       showdown: {
+        pots: [
+          { name: "Main Pot", amount: 80, winners: [0] },
+          { name: "Side Pot 1", amount: 40, winners: [0] }
+        ],
         hands: {
           0: { name: "Two Pair" }
         }
@@ -139,4 +144,37 @@ test("describeHandStatus summarizes waiting, active turns, and showdown winners"
     }
   });
   assert.match(showdownDone.headline, /You won 120 chips \(Two Pair\)/);
+  assert.match(showdownDone.detail, /Main pot: 80 · Side pot 1: 40/);
+});
+
+test("partitionTableSeats orders up to 5 opponents clockwise starting left of selfSeat", () => {
+  const table6Max = {
+    code: "SIXMX",
+    seats: [
+      { seatNo: 0, displayName: "S0", isSelf: false },
+      { seatNo: 1, displayName: "S1", isSelf: false },
+      { seatNo: 2, displayName: "Me (S2)", isSelf: true },
+      { seatNo: 3, displayName: "S3", isSelf: false },
+      { seatNo: 4, displayName: "S4", isSelf: false },
+      { seatNo: 5, displayName: "S5", isSelf: false }
+    ]
+  };
+  const { selfSeat, opponentSeats } = partitionTableSeats(table6Max);
+  assert.equal(selfSeat.seatNo, 2);
+  assert.deepEqual(
+    opponentSeats.map((s) => s.seatNo),
+    [3, 4, 5, 0, 1]
+  );
+});
+
+test("computeRemainingTurnSeconds accounts for server clock skew and clamps at 0", () => {
+  const hand = {
+    status: "playing",
+    turnStartedAt: 100_000,
+    turnDeadlineAt: 130_000
+  };
+  assert.equal(computeRemainingTurnSeconds(hand, 105_000, 0), 25);
+  assert.equal(computeRemainingTurnSeconds(hand, 100_000, 5_000), 25);
+  assert.equal(computeRemainingTurnSeconds(hand, 135_000, 0), 0);
+  assert.equal(computeRemainingTurnSeconds({ status: "complete", turnDeadlineAt: 130_000 }, 105_000), null);
 });

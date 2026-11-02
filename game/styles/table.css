@@ -114,6 +114,28 @@
   gap: 8px;
 }
 
+.table-opponents-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 8px;
+}
+
+.table-opponents-grid[data-count="2"],
+.table-opponents-grid[data-count="3"],
+.table-opponents-grid[data-count="4"],
+.table-opponents-grid[data-count="5"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.table-opponents-grid[data-count="3"] > :last-child,
+.table-opponents-grid[data-count="5"] > :last-child {
+  grid-column: 1 / -1;
+  width: min(100%, 220px);
+}
+
 .table-seat-card {
   width: min(100%, 340px);
   display: flex;
@@ -122,6 +144,32 @@
   gap: 8px;
   transition: transform var(--duration-fast) var(--ease-out),
     opacity var(--duration-fast) var(--ease-out);
+}
+
+.table-seat-card--compact {
+  width: 100%;
+  gap: 4px;
+}
+
+.table-seat-card--compact .table-seat-plaque {
+  padding: 8px 10px;
+  gap: 4px;
+}
+
+.table-seat-card--compact .table-seat-plaque__name strong {
+  font-size: var(--text-xs);
+  max-width: 88px;
+}
+
+.table-seat-card--compact .playing-card {
+  width: 40px;
+  height: 56px;
+  padding: 4px;
+  font-size: var(--text-xs);
+}
+
+.table-seat-card--compact .playing-card__suit-center {
+  font-size: var(--text-md);
 }
 
 .table-seat-card--folded {
@@ -302,6 +350,36 @@
   margin-inline: auto;
   display: grid;
   gap: 10px;
+}
+
+.action-bar__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+  color: var(--paper);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.action-bar__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.action-bar__keys {
+  display: none;
+}
+
+@media (min-width: 520px) {
+  .action-bar__keys {
+    display: inline;
+  }
 }
 
 .action-waiting {

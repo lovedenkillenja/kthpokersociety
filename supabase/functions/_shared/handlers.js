@@ -4,26 +4,59 @@
 
 import { newHand, apply, cryptoRng } from "./engine/index.js";
 import {
+  ACTION_TIMEOUT_MS,
+  IDLE_TABLE_TIMEOUT_MS,
   withTableLock,
   generateRoomCode,
+  stampTurnTimer,
   errorResult,
   mapStoreError,
   buildPublicTableState,
   authenticateCaller,
   foldSeatInHandState,
   persistHandTransition,
+  resolveExpiredTurns,
   loadAndBroadcastTableState
 } from "./state-helpers.js";
 
-export { withTableLock, generateRoomCode, buildPublicTableState };
+export {
+  ACTION_TIMEOUT_MS,
+  IDLE_TABLE_TIMEOUT_MS,
+  withTableLock,
+  generateRoomCode,
+  buildPublicTableState
+};
+
+const TABLE_INTENTS = new Set([
+  "create",
+  "join",
+  "leave",
+  "state",
+  "get",
+  "tick",
+  "close",
+  "close-table",
+  "sit-in",
+  "sitin",
+  "sit-out",
+  "sitout"
+]);
 
 /**
- * Handles `table` Edge Function intents: `create`, `join`, `leave`, `state`.
+ * Handles `table` Edge Function intents:
+ * `create`, `join`, `leave`, `state`, `tick`, `close`, `sit-in`, `sit-out`.
  */
-export async function handleTableRequest({ store, jwt, payload = {}, rng = cryptoRng }) {
+export async function handleTableRequest({
+  store,
+  jwt,
+  payload = {},
+  rng = cryptoRng,
+  now = () => Date.now()
+}) {
   const auth = await authenticateCaller(store, jwt, payload);
   if (auth.error) return auth.error;
   const callerId = auth.user.id;
+  const nowMs = Number(now());
 
   const intent = String(payload?.intent || "").toLowerCase().trim();
 
@@ -39,6 +72,14 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
     }
     if (sb <= 0 || bb < sb || minBuyIn <= 0 || maxBuyIn < minBuyIn || maxSeats < 2 || maxSeats > 6) {
       return errorResult(400, "ERR_INVALID_TABLE_PARAMS", "Invalid table blinds, buy-in limits, or seat count.");
+    }
+
+    if (typeof store.closeIdleTables === "function") {
+      try {
+        await store.closeIdleTables(nowMs);
+      } catch (_err) {
+        // Non-fatal if opportunistic cleanup fails; DB trigger also runs on insert
+      }
     }
 
     if (typeof store.countOpenTablesByHost === "function") {
@@ -98,7 +139,7 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
       }
     }
 
-    const publicState = await loadAndBroadcastTableState(store, createdTable.id, callerId);
+    const publicState = await loadAndBroadcastTableState(store, createdTable.id, callerId, nowMs);
     return { status: 200, body: { ok: true, table: publicState } };
   }
 
@@ -112,16 +153,144 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
     if (!ctx || !ctx.table) {
       return errorResult(404, "ERR_TABLE_NOT_FOUND", "Table not found.");
     }
-    const { table, seats, hand } = ctx;
+    const { table, seats } = ctx;
+    let { hand } = ctx;
 
-    if (intent === "state" || intent === "get") {
-      const publicState = buildPublicTableState({
+    // Opportunistically enforce the 30-second action deadline before serving any table intent
+    let timeoutInfo = { timedOut: false };
+    try {
+      timeoutInfo = await resolveExpiredTurns({
+        store,
         table,
         seats,
-        displayNamesByMemberId: ctx.displayNamesByMemberId,
         handRow: hand,
-        callerMemberId: callerId
+        nowMs
       });
+      if (timeoutInfo.timedOut) {
+        hand = timeoutInfo.handRow;
+      }
+    } catch (err) {
+      return mapStoreError(err);
+    }
+
+    if (intent === "tick") {
+      const publicState = timeoutInfo.timedOut
+        ? await loadAndBroadcastTableState(store, table.id, callerId, nowMs)
+        : buildPublicTableState({
+            table,
+            seats,
+            displayNamesByMemberId: ctx.displayNamesByMemberId,
+            handRow: hand,
+            callerMemberId: callerId,
+            nowMs
+          });
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          timedOut: Boolean(timeoutInfo.timedOut),
+          timedOutSeatNo: timeoutInfo.timedOutSeatNo ?? null,
+          satOut: Boolean(timeoutInfo.satOut),
+          table: publicState
+        }
+      };
+    }
+
+    if (intent === "state" || intent === "get") {
+      const publicState = timeoutInfo.timedOut
+        ? await loadAndBroadcastTableState(store, table.id, callerId, nowMs)
+        : buildPublicTableState({
+            table,
+            seats,
+            displayNamesByMemberId: ctx.displayNamesByMemberId,
+            handRow: hand,
+            callerMemberId: callerId,
+            nowMs
+          });
+      return { status: 200, body: { ok: true, table: publicState } };
+    }
+
+    if (intent === "close" || intent === "close-table") {
+      if (table.host_id !== callerId) {
+        return errorResult(403, "ERR_NOT_HOST", "Only the table host can close this table.");
+      }
+      if (hand && !hand.ended_at && hand.state?.status === "playing") {
+        return errorResult(409, "ERR_HAND_IN_PROGRESS", "Cannot close table while a hand is in progress.");
+      }
+      const seatedCount = seats.filter((s) => s.status === "active" || s.status === "sitout").length;
+      if (seatedCount > 0) {
+        return errorResult(
+          409,
+          "ERR_TABLE_NOT_EMPTY",
+          "Cannot close table while players are still seated."
+        );
+      }
+
+      try {
+        if (typeof store.closeTable === "function") {
+          await store.closeTable({ tableId: table.id, hostId: callerId });
+        } else {
+          table.status = "closed";
+        }
+      } catch (err) {
+        return mapStoreError(err);
+      }
+
+      const publicState = await loadAndBroadcastTableState(store, table.id, callerId, nowMs);
+      return { status: 200, body: { ok: true, table: publicState } };
+    }
+
+    if (intent === "sit-in" || intent === "sitin" || intent === "sit-out" || intent === "sitout") {
+      const callerSeat = seats.find(
+        (s) => s.member_id === callerId && (s.status === "active" || s.status === "sitout")
+      );
+      if (!callerSeat) {
+        return errorResult(404, "ERR_NOT_SEATED", "You are not seated at this table.");
+      }
+
+      const targetStatus = intent === "sit-in" || intent === "sitin" ? "active" : "sitout";
+
+      if (
+        targetStatus === "sitout" &&
+        hand &&
+        !hand.ended_at &&
+        hand.state?.status === "playing"
+      ) {
+        const inHand = hand.state.seats.find((p) => p.seat === callerSeat.seat_no && !p.folded);
+        if (inHand) {
+          const nextState = foldSeatInHandState(hand.state, callerSeat.seat_no);
+          try {
+            await persistHandTransition({
+              store,
+              table,
+              handRow: hand,
+              prevState: hand.state,
+              nextState,
+              seatStatusOverrides: { [callerSeat.seat_no]: "sitout" },
+              nowMs
+            });
+          } catch (err) {
+            return mapStoreError(err);
+          }
+        }
+      }
+
+      try {
+        if (typeof store.setSeatStatus === "function") {
+          await store.setSeatStatus({
+            tableId: table.id,
+            memberId: callerId,
+            status: targetStatus
+          });
+        } else {
+          callerSeat.status = targetStatus;
+          if (targetStatus === "active") callerSeat.consecutive_timeouts = 0;
+        }
+      } catch (err) {
+        return mapStoreError(err);
+      }
+
+      const publicState = await loadAndBroadcastTableState(store, table.id, callerId, nowMs);
       return { status: 200, body: { ok: true, table: publicState } };
     }
 
@@ -157,7 +326,7 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
         return mapStoreError(err);
       }
 
-      const publicState = await loadAndBroadcastTableState(store, table.id, callerId);
+      const publicState = await loadAndBroadcastTableState(store, table.id, callerId, nowMs);
       return { status: 200, body: { ok: true, table: publicState } };
     }
 
@@ -189,7 +358,8 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
             handRow: hand,
             prevState: hand.state,
             nextState,
-            seatStatusOverrides: handStillRunning ? { [callerSeat.seat_no]: "sitout" } : null
+            seatStatusOverrides: handStillRunning ? { [callerSeat.seat_no]: "sitout" } : null,
+            nowMs
           });
         } catch (err) {
           return mapStoreError(err);
@@ -197,7 +367,7 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
       }
 
       if (handStillRunning) {
-        const publicState = await loadAndBroadcastTableState(store, table.id, callerId);
+        const publicState = await loadAndBroadcastTableState(store, table.id, callerId, nowMs);
         return {
           status: 200,
           body: { ok: true, pendingCashout: true, table: publicState }
@@ -213,7 +383,7 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
         return mapStoreError(err);
       }
 
-      const publicState = await loadAndBroadcastTableState(store, table.id, callerId);
+      const publicState = await loadAndBroadcastTableState(store, table.id, callerId, nowMs);
       return { status: 200, body: { ok: true, table: publicState } };
     }
 
@@ -223,18 +393,26 @@ export async function handleTableRequest({ store, jwt, payload = {}, rng = crypt
 
 /**
  * Handles `act` Edge Function intents:
- * `start`, `fold`, `check`, `call`, `raise`, `bet`, `all-in` (plus `join`/`leave`/`state`).
+ * `start`, `fold`, `check`, `call`, `raise`, `bet`, `all-in`, `tick`
+ * (plus table intents forwarded to `handleTableRequest`).
  */
-export async function handleActRequest({ store, jwt, payload = {}, rng = cryptoRng }) {
+export async function handleActRequest({
+  store,
+  jwt,
+  payload = {},
+  rng = cryptoRng,
+  now = () => Date.now()
+}) {
   const intent = String(payload?.intent || payload?.action || "").toLowerCase().trim();
 
-  if (intent === "create" || intent === "join" || intent === "leave" || intent === "state") {
-    return handleTableRequest({ store, jwt, payload: { ...payload, intent }, rng });
+  if (TABLE_INTENTS.has(intent)) {
+    return handleTableRequest({ store, jwt, payload: { ...payload, intent }, rng, now });
   }
 
   const auth = await authenticateCaller(store, jwt, payload);
   if (auth.error) return auth.error;
   const callerId = auth.user.id;
+  const nowMs = Number(now());
 
   const tableRef = payload?.table ?? payload?.tableId ?? payload?.code;
   if (!tableRef) {
@@ -246,7 +424,26 @@ export async function handleActRequest({ store, jwt, payload = {}, rng = cryptoR
     if (!ctx || !ctx.table) {
       return errorResult(404, "ERR_TABLE_NOT_FOUND", "Table not found.");
     }
-    const { table, seats, hand, displayNamesByMemberId } = ctx;
+    const { table, seats, displayNamesByMemberId } = ctx;
+    let { hand } = ctx;
+
+    // Enforce any expired 30s action timer before processing the caller's action
+    let timeoutInfo = { timedOut: false };
+    try {
+      timeoutInfo = await resolveExpiredTurns({
+        store,
+        table,
+        seats,
+        handRow: hand,
+        nowMs
+      });
+      if (timeoutInfo.timedOut) {
+        hand = timeoutInfo.handRow;
+        await loadAndBroadcastTableState(store, table.id, callerId, nowMs);
+      }
+    } catch (err) {
+      return mapStoreError(err);
+    }
 
     const callerSeat = seats.find(
       (s) => s.member_id === callerId && (s.status === "active" || s.status === "sitout")
@@ -293,8 +490,9 @@ export async function handleActRequest({ store, jwt, payload = {}, rng = cryptoR
         rng
       );
       handState.actionSeq = 0;
+      stampTurnTimer(handState, nowMs);
 
-      const endedAt = handState.status === "complete" ? new Date().toISOString() : null;
+      const endedAt = handState.status === "complete" ? new Date(nowMs).toISOString() : null;
       const tableStatus = handState.status === "complete" ? "open" : "playing";
       const seatStacks = handState.seats.map((p) => ({
         seatNo: p.seat,
@@ -329,7 +527,7 @@ export async function handleActRequest({ store, jwt, payload = {}, rng = cryptoR
         return mapStoreError(err);
       }
 
-      const publicState = await loadAndBroadcastTableState(store, table.id, callerId);
+      const publicState = await loadAndBroadcastTableState(store, table.id, callerId, nowMs);
       return { status: 200, body: { ok: true, table: publicState } };
     }
 
@@ -369,13 +567,15 @@ export async function handleActRequest({ store, jwt, payload = {}, rng = cryptoR
         table,
         handRow: hand,
         prevState: hand.state,
-        nextState
+        nextState,
+        seatTimeoutOverrides: { [callerSeat.seat_no]: 0 },
+        nowMs
       });
     } catch (err) {
       return mapStoreError(err);
     }
 
-    const publicState = await loadAndBroadcastTableState(store, table.id, callerId);
+    const publicState = await loadAndBroadcastTableState(store, table.id, callerId, nowMs);
     return { status: 200, body: { ok: true, table: publicState } };
   });
 }

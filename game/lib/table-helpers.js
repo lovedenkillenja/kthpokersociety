@@ -91,21 +91,42 @@ export function normalizeIncomingTableState(
 }
 
 /**
- * Splits table seats into `{ selfSeat, opponentSeat, otherSeats }` so the player's own seat
- * is always rendered at bottom-centre of the felt.
+ * Splits table seats into `{ selfSeat, opponentSeat, opponentSeats, otherSeats }` so the player's
+ * own seat is always rendered at bottom-centre of the felt and up to 5 opponents are ordered
+ * clockwise starting from the player's immediate left (`seatNo > selfSeat.seatNo`).
  */
 export function partitionTableSeats(tableState) {
-  const seats = Array.isArray(tableState?.seats) ? tableState.seats : [];
+  const seats = Array.isArray(tableState?.seats)
+    ? [...tableState.seats].sort((a, b) => Number(a.seatNo) - Number(b.seatNo))
+    : [];
   const selfSeat = seats.find((s) => s.isSelf) || null;
-  const others = selfSeat
-    ? seats.filter((s) => s.seatNo !== selfSeat.seatNo)
-    : [...seats];
+
+  let orderedOthers;
+  if (selfSeat) {
+    const afterSelf = seats.filter((s) => s.seatNo > selfSeat.seatNo);
+    const beforeSelf = seats.filter((s) => s.seatNo < selfSeat.seatNo);
+    orderedOthers = [...afterSelf, ...beforeSelf];
+  } else {
+    orderedOthers = [...seats];
+  }
 
   return {
     selfSeat,
-    opponentSeat: others[0] || null,
-    otherSeats: others
+    opponentSeat: orderedOthers[0] || null,
+    opponentSeats: orderedOthers,
+    otherSeats: orderedOthers
   };
+}
+
+/**
+ * Computes the remaining seconds on the 30-second action clock (`0`..`30`), or `null` if no clock is active.
+ */
+export function computeRemainingTurnSeconds(hand, nowMs = Date.now(), clockSkewMs = 0) {
+  if (!hand || hand.status !== "playing") return null;
+  const deadline = Number(hand.turnDeadlineAt);
+  if (!Number.isFinite(deadline) || deadline <= 0) return null;
+  const serverNow = Number(nowMs) + Number(clockSkewMs || 0);
+  return Math.max(0, Math.ceil((deadline - serverNow) / 1000));
 }
 
 /**
@@ -147,21 +168,31 @@ export function describeHandStatus(tableState) {
     return { headline: "No table loaded", detail: "", isMyTurn: false };
   }
 
+  if (tableState.status === "closed") {
+    return {
+      headline: "Table closed",
+      detail: "This table has been closed.",
+      isMyTurn: false
+    };
+  }
+
   const seats = Array.isArray(tableState.seats) ? tableState.seats : [];
   const selfSeat = seats.find((s) => s.isSelf) || null;
   const hand = tableState.hand || null;
+  const activeSeats = seats.filter((s) => s.status === "active" && Number(s.stack) > 0);
 
   if (!hand) {
-    if (seats.length < 2) {
+    if (activeSeats.length < 2) {
+      const hasSitout = seats.some((s) => s.status === "sitout");
       return {
-        headline: "Waiting for a second player",
-        detail: `Share code ${tableState.code} so a friend can join.`,
+        headline: hasSitout && seats.length >= 2 ? "Waiting for players to sit in" : "Waiting for players",
+        detail: `Share code ${tableState.code} so friends can join (up to ${tableState.maxSeats || 6} seats).`,
         isMyTurn: false
       };
     }
     return {
-      headline: "Ready to deal",
-      detail: "Both players are seated. Press Deal hand to begin.",
+      headline: `Ready to deal (${activeSeats.length} players)`,
+      detail: "Seated players are ready. Press Deal hand to begin.",
       isMyTurn: false
     };
   }
@@ -190,9 +221,18 @@ export function describeHandStatus(tableState) {
     });
 
     const isFoldOut = !hand.showdown;
+    const potsList = hand.showdown?.pots || hand.pots || [];
+    let detail = isFoldOut ? "Won without showdown (all others folded)." : "Showdown complete.";
+    if (!isFoldOut && potsList.length > 1) {
+      const potBreakdown = potsList
+        .map((p, idx) => `${idx === 0 ? "Main pot" : `Side pot ${idx}`}: ${formatChips(p.amount)}`)
+        .join(" · ");
+      detail = `${potBreakdown}`;
+    }
+
     return {
       headline: parts.join(" · "),
-      detail: isFoldOut ? "Won without showdown (opponent folded)." : "Showdown complete.",
+      detail,
       isMyTurn: false
     };
   }

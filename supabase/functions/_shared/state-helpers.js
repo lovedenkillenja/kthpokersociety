@@ -11,6 +11,25 @@ import {
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const tableLocks = new Map();
 
+export const ACTION_TIMEOUT_MS = 30_000;
+export const IDLE_TABLE_TIMEOUT_MS = 30 * 60 * 1000;
+
+export function stampTurnTimer(handState, nowMs = Date.now()) {
+  if (!handState) return handState;
+  if (
+    handState.status === "playing" &&
+    handState.actingSeat !== null &&
+    handState.actingSeat !== undefined
+  ) {
+    handState.turnStartedAt = nowMs;
+    handState.turnDeadlineAt = nowMs + ACTION_TIMEOUT_MS;
+  } else {
+    handState.turnStartedAt = null;
+    handState.turnDeadlineAt = null;
+  }
+  return handState;
+}
+
 export async function withTableLock(lockKey, fn) {
   const key = String(lockKey || "global");
   const prev = tableLocks.get(key) || Promise.resolve();
@@ -49,11 +68,13 @@ export function mapStoreError(err) {
   const msg = String(err?.message || err || "");
   const knownCodes = [
     "ERR_FORBIDDEN",
+    "ERR_NOT_HOST",
     "ERR_INVALID_ARGS",
     "ERR_NOT_A_MEMBER",
     "ERR_TABLE_NOT_FOUND",
     "ERR_HAND_NOT_FOUND",
     "ERR_TABLE_CLOSED",
+    "ERR_TABLE_NOT_EMPTY",
     "ERR_INVALID_SEAT",
     "ERR_INVALID_BUYIN",
     "ERR_ALREADY_SEATED",
@@ -72,7 +93,7 @@ export function mapStoreError(err) {
   for (const code of knownCodes) {
     if (msg.includes(code)) {
       const status =
-        code === "ERR_FORBIDDEN"
+        code === "ERR_FORBIDDEN" || code === "ERR_NOT_HOST"
           ? 403
           : code === "ERR_TABLE_NOT_FOUND" ||
               code === "ERR_HAND_NOT_FOUND" ||
@@ -81,6 +102,7 @@ export function mapStoreError(err) {
             : code === "ERR_ALREADY_SEATED" ||
                 code === "ERR_SEAT_TAKEN" ||
                 code === "ERR_HAND_IN_PROGRESS" ||
+                code === "ERR_TABLE_NOT_EMPTY" ||
                 code === "ERR_STALE_HAND" ||
                 code === "ERR_STALE_ACTION_SEQ" ||
                 code === "ERR_CONCURRENT_ACTION"
@@ -97,7 +119,8 @@ export function buildPublicTableState({
   seats,
   displayNamesByMemberId,
   handRow,
-  callerMemberId = null
+  callerMemberId = null,
+  nowMs = Date.now()
 }) {
   const handPub = handRow?.state ? publicView(handRow.state) : null;
   const handSeatsByNo = new Map((handPub?.seats || []).map((hs) => [hs.seat, hs]));
@@ -117,6 +140,7 @@ export function buildPublicTableState({
         displayName,
         stack: s.stack,
         status: s.status,
+        consecutiveTimeouts: Number(s.consecutive_timeouts ?? 0),
         isSelf: Boolean(callerMemberId && s.member_id === callerMemberId),
         bet: hs ? hs.bet : 0,
         totalCommitted: hs ? hs.totalCommitted : 0,
@@ -159,6 +183,10 @@ export function buildPublicTableState({
       lastRaiseSize: handPub.lastRaiseSize,
       actingSeat: handPub.actingSeat,
       actionSeq: Number(handRow.state?.actionSeq ?? 0),
+      turnStartedAt: handRow.state?.turnStartedAt ?? null,
+      turnDeadlineAt: handRow.state?.turnDeadlineAt ?? null,
+      turnTimeoutMs: ACTION_TIMEOUT_MS,
+      serverNow: nowMs,
       legalActions: actingLegal,
       payouts: handPub.payouts,
       winners: handPub.winners,
@@ -176,6 +204,7 @@ export function buildPublicTableState({
     maxBuyIn: table.max_buyin,
     maxSeats: table.max_seats,
     status: table.status,
+    isHost: Boolean(callerMemberId && table.host_id === callerMemberId),
     seats: publicSeats,
     hand: publicHand
   };
@@ -232,11 +261,23 @@ export async function persistHandTransition({
   prevState,
   nextState,
   seatStatusOverrides = null,
-  holeCards = []
+  seatTimeoutOverrides = null,
+  holeCards = [],
+  nowMs = Date.now()
 }) {
   const prevActionCount = prevState?.actions?.length || 0;
   const prevActionSeq = Number(prevState?.actionSeq ?? 0);
   nextState.actionSeq = prevActionSeq + 1;
+
+  const turnAdvanced =
+    nextState.status !== "playing" ||
+    nextState.actingSeat !== prevState?.actingSeat ||
+    nextState.street !== prevState?.street ||
+    !prevState?.turnDeadlineAt;
+
+  if (turnAdvanced) {
+    stampTurnTimer(nextState, nowMs);
+  }
 
   const newActions = nextState.actions.slice(prevActionCount).map((a) => ({
     hand_id: handRow.id,
@@ -266,12 +307,19 @@ export async function persistHandTransition({
     }
   }
 
-  const endedAt = nextState.status === "complete" ? new Date().toISOString() : null;
+  const endedAt = nextState.status === "complete" ? new Date(nowMs).toISOString() : null;
   const tableStatus = nextState.status === "complete" ? "open" : "playing";
   const seatStacks = nextState.seats.map((p) => {
     const entry = { seatNo: p.seat, stack: Math.trunc(Number(p.stack)) };
     if (seatStatusOverrides && seatStatusOverrides[p.seat]) {
       entry.status = seatStatusOverrides[p.seat];
+    }
+    if (seatTimeoutOverrides && seatTimeoutOverrides[p.seat] !== undefined) {
+      const timeouts = Math.max(0, Math.trunc(Number(seatTimeoutOverrides[p.seat])));
+      entry.consecutiveTimeouts = timeouts;
+      if (timeouts >= 2 && !entry.status) {
+        entry.status = "sitout";
+      }
     }
     return entry;
   });
@@ -308,7 +356,65 @@ export async function persistHandTransition({
   return updatedHand;
 }
 
-export async function loadAndBroadcastTableState(store, tableIdOrCode, callerMemberId) {
+export async function resolveExpiredTurns({
+  store,
+  table,
+  seats,
+  handRow,
+  nowMs = Date.now()
+}) {
+  if (!handRow || handRow.ended_at || handRow.state?.status !== "playing") {
+    return { timedOut: false, handRow };
+  }
+
+  const deadline = Number(handRow.state?.turnDeadlineAt);
+  if (!Number.isFinite(deadline) || nowMs < deadline) {
+    return { timedOut: false, handRow };
+  }
+
+  const timedOutSeatNo = handRow.state.actingSeat;
+  if (timedOutSeatNo === null || timedOutSeatNo === undefined) {
+    return { timedOut: false, handRow };
+  }
+
+  const nextState = apply(handRow.state, timedOutSeatNo, { type: "timeout" });
+  const seatRow = (seats || []).find((s) => s.seat_no === timedOutSeatNo);
+  const nextTimeouts = Number(seatRow?.consecutive_timeouts ?? 0) + 1;
+  const shouldSitOut = nextTimeouts >= 2;
+
+  const updatedHand = await persistHandTransition({
+    store,
+    table,
+    handRow,
+    prevState: handRow.state,
+    nextState,
+    seatStatusOverrides: shouldSitOut ? { [timedOutSeatNo]: "sitout" } : null,
+    seatTimeoutOverrides: { [timedOutSeatNo]: nextTimeouts },
+    nowMs
+  });
+
+  if (seatRow) {
+    seatRow.consecutive_timeouts = nextTimeouts;
+    if (shouldSitOut) {
+      seatRow.status = "sitout";
+    }
+  }
+
+  return {
+    timedOut: true,
+    timedOutSeatNo,
+    consecutiveTimeouts: nextTimeouts,
+    satOut: shouldSitOut,
+    handRow: updatedHand
+  };
+}
+
+export async function loadAndBroadcastTableState(
+  store,
+  tableIdOrCode,
+  callerMemberId,
+  nowMs = Date.now()
+) {
   const ctx = await store.getTableContext(tableIdOrCode);
   if (!ctx || !ctx.table) return null;
 
@@ -317,7 +423,8 @@ export async function loadAndBroadcastTableState(store, tableIdOrCode, callerMem
     seats: ctx.seats,
     displayNamesByMemberId: ctx.displayNamesByMemberId,
     handRow: ctx.hand,
-    callerMemberId: null
+    callerMemberId: null,
+    nowMs
   });
   await store.broadcastTableState(ctx.table.code, broadcastState);
 
@@ -326,6 +433,7 @@ export async function loadAndBroadcastTableState(store, tableIdOrCode, callerMem
     seats: ctx.seats,
     displayNamesByMemberId: ctx.displayNamesByMemberId,
     handRow: ctx.hand,
-    callerMemberId
+    callerMemberId,
+    nowMs
   });
 }

@@ -421,3 +421,56 @@ test("publicView hides deck and unrevealed hole cards, and chip conservation hol
   assert.equal(pub.seats.every((s) => s.holeCards === null), true, "publicView must hide hole cards during play");
   assert.equal(checkChipConservation(state, 3000).conserved, true);
 });
+
+test("3-6 player hands: dealer rotation, SB/BB/UTG positions, and skipping sitout seats", () => {
+  const rng = createSeededRng(2027);
+  // 6 seats where seat 2 is sitting out -> active seats are [0, 1, 3, 4, 5]
+  const seats = [
+    { seat: 0, stack: 500, status: "active", name: "P0" },
+    { seat: 1, stack: 500, status: "active", name: "P1" },
+    { seat: 2, stack: 500, status: "sitout", name: "P2-Sitout" },
+    { seat: 3, stack: 500, status: "active", name: "P3" },
+    { seat: 4, stack: 500, status: "active", name: "P4" },
+    { seat: 5, stack: 500, status: "active", name: "P5" }
+  ];
+
+  // Hand 1 with dealer=0: SB=1, BB=3 (skips seat 2), UTG=4
+  const h1 = newHand(seats, 0, { sb: 10, bb: 20 }, rng);
+  assert.equal(h1.seats.length, 5, "Sitout seat must be skipped when dealing");
+  assert.equal(h1.dealerSeat, 0);
+  assert.equal(h1.sbSeat, 1);
+  assert.equal(h1.bbSeat, 3);
+  assert.equal(h1.actingSeat, 4);
+
+  // Hand 2 with dealer requested at 2 (sitout) -> resolves clockwise to seat 3; SB=4, BB=5, UTG=0
+  const h2 = newHand(seats, 2, { sb: 10, bb: 20 }, rng);
+  assert.equal(h2.dealerSeat, 3);
+  assert.equal(h2.sbSeat, 4);
+  assert.equal(h2.bbSeat, 5);
+  assert.equal(h2.actingSeat, 0);
+});
+
+test("Engine timeout action checks when free and folds when facing a bet, logging timeout-fold", () => {
+  const seats = [
+    { seat: 0, stack: 500, name: "P0" },
+    { seat: 1, stack: 500, name: "P1" },
+    { seat: 2, stack: 500, name: "P2" }
+  ];
+  let state = newHand(seats, 0, { sb: 10, bb: 20 }, createSeededRng(88));
+  // 3-handed: dealer=0, SB=1, BB=2, UTG=0 acts first facing 20 BB -> timeout must fold
+  assert.equal(state.actingSeat, 0);
+  state = apply(state, 0, { type: "timeout" });
+  assert.equal(state.seats.find((s) => s.seat === 0).folded, true);
+  assert.equal(state.actions.at(-1).type, "timeout-fold");
+  assert.equal(state.actions.at(-1).mode, "fold");
+
+  // SB (seat 1) calls 20 -> now BB (seat 2) has option to check for free -> timeout must check!
+  state = apply(state, 1, { type: "call" });
+  assert.equal(state.actingSeat, 2);
+  state = apply(state, 2, { type: "timeout" });
+  assert.equal(state.seats.find((s) => s.seat === 2).folded, false, "Timeout when canCheck is true must check, not fold");
+  assert.equal(state.street, "flop");
+  assert.equal(state.actions.at(-1).type, "timeout-fold");
+  assert.equal(state.actions.at(-1).mode, "check");
+  assert.equal(checkChipConservation(state, 1500).conserved, true);
+});

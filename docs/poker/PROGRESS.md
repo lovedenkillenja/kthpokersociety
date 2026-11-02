@@ -1,7 +1,7 @@
 # Progress log (agent: update this every session)
 
 ## Status
-M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), and M4 heads-up table UI (`game/ui/table-view.js`, `game/ui/table-render.js`, `game/lib/poker-api.js`, `game/lib/table-helpers.js`, `game/styles/table.css`) are complete.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, and M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup) code & tests are complete. M5 SQL migration and updated Edge Functions are ready for Claude to review and deploy.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
@@ -9,14 +9,41 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
 - [x] M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `supabase/checks/chip_conservation.sql` – reviewed and applied)
 - [x] M3b/M3c Edge Functions (`table`, `act`) + atomic hand persistence migration (`20261102020000_hand_persistence_tx.sql`) – M3b+M3c deployed
 - [x] M4 heads-up playable on two phones (UI built & wired to deployed `table` and `act`; live two-phone Realtime play UNVERIFIED)
-- [ ] M5 3–6 players, timers, reconnect
+- [x] M5 3–6 players, timers, reconnect (code + 36/36 `node --test` tests complete; SQL migration & Edge Functions ready and NOT deployed – awaiting Claude review/deploy)
 - [ ] M6 polish and tutorial
 - [ ] M7 link from website, event awards
 
 ## Decisions for Love
-- None blocking – test M4 heads-up with two member accounts on `https://poker-game--kthpokersociety-v3.netlify.app/game/`.
+- **M5 SQL migration and Edge Functions are ready and NOT deployed. Ask Claude to review and deploy:**
+  1. Apply migration `supabase/migrations/20261102023000_m5_timers_sitout_cleanup.sql` to project `tibyyjnghhwwcxvlwmiq`, then run `supabase/checks/chip_conservation.sql` (must return 0 rows) and security advisors.
+  2. Deploy updated Edge Functions `table` and `act` (`supabase/functions/table/`, `supabase/functions/act/`, and shared modules in `supabase/functions/_shared/`: `handlers.js`, `state-helpers.js`, `supabase-store.js`, `engine/betting.js`) to project `tibyyjnghhwwcxvlwmiq`.
 
 ## Session log
+- 2026-11-02 (Gemini – M5):
+  - **What changed**:
+    - **1. 3–6 players at one table (`game/` + `game/engine/`)**:
+      - Added table size selector (`2`–`6` seats, default `6`) in Create Table (`game/index.html`, `game/app.js`).
+      - Updated `partitionTableSeats` (`game/lib/table-helpers.js`) to order up to 5 opponent seats clockwise starting from the player's immediate left (`seatNo > selfSeat.seatNo`), keeping the player's own seat anchored at bottom-centre.
+      - Updated `game/ui/table-render.js` and `game/styles/table.css` (`.table-opponents-grid` + `.table-seat-card--compact`) to render 1–5 opponents in a responsive 2-column clockwise grid that fits at 375px width without horizontal scroll, showing Dealer (`D`), Small Blind (`SB`), and Big Blind (`BB`) badges on seat plaques, and displaying Main Pot + Side Pots (with winner names at showdown).
+    - **2. Server-enforced 30s action timer (`ACTION_TIMEOUT_MS = 30_000`) & atomic `timeout-fold`**:
+      - Added `type: "timeout"` / `"timeout-fold"` to `apply()` in `game/engine/betting.js` (synced to `supabase/functions/_shared/engine/betting.js` via `game/scripts/sync-engine.js`): when checking is free (`legalActions.canCheck`), the engine checks for the timed-out player; when facing a bet, it folds them. In both cases, `hand_actions` records `action: 'timeout-fold', amount: 0`.
+      - `stampTurnTimer` (`supabase/functions/_shared/state-helpers.js`) stamps `turnStartedAt` and `turnDeadlineAt = nowMs + 30_000` on every active turn transition and exposes `turnStartedAt`, `turnDeadlineAt`, `turnTimeoutMs`, and `serverNow` in public hand state so clients compute clock-skew-adjusted countdowns (`computeRemainingTurnSeconds`).
+      - **Timeout trigger design & reason**: Because Edge Functions are request-driven and a stalled/disconnected client cannot be trusted to fold itself, we use a two-layer server-enforced trigger: (a) **Opportunistic server check on every table/act request** (`resolveExpiredTurns` runs inside `withTableLock` before `state`, `tick`, `join`, `leave`, `close`, `sit-in`, `sit-out`, or any betting action), and (b) **Dedicated `"tick"` intent** (`POST /functions/v1/act` or `/table` with `{ intent: "tick", table: code }`) called automatically by any seated or observing client as soon as the 30s countdown reaches `0s` (paired with the existing 3.5s `"state"` fallback poll). Every timeout transition executes atomically through `apply_hand_tx` (with `FOR UPDATE` row lock and `expected_action_seq`), so even if 5 clients call `tick` simultaneously at `0s`, exactly one succeeds and the rest see the updated post-timeout state.
+    - **3. Sit-out handling (`consecutive_timeouts`)**:
+      - Added `table_seats.consecutive_timeouts` in `supabase/migrations/20261102023000_m5_timers_sitout_cleanup.sql` and updated `apply_hand_tx` to persist `consecutive_timeouts` and `status` atomically.
+      - Any voluntary on-time action resets the acting seat's `consecutive_timeouts` to `0`. A timeout increments `consecutive_timeouts` by `1`; when `consecutive_timeouts >= 2`, `apply_hand_tx` atomically sets `table_seats.status = 'sitout'`.
+      - Sitting-out players are skipped when dealing (`eligibleSeats` filters `status === "active" && stack > 0`), and the UI renders a **"Sit back in"** button (`intent: "sit-in"` -> `set_seat_status` RPC) that restores `status = 'active'` and resets `consecutive_timeouts = 0`.
+    - **4. Table cleanup (30-minute idle auto-close + host `close` intent)**:
+      - Added `poker_tables.last_activity_at` (updated automatically via triggers `table_seats_touch_activity_trg` and `hands_touch_activity_trg`) and `public.close_idle_tables(p_now)` (`SECURITY DEFINER`, `service_role` only) which closes tables (`status = 'closed'`, `closed_at = now()`) that have no seated players (`active`/`sitout`), no open hand, and `last_activity_at <= now() - interval '30 minutes'`.
+      - `close_idle_tables` is invoked automatically inside `enforce_max_open_tables_per_host()` (DB trigger on table creation), in the `create` handler before checking `countOpenTablesByHost`, and every 5 minutes via `pg_cron` (`kth-poker-close-idle-tables`) when the `pg_cron` extension is enabled, ensuring hosts are never locked out by the 3-open-tables cap.
+      - Added `public.close_table(p_table_id, p_host_id)` RPC and `intent: "close"` (plus **"Close table"** button in the UI topbar for the host when the table is empty).
+  - **Files needing Claude review & deployment**:
+    - SQL migration (NOT applied): `supabase/migrations/20261102023000_m5_timers_sitout_cleanup.sql`
+    - Edge Function shared code (NOT deployed): `supabase/functions/_shared/handlers.js`, `supabase/functions/_shared/state-helpers.js`, `supabase/functions/_shared/supabase-store.js`, `supabase/functions/_shared/engine/betting.js` (redeploy `table` and `act`).
+  - **Verified**: `node --test game/tests/*.test.js` (36/36 passing, including new tests in `game/tests/m5.test.js`, `game/tests/engine.test.js`, and `game/tests/table-helpers.test.js` covering 3–6 player hands, side pots, dealer rotation, 30s timeout fold/check, 2x timeout -> sit-out & skip on deal, sit-in reset, 30m idle empty table auto-close, host close-table, and `chip_conservation.sql` invariant). All files under 600 lines (`m5.test.js` trimmed).
+  - **UNVERIFIED**: Live 3–6 account gameplay, live 30-second countdown auto-fold, and host table close on `https://poker-game--kthpokersociety-v3.netlify.app/game/` (requires Claude to apply `20261102023000_m5_timers_sitout_cleanup.sql` and deploy updated `table` and `act` Edge Functions first).
+  - **What is broken**: Nothing known.
+  - **What is next**: After Claude reviews/applies the M5 migration and deploys `table` and `act`, M6 – visual polish and interactive tutorial.
 - 2026-11-02 (Gemini – M4):
   - **What changed**:
     - Built the M4 heads-up (2-player) poker UI in `/game/` without modifying the deployed Edge Functions (`table` and `act`):

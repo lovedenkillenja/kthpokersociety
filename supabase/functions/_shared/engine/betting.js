@@ -374,7 +374,32 @@ export function apply(inputState, seat, rawAction) {
   const actionObj = typeof rawAction === "string" ? { type: rawAction } : rawAction || {};
   const type = String(actionObj.type || actionObj.intent || "").toLowerCase().trim();
 
-  if (type === "fold") {
+  if (type === "timeout" || type === "timeout-fold") {
+    if (legal.canCheck) {
+      player.acted = true;
+      player.actedSinceFullRaise = true;
+      state.actions.push({
+        street: state.street,
+        seat,
+        type: "timeout-fold",
+        mode: "check",
+        amount: 0,
+        timeout: true
+      });
+    } else {
+      player.folded = true;
+      player.acted = true;
+      player.actedSinceFullRaise = true;
+      state.actions.push({
+        street: state.street,
+        seat,
+        type: "timeout-fold",
+        mode: "fold",
+        amount: 0,
+        timeout: true
+      });
+    }
+  } else if (type === "fold") {
     player.folded = true;
     player.acted = true;
     player.actedSinceFullRaise = true;

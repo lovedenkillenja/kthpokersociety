@@ -1,84 +1,91 @@
-// M4 Heads-Up Table View controller (`#view-table`).
-// Coordinates Realtime broadcast subscriptions, `"state"` fallback polling,
-// `hole_cards` RLS queries, and the thumb-reachable fixed action bar.
+// M4+M5 Table View controller (`#view-table`).
+// Coordinates 2–6 player state, 30s action timer & `tick` enforcement, sit-in/sit-out,
+// host table close, Realtime broadcast subscriptions, and `hole_cards` RLS queries.
 
 import { formatChips } from "../lib/format.js";
 import {
-  normalizeIncomingTableState,
-  partitionTableSeats,
-  computeRaisePresets
+  normalizeIncomingTableState, partitionTableSeats, computeRaisePresets, computeRemainingTurnSeconds
 } from "../lib/table-helpers.js";
 import {
-  fetchTableState,
-  joinTable,
-  leaveTable,
-  startHand,
-  sendHandAction,
-  fetchOwnHoleCards,
-  subscribeToTableChannel
+  fetchTableState, joinTable, leaveTable, closeTable, setTableSeatStatus,
+  tickTable, startHand, sendHandAction, fetchOwnHoleCards, subscribeToTableChannel
 } from "../lib/poker-api.js";
 import { showToast } from "./components.js";
 import { renderTableFelt } from "./table-render.js";
 
 export function createTableViewController({
-  getUser,
-  getDisplayName,
-  getBalance,
-  onChipsChanged,
-  onExitToLobby
+  getUser, getDisplayName, getBalance, onChipsChanged, onExitToLobby
 }) {
-  let currentTable = null;
-  let knownSelfSeatNo = null;
-  let myHoleCards = null;
-  let lastHoleCardsHandId = null;
-  let lastAnnouncedTurnKey = "";
-  let channelSub = null;
-  let subscribedCode = null;
-  let actionBusy = false;
-  let currentRaiseTo = 0;
-  let lastHandSeqKey = "";
+  let currentTable = null, knownSelfSeatNo = null, myHoleCards = null, lastHoleCardsHandId = null;
+  let lastAnnouncedTurnKey = "", channelSub = null, subscribedCode = null, actionBusy = false;
+  let currentRaiseTo = 0, lastHandSeqKey = "", serverClockSkewMs = 0, countdownInterval = null;
+  let lastRenderedSecond = null, lastTickAttemptAt = 0, tickInFlight = false;
 
+  const byId = (id) => document.getElementById(id);
   const els = {
-    codeBadge: document.getElementById("table-code-badge"),
-    copyCodeBtn: document.getElementById("table-copy-code-btn"),
-    blindsPill: document.getElementById("table-blinds-pill"),
-    connPill: document.getElementById("table-conn-pill"),
-    refreshBtn: document.getElementById("table-refresh-btn"),
-    leaveBtn: document.getElementById("table-leave-btn"),
-
-    opponentArea: document.getElementById("table-opponent-seat"),
-    potAmount: document.getElementById("table-pot-amount"),
-    sidePotsRow: document.getElementById("table-side-pots"),
-    boardRow: document.getElementById("table-board-row"),
-    statusHeadline: document.getElementById("table-status-headline"),
-    statusDetail: document.getElementById("table-status-detail"),
-    dealBtnWrap: document.getElementById("table-deal-wrap"),
-    dealBtn: document.getElementById("table-deal-btn"),
-    selfArea: document.getElementById("table-self-seat"),
-
-    sitDownForm: document.getElementById("table-sitdown-form"),
-    sitDownBuyInInput: document.getElementById("table-sitdown-buyin"),
-    sitDownBtn: document.getElementById("table-sitdown-btn"),
-
-    actionBar: document.getElementById("table-action-bar"),
-    waitingStrip: document.getElementById("action-waiting-strip"),
-    waitingText: document.getElementById("action-waiting-text"),
-    controlsWrap: document.getElementById("action-controls-wrap"),
-    raisePanel: document.getElementById("action-raise-panel"),
-    presetMinBtn: document.getElementById("preset-min-btn"),
-    presetHalfBtn: document.getElementById("preset-half-btn"),
-    presetPotBtn: document.getElementById("preset-pot-btn"),
-    presetAllInBtn: document.getElementById("preset-allin-btn"),
-    raiseSlider: document.getElementById("action-raise-slider"),
-    raiseInput: document.getElementById("action-raise-input"),
-    foldBtn: document.getElementById("action-fold-btn"),
-    checkCallBtn: document.getElementById("action-check-call-btn"),
-    raiseBtn: document.getElementById("action-raise-btn")
+    codeBadge: byId("table-code-badge"), copyCodeBtn: byId("table-copy-code-btn"),
+    blindsPill: byId("table-blinds-pill"), connPill: byId("table-conn-pill"),
+    refreshBtn: byId("table-refresh-btn"), closeTableBtn: byId("table-close-btn"),
+    leaveBtn: byId("table-leave-btn"), opponentArea: byId("table-opponent-seat"),
+    potAmount: byId("table-pot-amount"), sidePotsRow: byId("table-side-pots"),
+    boardRow: byId("table-board-row"), statusHeadline: byId("table-status-headline"),
+    statusDetail: byId("table-status-detail"), dealBtnWrap: byId("table-deal-wrap"),
+    dealBtn: byId("table-deal-btn"), sitInBtn: byId("table-sitin-btn"),
+    selfArea: byId("table-self-seat"), sitDownForm: byId("table-sitdown-form"),
+    sitDownBuyInInput: byId("table-sitdown-buyin"), sitDownBtn: byId("table-sitdown-btn"),
+    actionBar: byId("table-action-bar"), waitingStrip: byId("action-waiting-strip"),
+    waitingText: byId("action-waiting-text"), timerPill: byId("action-timer-pill"),
+    controlsWrap: byId("action-controls-wrap"), raisePanel: byId("action-raise-panel"),
+    presetMinBtn: byId("preset-min-btn"), presetHalfBtn: byId("preset-half-btn"),
+    presetPotBtn: byId("preset-pot-btn"), presetAllInBtn: byId("preset-allin-btn"),
+    raiseSlider: byId("action-raise-slider"), raiseInput: byId("action-raise-input"),
+    foldBtn: byId("action-fold-btn"), checkCallBtn: byId("action-check-call-btn"),
+    raiseBtn: byId("action-raise-btn")
   };
 
   function announce(message) {
-    const live = document.getElementById("live-announcer");
+    const live = byId("live-announcer");
     if (live && message) live.textContent = message;
+  }
+
+  function getRemainingSeconds() {
+    return computeRemainingTurnSeconds(currentTable?.hand, Date.now(), serverClockSkewMs);
+  }
+
+  async function maybeTriggerServerTimeoutTick() {
+    if (!currentTable?.code || !currentTable?.hand || tickInFlight) return;
+    if (currentTable.hand.status !== "playing") return;
+    const now = Date.now();
+    if (now - lastTickAttemptAt < 2500) return;
+
+    lastTickAttemptAt = now;
+    tickInFlight = true;
+    try {
+      const res = await tickTable(currentTable.code);
+      if (res.ok && res.table) {
+        applyTableState(res.table);
+      }
+    } finally {
+      tickInFlight = false;
+    }
+  }
+
+  function ensureCountdownLoop() {
+    if (countdownInterval) return;
+    countdownInterval = window.setInterval(() => {
+      if (!currentTable?.hand || currentTable.hand.status !== "playing") {
+        lastRenderedSecond = null;
+        return;
+      }
+      const sec = getRemainingSeconds();
+      if (sec !== lastRenderedSecond) {
+        lastRenderedSecond = sec;
+        render();
+      }
+      if (sec !== null && sec <= 0) {
+        maybeTriggerServerTimeoutTick();
+      }
+    }, 400);
   }
 
   function ensureChannelSubscription(code) {
@@ -131,7 +138,8 @@ export function createTableViewController({
         myHoleCards,
         lastHoleCardsHandId,
         getBalance,
-        actionBusy
+        actionBusy,
+        remainingSeconds: getRemainingSeconds()
       });
     }
   }
@@ -147,6 +155,9 @@ export function createTableViewController({
     if (normalized.selfSeatNo !== null && normalized.selfSeatNo !== undefined) {
       knownSelfSeatNo = normalized.selfSeatNo;
     }
+    if (Number.isFinite(Number(normalized.hand?.serverNow))) {
+      serverClockSkewMs = Number(normalized.hand.serverNow) - Date.now();
+    }
     currentTable = normalized;
 
     try {
@@ -156,6 +167,7 @@ export function createTableViewController({
     }
 
     ensureChannelSubscription(normalized.code);
+    ensureCountdownLoop();
     render();
     syncHoleCardsIfNeeded(normalized);
   }
@@ -173,13 +185,13 @@ export function createTableViewController({
     els.raiseBtn.textContent = `${verb} ${formatChips(val)}`;
   }
 
-  function renderActionBar() {
+  function renderActionBar(remainingSeconds = null) {
     if (!currentTable) {
       els.actionBar.hidden = true;
       return;
     }
 
-    const { selfSeat, opponentSeat } = partitionTableSeats(currentTable);
+    const { selfSeat } = partitionTableSeats(currentTable);
     const hand = currentTable.hand || null;
 
     if (!selfSeat || !hand || hand.status !== "playing") {
@@ -190,15 +202,28 @@ export function createTableViewController({
     els.actionBar.hidden = false;
     const isMyTurn = hand.actingSeat === selfSeat.seatNo;
     const legal = hand.legalActions || null;
+    const actingSeat = (currentTable.seats || []).find((s) => s.seatNo === hand.actingSeat);
+
+    if (els.timerPill) {
+      if (remainingSeconds !== null && remainingSeconds !== undefined) {
+        els.timerPill.hidden = false;
+        els.timerPill.textContent = `${remainingSeconds}s`;
+        els.timerPill.className = `pill tabular ${
+          remainingSeconds <= 8 ? "pill--danger" : "pill--brand"
+        }`;
+      } else {
+        els.timerPill.hidden = true;
+      }
+    }
 
     if (!isMyTurn || !legal) {
-      els.waitingStrip.hidden = false;
       els.controlsWrap.hidden = true;
-      const oppName = opponentSeat?.displayName || "opponent";
-      els.waitingText.textContent = `Waiting for ${oppName} to act…`;
+      const actorName = actingSeat?.displayName || `Seat ${(hand.actingSeat ?? 0) + 1}`;
+      els.waitingText.textContent = `Waiting for ${actorName} to act…`;
       return;
     }
 
+    els.waitingText.textContent = "Your turn to act";
     const turnKey = `${hand.id}:${hand.actionSeq}:${selfSeat.seatNo}`;
     if (lastAnnouncedTurnKey !== turnKey) {
       lastAnnouncedTurnKey = turnKey;
@@ -212,7 +237,6 @@ export function createTableViewController({
       }
     }
 
-    els.waitingStrip.hidden = true;
     els.controlsWrap.hidden = false;
     els.foldBtn.disabled = actionBusy || !legal.canFold;
 
@@ -270,8 +294,9 @@ export function createTableViewController({
 
   function render() {
     if (!currentTable) return;
+    const remainingSeconds = getRemainingSeconds();
     els.codeBadge.textContent = `Room ${currentTable.code}`;
-    els.blindsPill.textContent = `${formatChips(currentTable.sb)} / ${formatChips(currentTable.bb)} blinds`;
+    els.blindsPill.textContent = `${formatChips(currentTable.sb)} / ${formatChips(currentTable.bb)} · ${currentTable.maxSeats || 6}-max`;
 
     renderTableFelt({
       els,
@@ -279,15 +304,16 @@ export function createTableViewController({
       myHoleCards,
       lastHoleCardsHandId,
       getBalance,
-      actionBusy
+      actionBusy,
+      remainingSeconds
     });
-    renderActionBar();
+    renderActionBar(remainingSeconds);
   }
 
   async function performAction(intent, amount = undefined) {
     if (!currentTable?.hand || actionBusy) return;
     actionBusy = true;
-    renderActionBar();
+    renderActionBar(getRemainingSeconds());
 
     const hand = currentTable.hand;
     const res = await sendHandAction({
@@ -310,7 +336,7 @@ export function createTableViewController({
         const fresh = await fetchTableState(currentTable.code);
         if (fresh.ok && fresh.table) applyTableState(fresh.table);
       } else {
-        renderActionBar();
+        renderActionBar(getRemainingSeconds());
       }
       return;
     }
@@ -360,6 +386,39 @@ export function createTableViewController({
       } else if (res.error) {
         showToast(res.error, { variant: "error" });
       }
+    });
+
+    els.closeTableBtn?.addEventListener("click", async () => {
+      if (!currentTable?.code || actionBusy) return;
+      actionBusy = true;
+      els.closeTableBtn.setAttribute("aria-busy", "true");
+      const res = await closeTable(currentTable.code);
+      actionBusy = false;
+      els.closeTableBtn.removeAttribute("aria-busy");
+
+      if (!res.ok) {
+        showToast(res.error || "Could not close table.", { variant: "error" });
+        return;
+      }
+      cleanup();
+      showToast("Table closed.");
+      onExitToLobby();
+    });
+
+    els.sitInBtn?.addEventListener("click", async () => {
+      if (!currentTable?.code || actionBusy) return;
+      actionBusy = true;
+      els.sitInBtn.setAttribute("aria-busy", "true");
+      const res = await setTableSeatStatus(currentTable.code, "sit-in");
+      actionBusy = false;
+      els.sitInBtn.removeAttribute("aria-busy");
+
+      if (!res.ok) {
+        showToast(res.error || "Could not sit back in.", { variant: "error" });
+        return;
+      }
+      if (res.table) applyTableState(res.table);
+      showToast("You are active for the next hand.");
     });
 
     els.leaveBtn?.addEventListener("click", async () => {
@@ -488,6 +547,10 @@ export function createTableViewController({
   }
 
   function cleanup() {
+    if (countdownInterval) {
+      window.clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
     if (channelSub) {
       channelSub.unsubscribe();
       channelSub = null;

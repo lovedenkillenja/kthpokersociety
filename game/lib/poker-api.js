@@ -56,7 +56,10 @@ async function callEdgeFunction(fnName, payload) {
       ok: true,
       status: response.status,
       table: body.table || null,
-      pendingCashout: Boolean(body.pendingCashout)
+      pendingCashout: Boolean(body.pendingCashout),
+      timedOut: Boolean(body.timedOut),
+      timedOutSeatNo: body.timedOutSeatNo ?? null,
+      satOut: Boolean(body.satOut)
     };
   } catch (_err) {
     return {
@@ -76,7 +79,7 @@ export async function createTable({
   bb = 20,
   minBuyIn = 400,
   maxBuyIn = 2000,
-  maxSeats = 2,
+  maxSeats = 6,
   buyIn = 500,
   seat = 0
 } = {}) {
@@ -131,6 +134,36 @@ export async function fetchTableState(codeOrId) {
 export async function leaveTable(codeOrId) {
   return callEdgeFunction("table", {
     intent: "leave",
+    table: String(codeOrId || "").toUpperCase().trim()
+  });
+}
+
+/**
+ * Closes an empty table (`intent: "close"`), callable only by the table host.
+ */
+export async function closeTable(codeOrId) {
+  return callEdgeFunction("table", {
+    intent: "close",
+    table: String(codeOrId || "").toUpperCase().trim()
+  });
+}
+
+/**
+ * Toggles a seated player's status between `"sit-in"` (`active`) and `"sit-out"` (`sitout`).
+ */
+export async function setTableSeatStatus(codeOrId, intent = "sit-in") {
+  return callEdgeFunction("table", {
+    intent,
+    table: String(codeOrId || "").toUpperCase().trim()
+  });
+}
+
+/**
+ * Evaluates and enforces any expired 30-second turn deadline on the server (`intent: "tick"`).
+ */
+export async function tickTable(codeOrId) {
+  return callEdgeFunction("act", {
+    intent: "tick",
     table: String(codeOrId || "").toUpperCase().trim()
   });
 }

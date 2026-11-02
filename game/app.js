@@ -38,6 +38,7 @@ const els = {
   activeTableBannerTitle: byId("active-table-banner-title"),
   returnTableBtn: byId("return-table-btn"),
   createTableForm: byId("create-table-form"),
+  createTableMaxSeats: byId("create-table-max-seats"),
   createTableBuyIn: byId("create-table-buyin"),
   createTableError: byId("create-table-error"),
   createTableBtn: byId("create-table-btn"),
@@ -378,14 +379,9 @@ function wireEvents() {
     els.createTableBtn.setAttribute("aria-busy", "true");
     els.createTableBtn.disabled = true;
 
+    const maxSeats = Math.min(6, Math.max(2, Math.trunc(Number(els.createTableMaxSeats?.value || 6))));
     const res = await createTable({
-      sb: 10,
-      bb: 20,
-      minBuyIn: 400,
-      maxBuyIn: 2000,
-      maxSeats: 2,
-      buyIn: buyInCheck.value,
-      seat: 0
+      sb: 10, bb: 20, minBuyIn: 400, maxBuyIn: 2000, maxSeats, buyIn: buyInCheck.value, seat: 0
     });
 
     els.createTableBtn.removeAttribute("aria-busy");

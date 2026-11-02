@@ -13,6 +13,33 @@ export function createSupabaseStore(supabaseAdmin) {
       return data.user;
     },
 
+    async closeIdleTables(nowMs = Date.now()) {
+      const { data, error } = await supabaseAdmin.rpc("close_idle_tables", {
+        p_now: new Date(nowMs).toISOString()
+      });
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+
+    async closeTable({ tableId, hostId }) {
+      const { data, error } = await supabaseAdmin.rpc("close_table", {
+        p_table_id: tableId,
+        p_host_id: hostId
+      });
+      if (error) throw error;
+      return data;
+    },
+
+    async setSeatStatus({ tableId, memberId, status }) {
+      const { data, error } = await supabaseAdmin.rpc("set_seat_status", {
+        p_table_id: tableId,
+        p_member_id: memberId,
+        p_status: status
+      });
+      if (error) throw error;
+      return data;
+    },
+
     async countOpenTablesByHost(hostId) {
       const { count, error } = await supabaseAdmin
         .from("poker_tables")
