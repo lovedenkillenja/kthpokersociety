@@ -11,23 +11,6 @@
 <!-- This site is hosted on Netlify. Anyone can build and deploy a site
      like this one for free: https://netlify.new/?utm_campaign=loops&utm_source=ai-legible&utm_medium=owned&utm_content=comment&utm_id=fc4c2884-6e35-405b-86fb-319b463b6ff8
      Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
-<script>
-/* Coming-soon gate: cosmetic only (client-side). Remembered per browser. */
-try { if (localStorage.getItem('kps_dev') === '1') document.documentElement.classList.add('unlocked'); } catch (e) {}
-</script>
-<style>
-#gate { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 24px; background: #06142a; color: #f4f1ea; text-align: center; }
-html.unlocked #gate { display: none; }
-html:not(.unlocked) body { overflow: hidden; }
-#gate .gate-box { max-width: 420px; width: 100%; }
-#gate h1 { font-family: "Libre Caslon Display", Georgia, serif; font-weight: 400; font-size: clamp(2.25rem, 8vw, 3.5rem); line-height: 1.05; margin: 0 0 12px; }
-#gate p { margin: 0 0 28px; color: #a9b8cf; font-size: 1.0625rem; line-height: 1.5; }
-#gate form { display: flex; gap: 8px; justify-content: center; }
-#gate input { width: 9em; padding: 12px 14px; border-radius: 8px; border: 1px solid #3a557c; background: #0a2142; color: #f4f1ea; font: inherit; text-align: center; letter-spacing: .2em; }
-#gate button { padding: 12px 18px; border-radius: 8px; border: 0; background: #0a64d6; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
-#gate .gate-err { min-height: 1.5em; margin: 12px 0 0; font-size: .9375rem; color: #ffb4a8; }
-#gate .gate-label { display: block; margin: 0 0 8px; font-size: .8125rem; letter-spacing: .08em; text-transform: uppercase; color: #7f94b3; }
-</style>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 400 400%27%3E%3Crect width=%27400%27 height=%27400%27 rx=%2760%27 fill=%27%23004791%27/%3E%3Cg stroke=%27white%27 fill=%27none%27 stroke-linecap=%27round%27%3E%3Cpath d=%27M200 108 L130 188 M130 188 L95 270 M130 188 L165 270 M270 188 L305 270%27 stroke-opacity=%27.5%27 stroke-width=%2710%27/%3E%3Cpath d=%27M200 108 L270 188 L235 268%27 stroke-width=%2718%27/%3E%3C/g%3E%3Ccircle cx=%27200%27 cy=%27108%27 r=%2722%27 fill=%27white%27/%3E%3C/svg%3E">
 <title>KTH Poker Society</title>
@@ -129,6 +112,9 @@ p { margin: 0; }
 .nav { display: flex; gap: 22px; margin-left: auto; }
 .nav a { color: var(--muted); text-decoration: none; font-size: 0.9375rem; font-weight: 500; }
 .nav a:hover { color: var(--paper); }
+.nav-soon { color: var(--muted); font-size: 0.9375rem; font-weight: 500; opacity: .6; cursor: default; }
+.nav-soon em { font-style: normal; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; margin-left: 4px; padding: 2px 7px; border: 1px solid currentColor; border-radius: 999px; }
+@media (max-width: 960px) { .nav-soon { padding: 12px 0; font-size: 1.0625rem; border-bottom: 1px solid var(--line); } }
 .header-actions { display: flex; gap: 10px; align-items: center; }
 .menu-btn { display: none; background: none; border: 1px solid var(--control); color: var(--paper); border-radius: 999px; min-height: 38px; padding: 0 14px; font: 500 0.9375rem var(--font-body); cursor: pointer; }
 @media (max-width: 960px) {
@@ -369,32 +355,6 @@ main { min-height: 72vh; }
 </head>
 <body>
 
-<div id="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
-  <div class="gate-box">
-    <h1 id="gate-title">Coming soon</h1>
-    <p>KTH Poker Society is a student association for poker strategy, probability and game theory. The full site opens soon.</p>
-    <form id="gate-form" autocomplete="off">
-      <label class="gate-label" for="gate-code" style="display:none">Developer code</label>
-      <input id="gate-code" type="password" inputmode="numeric" placeholder="Developer code" aria-label="Developer code">
-      <button type="submit">Enter</button>
-    </form>
-    <p class="gate-err" id="gate-err" role="alert"></p>
-  </div>
-</div>
-<script>
-(function () {
-  var f = document.getElementById('gate-form'), i = document.getElementById('gate-code'), e = document.getElementById('gate-err');
-  f.addEventListener('submit', function (ev) {
-    ev.preventDefault();
-    if (i.value.trim() === '1234') {
-      try { localStorage.setItem('kps_dev', '1'); } catch (x) {}
-      document.documentElement.classList.add('unlocked');
-    } else { e.textContent = 'Wrong code.'; i.value = ''; i.focus(); }
-  });
-})();
-</script>
-
-
 <header class="site-header">
   <div class="wrap">
     <a class="brand" href="#top" aria-label="KTH Poker Society, back to top">
@@ -419,7 +379,7 @@ main { min-height: 72vh; }
       <a href="#roles">Open roles</a>
       <a href="#partners">Partners</a>
       <a href="#faq">FAQ</a>
-      <a href="/game/">Play</a>
+      <span class="nav-soon" aria-disabled="true">Game <em>soon</em></span>
     </nav>
     <div class="header-actions">
       <button class="btn btn--primary btn--small" type="button" id="member-btn" data-open-account><span class="cta-long">Become a member</span><span class="cta-short">Join</span></button>
@@ -437,7 +397,6 @@ main { min-height: 72vh; }
         <div class="btn-row">
           <button class="btn btn--primary" type="button" data-open-account>Become a member</button>
           <a class="btn btn--ghost" href="#roles">Apply for a role</a>
-          <a class="btn btn--ghost" href="/game/">Play with chips</a>
         </div>
       </div>
       <figure class="tree-figure">

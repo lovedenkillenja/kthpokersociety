@@ -6,3 +6,18 @@
   [headers.values]
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+
+# The chip game is not public yet. Send /game and everything under it to the home page.
+# (Developers test on the branch deploy https://poker-game--kthpokersociety-v3.netlify.app/game/ .)
+# To launch the game: delete the two [[redirects]] blocks below.
+[[redirects]]
+  from = "/game"
+  to = "/"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/game/*"
+  to = "/"
+  status = 302
+  force = true
