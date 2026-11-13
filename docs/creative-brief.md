@@ -1,7 +1,7 @@
 # KTH Poker Society: Prototype 2, Creative Brief
 
-Source: Gemini 3.1 Pro conversation "KTH Poker Society Website Redesign" (2026-11-01).
-Gemini owns the creative decisions; this file records them so code and design stay in sync.
+Source: the original design conversation for the website redesign (2026-11-01).
+This file records the creative decisions so code and design stay in sync.
 
 ## Decisions by Love (override anything below)
 - **Style:** The Quant's Playground, restyled with the existing logo's colors, plus the airiness of "Modern Rationalist" (generous whitespace, little visual noise).
@@ -10,7 +10,7 @@ Gemini owns the creative decisions; this file records them so code and design st
 - **Structure for the finished site:** each main section is its own page (Home, About, Join the Board, Sponsorships, Contact). The Stitch design prototype may stay single-page.
 - **Language:** English only.
 
-## Original Gemini concept: The Quant's Playground
+## Original concept: The Quant's Playground
 Dark-mode, terminal-inspired interface. Poker framed as algorithmic thinking, expected value and risk, with no casino aesthetics.
 
 Mood: cerebral, high-tech, precise, late-night hackathon.
@@ -31,7 +31,7 @@ Fonts: Fira Code (headings, numbers), Inter (body).
 4. Sponsorships & Partnerships: B2B pitch
 5. Contact & Community: email, Instagram, LinkedIn
 
-## Copy (final, from Gemini)
+## Copy (final)
 
 ### Home
 **Mastering the math of uncertainty.**

@@ -1,14 +1,22 @@
 # Spec – game rules and data model
 
+## Product constraints (from the original brief)
+1. Play money only: no cash value, no purchases, no cash-outs, no money prizes (Swedish gambling law and the society's reputation). The UI shows "Play money – no cash value".
+2. Mobile first: most players are on phones, portrait, one thumb. Desktop works but is secondary.
+3. Fair and cheat-proof: the server shuffles, deals and judges. A player must never see others' hole cards or modify chips from dev tools.
+4. Only signed-in society members play. Guests see the landing and explainer only.
+5. Cheap to host: static files on Netlify and the Supabase free tier. No servers to maintain.
+6. Known hard parts: side pots with several all-ins, split pots and odd chips (first player left of the button), disconnects (timer and auto-fold), chip conservation (`supabase/checks/chip_conservation.sql`), concurrency (per-table row lock), secure shuffle (server side, `crypto.getRandomValues`).
+
 ## Variant
 No-Limit Texas Hold'em, play-money. Blinds default 10/20. Tables 2–6 seats at first. Buy-in 400–2000 chips (20–100 BB) taken from the member's balance.
 
 ## Chip flow (ledger is the single source of truth)
-- Earn: welcome +1000, daily +100 (live), events via `award_chips`, admin.
+- Earn: welcome +1000 (automatic on signup), referral +250 per invited member (cap 20 rewarded invites, see `public.referral_config()`), events via `award_chips`, admin. The daily check-in was removed (inflation); old `daily` ledger rows stay valid.
 - Sit down: ledger row `-buyin`, source `game`, ref `buyin:<table>:<seat>:<ts>`. The stack then lives in `table_seats.stack`.
 - Leave: ledger row `+stack`, source `game`, ref `cashout:<...>`. A table closing returns all stacks.
 - Invariant: chips in ledger + chips at tables = constant between awards. Test it.
-- A member who is busted (balance < min buy-in) gets a free top-up of 200 once per day (a `daily` style ref) so nobody is locked out.
+- Idea, NOT implemented: a member who is busted (balance < min buy-in) gets a small free top-up so nobody is locked out. Decide with Love before building (inflation concern).
 
 ## Tables to add (new migration, RLS on)
 - `poker_tables(id, code unique 5 chars, host_id, sb, bb, max_seats, status, created_at)`

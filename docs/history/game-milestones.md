@@ -1,7 +1,9 @@
-# Progress log (agent: update this every session)
+# Game milestone log (historical, M1 to M7.1)
+
+This is the history of how the game was built. For the current state and open issues, read `docs/PROJECT.md`. Entries are newest first.
 
 ## Status
-M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup), M6 (visual & UX polish), M6.1 (fit-to-screen no-scroll table layout), and M7.1 (referral rewards replacing daily check-in; migration `supabase/migrations/20261102170000_m7_1_referrals.sql` applied by Claude 2026-11-02 with fixes) are complete.
+M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine.test.js`), M3a tables migration, M3b+M3c (`supabase/migrations/20261102020000_hand_persistence_tx.sql` applied + Edge Functions `table` and `act` deployed to `tibyyjnghhwwcxvlwmiq`), M4 heads-up table UI, M5 (3–6 players, 30s action timers, 2x-timeout sit-out, and 30-minute idle table cleanup), M6 (visual & UX polish), M6.1 (fit-to-screen no-scroll table layout), and M7.1 (referral rewards replacing daily check-in; migration `supabase/migrations/20261102170000_m7_1_referrals.sql` applied by the project lead 2026-11-02 with fixes) are complete.
 
 ## Next up
 - [x] M1 skeleton: sign-in, profile, balance, daily claim, leaderboard (no poker yet)
@@ -9,15 +11,15 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
 - [x] M3a tables migration (`supabase/migrations/20261102012000_poker_tables.sql` + `supabase/checks/chip_conservation.sql` – reviewed and applied)
 - [x] M3b/M3c Edge Functions (`table`, `act`) + atomic hand persistence migration (`20261102020000_hand_persistence_tx.sql`) – M3b+M3c deployed
 - [x] M4 heads-up playable on two phones (UI built & wired to deployed `table` and `act`; live two-phone Realtime play UNVERIFIED)
-- [x] M5 3–6 players, timers, reconnect (code + 36/36 `node --test` tests complete; M5 migration applied by Claude; M5 functions deployed)
+- [x] M5 3–6 players, timers, reconnect (code + 36/36 `node --test` tests complete; M5 migration applied by the project lead; M5 functions deployed)
 - [x] M6 polish and tutorial
 - [x] M6.1 fit-to-screen game layout (no-scroll play view across desktop, mobile portrait & mobile landscape; verified in Chrome headless across 8 viewports for 2, 4, 6 players)
-- [x] M7.1 Replace daily chip claim with referral reward (migration `supabase/migrations/20261102170000_m7_1_referrals.sql` APPLIED by Claude 2026-11-02 (fixes: partial-index ON CONFLICT, btrim, grants); client updated & tested)
+- [x] M7.1 Replace daily chip claim with referral reward (migration `supabase/migrations/20261102170000_m7_1_referrals.sql` APPLIED by the project lead 2026-11-02 (fixes: partial-index ON CONFLICT, btrim, grants); client updated & tested)
 - [ ] M7 link from website, event awards
 
-## Decisions for Claude
+## Decisions for the project lead
 - **Migration review & apply (`supabase/migrations/20261102170000_m7_1_referrals.sql`)**:
-  - APPLIED by Claude on 2026-11-02 (tested in a rolled-back block, 23 checks pass). Do not edit the file.
+  - APPLIED by the project lead on 2026-11-02 (tested in a rolled-back block, 23 checks pass). Do not edit the file.
   - Replaces inflationary daily check-in (+100 chips via `claim_daily_chips()`) with referral reward system (+250 chips to the inviter for each member joining via their link, capped at 20 rewarded invites = 5,000 chips). Invited member receives the normal +1,000 welcome chips.
   - Payout delay constant `payout_delay = interval '0 seconds'` configured in `public.referral_config()` for immediate payout during dev; switching to 7 days later is a single-line change.
   - Enforces cap safely with `pg_advisory_xact_lock` on `referrer_id` (salt = 2) and `FOR UPDATE` lock on `referrals`.
@@ -27,9 +29,9 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
 - Once Claude reviews and applies `20261102170000_m7_1_referrals.sql`, verify the invite flow with two member accounts on the Netlify branch deploy (`https://poker-game--kthpokersociety-v3.netlify.app/game/`).
 
 ## Session log
-- 2026-11-02 (Gemini – M7.1):
+- 2026-11-02 (M7.1):
   - **What changed**:
-    - **1. Database migration `supabase/migrations/20261102170000_m7_1_referrals.sql` (APPLIED by Claude)**:
+    - **1. Database migration `supabase/migrations/20261102170000_m7_1_referrals.sql` (APPLIED by the project lead)**:
       - Recreated `chip_ledger_source_check` on `public.chip_ledger` to permit `'referral'` alongside `'welcome'`, `'daily'`, `'game'`, `'event'`, and `'admin'` (keeps old ledger rows valid).
       - Created table `public.referral_codes(member_id uuid primary key references public.members(id) on delete cascade, code text not null unique check (code ~ '^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$'), created_at timestamptz not null default now())` with RLS (`select to authenticated using ((select auth.uid()) = member_id)`).
       - Created table `public.referrals(referred_id uuid primary key references public.members(id) on delete cascade, referrer_id uuid not null references public.members(id) on delete cascade, created_at timestamptz not null default now(), rewarded_at timestamptz, check (referred_id <> referrer_id))` with RLS (`select to authenticated using ((select auth.uid()) in (referred_id, referrer_id))`) and index on `(referrer_id, created_at desc)`.
@@ -52,10 +54,10 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
     - Headless Chrome CDP verification: 24/24 viewport configurations PASS with 0 console errors and 0 scroll overflow.
     - Zero `innerHTML` usage across `game/`.
     - File size check: all files in `game/` are strictly <= 600 lines (e.g. `app.js` is 593 lines, `index.html` is 585 lines).
-    - Migration file `supabase/migrations/20261102170000_m7_1_referrals.sql` applied by Claude.
+    - Migration file `supabase/migrations/20261102170000_m7_1_referrals.sql` applied by the project lead.
   - **What is broken**: Nothing known.
   - **What is next**: Claude review and application of `20261102170000_m7_1_referrals.sql`; then M7 website link & event awards.
-- 2026-11-02 (Gemini – M6.1):
+- 2026-11-02 (M6.1):
   - **What changed** (frontend-only in `game/`; zero SQL, backend, or Edge Function changes):
     - **1. Fixed-height app shell (no-scroll table play view)**:
       - Styled `body[data-active-view="table"]` with `height: 100dvh` (with `100vh` fallback), `overflow: hidden`, and `overscroll-behavior: none` (`min-height: 320px` query; fallback to scroll if height < 320px). Hides global header/footer/strip in table view.
@@ -91,7 +93,7 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
   - **UNVERIFIED**: Real physical touch interactions on iOS Safari dynamic address bars on a real iPhone device.
   - **What is broken**: Nothing known.
   - **What is next**: M7 – link from website (`/index.html`), event chip awards.
-- 2026-11-02 (Gemini – M6):
+- 2026-11-02 (M6):
   - **What changed** (frontend-only in `game/`; zero SQL, backend, or Edge Function changes):
     - **1. 375px table layout for 2, 3, 4, 5 and 6 players & mobile raise controls (`game/lib/table-helpers.js`, `game/ui/table-render.js`, `game/styles/table.css`)**:
       - Added `layoutOpponentSeatsForGrid(opponentSeats)` to arrange 1–5 opponents in clockwise visual order around the upper felt, centering the top 12 o'clock seat across both columns (`fullRow: true`) for 2, 4, and 6 players while pairing left/right flank seats cleanly.
@@ -116,10 +118,10 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
   - **UNVERIFIED**: Live visual/UX inspection on a physical 375px phone and desktop browser against the Netlify branch deploy (`https://poker-game--kthpokersociety-v3.netlify.app/game/`), including real network-drop reconnect banner and multi-player showdown animations.
   - **What is broken**: Nothing known.
   - **What is next**: M7 – link from the society website (`/index.html`) when approved, plus admin event chip awards UI/workflow.
-- 2026-11-02 (Gemini – M5 deploy):
-  - **What changed**: Pulled commit `ab377d1` (where Claude fixed `20261102023000_m5_timers_sitout_cleanup.sql` to preserve the `p_board text[]` signature on `apply_hand_tx`, restore table-first lock order, and make the activity trigger safe, then applied it to `tibyyjnghhwwcxvlwmiq`), verified `node --test` (36/36 passing), and deployed both Edge Functions (`table` and `act`) to Supabase project `tibyyjnghhwwcxvlwmiq`. M5 migration applied by Claude; M5 functions deployed.
+- 2026-11-02 (M5 deploy):
+  - **What changed**: Pulled commit `ab377d1` (where Claude fixed `20261102023000_m5_timers_sitout_cleanup.sql` to preserve the `p_board text[]` signature on `apply_hand_tx`, restore table-first lock order, and make the activity trigger safe, then applied it to `tibyyjnghhwwcxvlwmiq`), verified `node --test` (36/36 passing), and deployed both Edge Functions (`table` and `act`) to Supabase project `tibyyjnghhwwcxvlwmiq`. M5 migration applied by the project lead; M5 functions deployed.
   - **What is next**: M6 – visual polish and interactive tutorial.
-- 2026-11-02 (Gemini – M5):
+- 2026-11-02 (M5):
   - **What changed**:
     - **1. 3–6 players at one table (`game/` + `game/engine/`)**:
       - Added table size selector (`2`–`6` seats, default `6`) in Create Table (`game/index.html`, `game/app.js`).
@@ -144,7 +146,7 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
   - **UNVERIFIED**: Live 3–6 account gameplay, live 30-second countdown auto-fold, and host table close on `https://poker-game--kthpokersociety-v3.netlify.app/game/` (requires Claude to apply `20261102023000_m5_timers_sitout_cleanup.sql` and deploy updated `table` and `act` Edge Functions first).
   - **What is broken**: Nothing known.
   - **What is next**: After Claude reviews/applies the M5 migration and deploys `table` and `act`, M6 – visual polish and interactive tutorial.
-- 2026-11-02 (Gemini – M4):
+- 2026-11-02 (M4):
   - **What changed**:
     - Built the M4 heads-up (2-player) poker UI in `/game/` without modifying the deployed Edge Functions (`table` and `act`):
       - `game/lib/poker-api.js`: wraps deployed `table` (`create`, `join`, `leave`, `state`) and `act` (`start`, `fold`, `check`, `call`, `raise`, `all-in` with `handId` and `actionSeq`), fetches private hole cards from `public.hole_cards` via RLS, and subscribes to Realtime channel `table:<code>` (`broadcast` event `state`) with automatic `"state"` intent fallback polling (every 3.5s while visible + on tab wakeup + on `409 ERR_STALE_ACTION_SEQ`).
@@ -154,10 +156,10 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
   - **UNVERIFIED**: Real two-phone authenticated gameplay and Realtime broadcast latency across two signed-in member sessions on `https://poker-game--kthpokersociety-v3.netlify.app/game/`.
   - **What is broken**: Nothing known (note: Server-side `broadcastTableState` in `supabase-store.js` sends on an unjoined channel; if Supabase Realtime requires REST broadcast or joined WebSocket in Deno, the client's automatic `"state"` intent fallback every 3.5s and on tab focus keeps both phones in sync seamlessly).
   - **What is next**: M5 – 3–6 players, turn timer, auto-fold on timeout, reconnect handling, sit-out.
-- 2026-11-02 (Gemini – M3b+M3c deploy):
+- 2026-11-02 (M3b+M3c deploy):
   - **What changed**: Verified `node --test` (24/24 passing), installed Supabase CLI (`2.122.0`), authenticated via `supabase login`, and deployed both Edge Functions (`table` and `act` from branch tip `b721d7b`) to Supabase project `tibyyjnghhwwcxvlwmiq` after Claude applied `20261102020000_hand_persistence_tx.sql`. M3b+M3c deployed.
   - **What is next**: M4 – Heads-up (2 players) playable end-to-end on two phones.
-- 2026-11-02 (Gemini – M3c):
+- 2026-11-02 (M3c):
   - **What changed**:
     - Added migration `supabase/migrations/20261102020000_hand_persistence_tx.sql` with `SECURITY DEFINER` (`service_role` only, `REVOKE ALL FROM public, anon, authenticated`) functions `start_hand_tx(...)` and `apply_hand_tx(...)`. Each function locks the `poker_tables` and `hands` rows with `FOR UPDATE`, verifies `expected_action_seq`, and atomically updates `hands`, `table_seats.stack` (and seat `status` on mid-hand sitout), `hole_cards`, `hand_actions`, and `poker_tables.status` in one transaction while verifying table chip conservation before vs after.
     - Updated `supabase/functions/_shared/supabase-store.js`, `handlers.js`, and `state-helpers.js` to call `start_hand_tx` and `apply_hand_tx` via `.rpc(...)` instead of separate table writes, keeping `withTableLock` in `handlers.js` as an in-memory optimization.
@@ -167,7 +169,7 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
   - **UNVERIFIED**: Live execution of `20261102020000_hand_persistence_tx.sql` and `supabase/checks/chip_conservation.sql` against Supabase project `tibyyjnghhwwcxvlwmiq` (no Supabase MCP or `psql` in this environment; handed over to Claude).
   - **What is broken**: Nothing known.
   - **What is next**: M4 – Heads-up (2 players) playable end-to-end on two phones once M3c migration is applied and Edge Functions are deployed.
-- 2026-11-02 (Gemini – M3b):
+- 2026-11-02 (M3b):
   - **What changed**:
     - Added Edge Functions `supabase/functions/table/index.ts` (intents: `create`, `join`, `leave`, `state`) and `supabase/functions/act/index.ts` (intents: `start_hand`, `fold`, `check`, `call`, `raise`, `all_in`), backed by shared modules in `supabase/functions/_shared/` (`handlers.js`, `state-helpers.js`, `supabase-store.js`, `cors.js`).
     - Shared `game/engine/` with Deno via `game/scripts/sync-engine.js` copying into `supabase/functions/_shared/engine/` and guarded by `game/tests/engine-sync.test.js` (fails if any file diverges byte-for-byte). **Reason**: Supabase CLI bundles each function with `supabase/functions/_shared/` and can reject relative imports escaping above `supabase/functions/`; a deterministic sync script + automated parity test keeps a single source of truth while ensuring trouble-free Edge Function deployment.
@@ -185,7 +187,7 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
   - **UNVERIFIED**: Live deployment and invocation of `table` and `act` Edge Functions on Supabase project `tibyyjnghhwwcxvlwmiq` (no Supabase MCP connected; handed over for review/deploy).
   - **What is broken**: Nothing known.
   - **What is next**: M4 – Heads-up (2 players) playable end-to-end on two phones once M3b Edge Functions are deployed.
-- 2026-11-02 (Gemini – M3a):
+- 2026-11-02 (M3a):
   - **What changed**: Added `supabase/migrations/20261102012000_poker_tables.sql` defining `poker_tables`, `table_seats`, `hands`, `hole_cards`, `hand_actions`, `public_hands` view, RLS policies, and `service_role`-only transactional functions `sit_down(p_table_id, p_member_id, p_seat_no, p_buyin)` and `leave_seat(p_table_id, p_member_id)`. Added `supabase/checks/chip_conservation.sql` returning zero rows when ledger + table stacks + active pots balance.
   - **5 hostile-client attacks considered & SQL defenses**:
     1. **Reading opponents' hole cards or the undealt deck (`hands.state`) from DevTools**: `hole_cards` has RLS policy `((select auth.uid()) = member_id)` so a client can only ever read their own cards. On `public.hands`, `SELECT` on `state` is revoked from `anon` and `authenticated`; clients can only read non-secret columns (`id, table_id, hand_no, dealer_seat, board, pot, showdown, started_at, ended_at`) and the `public_hands` (`security_invoker = true`) view.
@@ -197,13 +199,13 @@ M1 skeleton (`game/`), M2 pure poker engine (`game/engine/` + `game/tests/engine
   - **UNVERIFIED**: Execution of `20261102012000_poker_tables.sql` and `chip_conservation.sql` against live Supabase (MCP not connected; handed over for review/apply).
   - **What is broken**: Nothing known.
   - **What is next**: M3b – Edge Function `act` + Realtime broadcast once M3a migration is applied.
-- 2026-11-02 (Gemini – M2):
+- 2026-11-02 (M2):
   - **What changed**: Built the dependency-free No-Limit Texas Hold'em engine in `game/engine/` (`cards.js`, `evaluator.js`, `pots.js`, `betting.js`, `index.js`) compatible with both Node and Deno. Implemented `newHand(seats, dealer, blinds, rng)`, `legalActions(state, seat)`, `apply(state, seat, action)`, `showdown(state)`, `evaluate(cards7)`, `publicView(state)`, and `checkChipConservation(state)`. Added full `node --test` coverage in `game/tests/engine.test.js` covering all hand ranks and kickers, wheel straight (`A-2-3-4-5`), ties/split pots, 3-way all-in with two side pots, fold-out uncalled bet return, min-raise & short all-in reopening rules, heads-up blind order, odd-chip split (first winner left of button), and chip conservation.
   - **Verified**: `node --test game/tests/*.test.js` (17/17 tests passing). UI and `/index.html` untouched.
   - **UNVERIFIED**: Live branch deploy at `https://poker-game--kthpokersociety-v3.netlify.app/game/` (M1 loading and authenticated member flow on Netlify branch deploy are UNVERIFIED from this environment).
   - **What is broken**: Nothing known.
   - **What is next**: M3 – `poker_tables`, `table_seats`, `hands`, `hole_cards`, and `hand_actions` migration with RLS + Supabase Edge Function `act` + Realtime broadcast.
-- 2026-11-02 (Gemini – M1):
+- 2026-11-02 (M1):
   - **What changed**: Created branch `poker-game` from `poker-game-workspace`. Built M1 skeleton in `game/` following `STYLE_GUIDE.md` (`game/config.js`, `game/index.html`, `game/app.js`, `game/lib/supabase.js`, `game/lib/format.js`, `game/ui/components.js`, `game/ui/auth-dialog.js`, `game/styles/{tokens,base,components}.css`, and unit tests in `game/tests/format.test.js`). Wired member sign-in/sign-up/password-reset, `chip_profiles` (display name 1–40 chars + leaderboard opt-in), `chip_balances`, `chip_ledger` history, `claim_daily_chips()` (+100/day, Europe/Stockholm), and `get_leaderboard(p_limit)`.
   - **Verified**: `node --test` (8/8 passing), headless Chrome render on 375px and 1280px viewports with 0 console errors, PostgREST RPC signature check against live Supabase (`tibyyjnghhwwcxvlwmiq`).
   - **UNVERIFIED**: End-to-end authenticated `claim_daily_chips()` and `chip_profiles` write with a real signed-in member session in a live browser (requires a member account login).

@@ -15,11 +15,12 @@ Single-file site (`index.html`, everything inline) that merges two prototypes:
 
 Writes to `public.board_applications` in the KTH Poker Society Supabase project (insert only, anon key).
 Required: name, email, LinkedIn, CV link. Optional: phone, program, GitHub, hours per week, motivation.
-The five roles are ranked with up/down buttons; the first one is stored in `role`, the full order in `role_ranking`.
+The five roles are ranked by dragging (mouse: drag the row; touch: drag the grip; arrow buttons remain for keyboard users); the first one is stored in `role`, the full order in `role_ranking`.
 Allowed `role` values are enforced by a CHECK constraint: Strategy & Research, Events & Tournaments, Sponsorships & Partnerships, Marketing & Community, Tech & Development.
 
 ## Open items
 
-- Member accounts use a separate Supabase project from the application form (prototype 1's project).
-- The site is marked `noindex` until it replaces the live site.
+- Member accounts (project `tibyyjnghhwwcxvlwmiq`) and the application form (project `hrdqlaurdzyueviplbmj`) use different Supabase projects. See `docs/PROJECT.md` and `docs/DATABASE.md`.
+- The site is live at kthpokersociety.se but still marked `noindex`.
 - Adam Kango has initials instead of a photo.
+- The menu shows "Game soon" (not a link) until the game is launched.

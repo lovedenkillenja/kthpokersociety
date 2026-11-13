@@ -1,45 +1,39 @@
-# KTH Poker Society – agent rules (read first, every session)
+# KTH Poker Society: agent rules (read first, every session)
 
-You are the lead developer of the **KTH Poker Society play-money poker game**, a browser game for the society's members. A human (Love, co-founder) reviews your work; Claude (another AI) built the website and database and is NOT supervising you. You are on your own: decide, build, test, document.
+Project overview, infrastructure map, current state and open issues: `docs/PROJECT.md`. Read it first, then only the files your task needs.
 
-Full brief: `docs/poker/PROMPT.md`. Visual rules: `docs/poker/STYLE_GUIDE.md`. Architecture and rules of the game: `docs/poker/SPEC.md`. Where we are: `docs/poker/PROGRESS.md`.
+## Roles
+- **Love** (co-founder, owner) decides. He writes Swedish: talk to him in Swedish, keep messages short. All code, comments, commit messages and agent prompts are in English.
+- **Project lead agent** plans, splits work, writes the briefs, reviews results, owns the docs and talks to Love. It does not write bulk code itself.
+- **Worker agents** (Claude Opus for security, database, engine and tricky logic; Claude Sonnet for UI, content, tests and routine edits) implement one well-defined slice each and report back briefly.
 
-## Session start (always)
-1. Read `docs/poker/PROGRESS.md` (what is done, what is next, open questions).
-2. `git status`, `git log -5 --oneline`. Work only on branch `poker-game` (create from `poker-game-workspace` if missing). Never touch `main` or `v3-merged-design`.
-3. Pick the first unchecked item in PROGRESS.md "Next up". Do one coherent slice per session.
+## How the lead works (token-efficient)
+1. Read `docs/PROJECT.md`. Do not re-read what you already know; do not load whole files when a search or line range is enough.
+2. Turn a goal into small independent slices. For each slice write a self-contained brief: goal, files to touch, constraints that apply (below), acceptance check (a command or a visible result), and "report in at most 5 lines". Give workers the file paths, not file contents.
+3. Run independent slices in parallel on separate feature branches (`work/<topic>`). Never let two workers edit the same file at once.
+4. Review by evidence: run `node --test`, open the page in a headless browser at 375px and 1280px width, read the diff (`git diff --stat` first). Do not trust a report you have not checked. Security-sensitive work (database, auth, chips, Edge Functions) gets a second independent review before it goes live.
+5. Merge to `v3-merged-design` only when checks pass. That branch deploys to the live site immediately.
+6. At the end of every session update `docs/PROJECT.md` (current state, open issues) and report to Love.
 
-## Session end (always – this is the "auto-update")
-1. Run the checks in "Definition of done".
-2. Update `docs/poker/PROGRESS.md`: tick items, add a dated entry (what changed, what is broken, what is next, decisions needed from Love).
-3. `git add -A && git commit` (clear message) and `git push -u origin poker-game`. If push fails, say so loudly in PROGRESS.md and in your final message.
-4. Final message to Love: 5 lines max, plain Swedish or English (match his language), what works, what he must do (if anything).
+## Practical tips that save tokens
+- `index.html` is about 390 KB. One line (about line 524) is a base64 image: never print it (`cut -c1-200`, or read by line range).
+- Run the site locally with `python3 -m http.server` and test with Playwright (Chromium is usually installed).
+- The Supabase and Netlify MCP tools, if connected, are faster than the dashboards. If they are not connected, write the SQL migration and tell Love exactly what to run.
 
 ## Non-negotiable rules
-- **Play money only.** Chips have no monetary value. No purchase, sale, transfer between members, cash-out, prizes with money value, ads, or anything gambling-like. Never write copy that suggests real stakes. The UI must show "Play money – no cash value".
-- **Server decides, client displays.** The deck, shuffle, and other players' hole cards must never reach a client that should not see them. All game logic that matters (deal, bets, pot, showdown, chip changes) runs server-side (Supabase Edge Function / SQL function). The client only sends intents ("fold", "raise 200") and renders what the server says.
-- **Never write chips from the browser.** `chip_ledger` has no insert policy on purpose. Chip changes happen only via SECURITY DEFINER functions or the service role in an Edge Function. The service role key never goes in client code or the repo.
-- **Secrets**: no keys, tokens, passwords in git. The Supabase URL and the publishable (anon) key are public and fine in client code. Anything else goes in Edge Function secrets.
-- **Database changes** = a new file in `supabase/migrations/` named `YYYYMMDDHHMMSS_description.sql`, additive, with RLS enabled on every new table and policies written. Never edit an applied migration. Never drop or alter `members`, `board_applications`, or anything in the applications project.
-- **Do not edit `/index.html` (the society website)** except when PROGRESS.md explicitly says to add the link to the game. The game lives in `/game/`.
-- No tracking, no third-party analytics, no external fonts or scripts without a pinned version and good reason. Fonts: Libre Caslon Display + Hanken Grotesk (see style guide).
-- Privacy: members are students. Show only chosen display names. Leaderboard only for those who opted in. Do not store anything beyond what SPEC.md lists.
+- **Play money only.** Chips have no monetary value. No purchase, sale, transfer between members, cash-out, prizes with money value, ads or anything gambling-like. Never write copy that suggests real stakes. The game UI shows "Play money – no cash value".
+- **Server decides, client displays.** The deck, the shuffle and other players' hole cards never reach a client that should not see them. Anything that matters (deal, bets, pot, showdown, chip changes) runs server-side. The client sends intents and renders what the server says.
+- **Never write chips from the browser.** `chip_ledger` has no insert policy on purpose. Chip changes happen only in SECURITY DEFINER functions or with the service role in an Edge Function.
+- **Secrets:** no keys, tokens or passwords in git, docs or chat. The Supabase URL and the publishable (anon) key are public. Anything else goes in Edge Function secrets or stays on Love's computer.
+- **Database changes** are a new file in `supabase/migrations/` (`YYYYMMDDHHMMSS_description.sql`), additive, with RLS on every new table and the policies written. Never edit an applied migration. Test in a rolled-back `DO` block before applying; run the security advisors after; keep the repo file identical to what was applied.
+- **Ask Love first** before anything destructive or hard to undo: deleting accounts or data, dropping tables, changing domains or DNS, changing the Supabase Auth URL settings, force-pushing, deleting branches or Netlify projects, publishing the game, removing `noindex`.
+- **Personal data:** applications and member accounts contain personal data about students. Do not copy it into the repo, logs, docs or prompts. When you need to look at it, look at counts and aggregates first.
+- No tracking, analytics or third-party scripts without a pinned version and a good reason. Fonts: Libre Caslon Display + Hanken Grotesk.
+- Accessibility is a requirement: keyboard operable, visible focus, contrast, `prefers-reduced-motion` respected, text not baked into images.
 
-## Stack (do not change without writing the reason in PROGRESS.md)
-- Frontend: plain HTML + CSS + JavaScript (ES modules), no build step, no framework, mobile-first, `/game/index.html` as entry. Small files, no file over ~600 lines.
-- Backend: Supabase project `tibyyjnghhwwcxvlwmiq` (URL `https://tibyyjnghhwwcxvlwmiq.supabase.co`). Auth = existing member accounts (email login). Realtime = Supabase Realtime channels. Game logic = Edge Functions (TypeScript/Deno) + Postgres.
-- Hosting: Netlify (static). Branch deploys are set up by Love; you only push.
-
-## Definition of done (every session)
-- Opens with no console errors on a 375px-wide viewport and on desktop.
-- Pure game logic (hand ranking, pot/side pot, betting rounds) has unit tests in `game/tests/` runnable with `node --test`. Run them. Do not mark logic done without passing tests.
-- Accessible: keyboard operable, visible focus, contrast per style guide, `prefers-reduced-motion` respected, text not baked into images.
-- No secret in `git diff`. No TODO left unrecorded (put it in PROGRESS.md).
-- If you could not verify something (e.g. realtime between two phones), write "UNVERIFIED" in PROGRESS.md – do not claim it works.
-
-## Tools you may have
-- Supabase MCP (if Love connected it): use `list_tables` first, `apply_migration` for DDL, `get_advisors` after every DDL change and fix any security finding you caused. If the MCP is NOT connected: write the SQL migration file, and tell Love exactly: "Run supabase/migrations/<file> in Supabase SQL editor".
-- If you are unsure about a product/legal decision, choose the safer option, record it in PROGRESS.md under "Decisions for Love", and continue.
-
-## Style of work
-Small, working slices over big unfinished ones. Always leave the game in a playable (even if tiny) state. Prefer boring and correct over clever. Explain non-obvious code in one-line comments.
+## Definition of done
+- `node --test` passes (all tests, from the repo root).
+- Pages open with no console errors at 375px and at desktop width; no horizontal scroll on mobile.
+- No secret in `git diff`. No TODO left unrecorded (put it in `docs/PROJECT.md` open issues).
+- If something could not be verified (for example live multi-device play), write "UNVERIFIED" in the docs. Do not claim it works.
+- Commit messages are clear and in English. Docs changed if the behavior, infrastructure or a decision changed.
