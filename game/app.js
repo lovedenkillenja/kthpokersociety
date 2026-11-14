@@ -189,11 +189,11 @@ function renderViews() {
   if (isSignedIn) {
     const name = state.chipProfile?.display_name || "Member";
     els.headerAuthBtn.textContent = `${formatChips(state.balance)} chips`;
-    els.headerAuthBtn.className = "btn btn--ghost tabular";
+    els.headerAuthBtn.className = "btn btn--ghost btn--compact tabular";
     els.headerAuthBtn.setAttribute("aria-label", `Signed in as ${name}. Open profile.`);
   } else {
     els.headerAuthBtn.textContent = "Log in";
-    els.headerAuthBtn.className = "btn btn--primary";
+    els.headerAuthBtn.className = "btn btn--primary btn--compact";
     els.headerAuthBtn.removeAttribute("aria-label");
   }
 }
@@ -220,7 +220,7 @@ function renderLobby() {
         title: state.hydrating ? "Loading chip history…" : "No chip entries yet",
         message: state.hydrating
           ? "Fetching your balance and recent transactions."
-          : "Invite friends with your link above to record your first entry."
+          : "Invite friends with your link to record your first entry."
       })
     );
   } else {
@@ -334,7 +334,7 @@ async function hydrateAuthenticatedMember(user) {
   redeemStoredReferralOnAuth(user, ({ balance, ledger }) => {
     state.balance = balance;
     state.ledger = ledger;
-    renderHeader();
+    renderViews();
     renderLobby();
   });
 
@@ -343,7 +343,7 @@ async function hydrateAuthenticatedMember(user) {
     state.balance = balance;
     state.ledger = ledger;
     if (referral) state.referral = referral;
-    renderHeader();
+    renderViews();
     renderLobby();
   });
 

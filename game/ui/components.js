@@ -255,6 +255,23 @@ export function showToast(message, { variant = "default", durationMs = 4200 } = 
  */
 export function wireDialog(dialogEl, onClose = null) {
   if (!dialogEl) return;
+  // Remember which control opened the dialog and give focus back to it on close
+  // (native <dialog> usually does this; the explicit version also covers older browsers).
+  let opener = null;
+  if (typeof dialogEl.showModal === "function") {
+    const nativeShowModal = dialogEl.showModal.bind(dialogEl);
+    dialogEl.showModal = () => {
+      opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      nativeShowModal();
+    };
+  }
+  dialogEl.addEventListener("close", () => {
+    const target = opener;
+    opener = null;
+    if (target && target.isConnected && target !== document.body && target.getClientRects().length > 0) {
+      target.focus({ preventScroll: true });
+    }
+  });
   dialogEl.addEventListener("click", (e) => {
     if (e.target === dialogEl) {
       dialogEl.close();
