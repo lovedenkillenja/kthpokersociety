@@ -1,10 +1,12 @@
 // Design harness for the shell and lobby views. Mock data only, no network.
 // Loads the REAL markup from ../index.html and the REAL ../app.js; the data modules are swapped by the import map.
 // Variants: ?variant=seated (wallet 0, 500 chips at DEMO1 and DEMO2) or ?variant=wallet (1,250 chips, nothing seated).
+// Add ?tables=none for the empty open-tables state.
 // Views: #lobby, #leaderboard, #profile. Add ?bar=0 to hide the switcher.
 
 const params = new URLSearchParams(location.search);
 const variant = params.get("variant") === "wallet" ? "wallet" : "seated";
+const noTables = params.get("tables") === "none";
 const VIEWS = ["lobby", "leaderboard", "profile"];
 
 function buildSwitcher() {
@@ -13,7 +15,7 @@ function buildSwitcher() {
   ["seated", "wallet"].forEach((v) => {
     VIEWS.forEach((view) => {
       const a = document.createElement("a");
-      a.href = `?variant=${v}#${view}`;
+      a.href = `?variant=${v}${noTables ? "&tables=none" : ""}#${view}`;
       a.textContent = `${v} · ${view}`;
       if (v === variant && (location.hash || "#lobby") === `#${view}`) a.setAttribute("aria-current", "page");
       bar.appendChild(a);
@@ -35,7 +37,7 @@ async function main() {
   buildSwitcher();
   await loadRealMarkup();
   const { setMockVariant } = await import("./lobby-supabase-stub.js");
-  setMockVariant(variant);
+  setMockVariant(variant, { noTables });
   await import("../app.js");
 }
 

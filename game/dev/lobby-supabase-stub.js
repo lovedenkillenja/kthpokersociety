@@ -2,7 +2,8 @@
 // Same export names as the real module; returns fixed mock data and never touches the network.
 
 let variant = "seated";
-export function setMockVariant(v) { variant = v === "wallet" ? "wallet" : "seated"; }
+let noTables = false;
+export function setMockVariant(v, opts = {}) { variant = v === "wallet" ? "wallet" : "seated"; noTables = Boolean(opts.noTables); }
 
 const USER = { id: "mock-self", email: "alex@example.test", created_at: "2026-09-01T10:00:00Z", user_metadata: {} };
 const NOW = Date.parse("2026-11-14T09:30:00Z");
@@ -41,6 +42,31 @@ export async function fetchMySeatedTables() {
     ],
     error: null
   };
+}
+// Open tables (?tables=none gives an empty list). Mix: waiting 1/6, playing 4/6, full 6/6, own table, other stakes, one idle-empty (hidden).
+export async function fetchOpenTables() {
+  if (noTables) return { tables: [], seats: [], error: null };
+  const mk = (id, code, status, sb, bb, maxSeats, minAgo) => ({
+    id, code, status, sb, bb, min_buyin: bb * 20, max_buyin: bb * 100, max_seats: maxSeats,
+    created_at: new Date(NOW - (minAgo + 5) * 60000).toISOString(), last_activity_at: new Date(NOW - minAgo * 60000).toISOString()
+  });
+  const seat = (t, n, member = `other-${t}-${n}`, status = "active") => ({ table_id: t, member_id: member, status, seat_no: n });
+  const tables = [
+    mk("o1", "WAIT1", "open", 5, 10, 6, 2),
+    mk("o2", "PLAY4", "playing", 5, 10, 6, 1),
+    mk("o3", "FULL6", "playing", 10, 20, 6, 3),
+    mk("o4", "MICRO", "open", 1, 2, 4, 4),
+    mk("o5", "IDLE0", "open", 1, 2, 6, 90),
+    ...(variant === "seated" ? [mk("t1", "DEMO1", "playing", 5, 10, 6, 1)] : [])
+  ];
+  const seats = [
+    seat("o1", 0),
+    ...[0, 1, 2, 3].map((n) => seat("o2", n)),
+    ...[0, 1, 2, 3, 4, 5].map((n) => seat("o3", n)),
+    seat("o4", 0), seat("o4", 1, "x", "sitout"),
+    ...(variant === "seated" ? [seat("t1", 0, USER.id), seat("t1", 1)] : [])
+  ];
+  return { tables, seats, error: null };
 }
 export async function fetchRecentLedger() {
   return [

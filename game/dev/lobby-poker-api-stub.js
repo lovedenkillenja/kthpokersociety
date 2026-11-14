@@ -11,6 +11,7 @@ export const joinTable = offline;
 // Join flow demo: room codes MICRO (1/2) and STDRD (10/20) answer with their own stakes; others stay offline.
 const DEMO_TABLES = {
   MICRO: { code: "MICRO", status: "open", sb: 1, bb: 2, minBuyIn: 40, maxBuyIn: 200, seats: [] },
+  WAIT1: { code: "WAIT1", status: "open", sb: 5, bb: 10, minBuyIn: 200, maxBuyIn: 1000, seats: [] },
   STDRD: { code: "STDRD", status: "open", sb: 10, bb: 20, minBuyIn: 400, maxBuyIn: 2000, seats: [] }
 };
 export async function fetchTableState(code) {
