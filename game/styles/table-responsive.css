@@ -159,6 +159,20 @@
   left: 50%;
   transform: translateX(-50%);
 }
+/* Wide ovals: own seat puts the hole cards beside the plaque, which keeps it inside the lower rail */
+.table-shell[data-layout-mode="desktop"] .table-seat-card--self,
+.table-shell[data-layout-mode="mobile-landscape"] .table-seat-card--self {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  gap: 8px;
+}
+.table-shell[data-layout-mode="desktop"] .table-seat-card--self .table-seat-cards,
+.table-shell[data-layout-mode="mobile-landscape"] .table-seat-card--self .table-seat-cards { margin-bottom: 0; order: -1; }
+.table-shell[data-layout-mode="desktop"] .table-seat-card--self .table-seat-plaque { width: 190px; flex: none; }
+.table-shell[data-layout-mode="desktop"] .table-seat-card--self .table-dealer,
+.table-shell[data-layout-mode="mobile-landscape"] .table-seat-card--self .table-dealer { left: auto; right: -8px; bottom: auto; top: -8px; }
 .table-shell[data-layout-mode="desktop"] .poker-felt { --seat-w: min(var(--seat-col-w), 190px); }
 .table-shell[data-layout-mode="desktop"] .table-seat-plaque { padding: 8px 12px 9px; gap: 3px; }
 .table-shell[data-layout-mode="desktop"] .table-seat-plaque__name strong { font-size: var(--text-xs); }
@@ -195,14 +209,14 @@
   .table-seat-handname { font-size: 11px; }
   .table-bet { font-size: 11px; padding: 1px 6px 1px 3px; }
   .table-bet .chip-disc { width: 11px; height: 11px; }
-  .table-status-banner { font-size: 11px; padding: 2px 8px; max-width: min(70%, 360px); }
+  .table-status-banner { font-size: 11px; padding: 2px 8px; max-width: min(46%, 340px); }
   .table-pot-value { font-size: 20px; }
-  /* Own seat: cards beside the plaque to save height */
-  .table-seat-card--self { flex-direction: row; align-items: center; justify-content: center; width: auto; gap: 6px; }
-  .table-seat-card--self .table-seat-cards { margin-bottom: 0; order: -1; }
-  .table-seat-card--self .table-seat-plaque { width: 128px; flex: none; }
-  .table-seat-card--self .table-dealer { left: auto; right: -8px; bottom: auto; top: -8px; }
+  .table-seat-card--self .table-seat-plaque { width: 128px; }
   .table-sitdown-inline { top: 84%; }
+  .table-seat-cards--opp:has(.playing-card--opp-reveal) .playing-card--opp-reveal {
+    width: calc(var(--opp-card-w) * 1.9);
+    height: calc(var(--opp-card-h) * 1.9);
+  }
 
   .action-bar {
     grid-column: 2;
