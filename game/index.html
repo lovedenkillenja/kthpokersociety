@@ -133,6 +133,15 @@
           </div>
         </div>
 
+        <!-- Chips still seated at tables (read-only; server decides) -->
+        <section class="seated-tables" id="seated-tables-box" aria-labelledby="seated-tables-heading" hidden>
+          <div class="seated-tables__head">
+            <h2 class="seated-tables__title" id="seated-tables-heading">Your chips at tables</h2>
+            <p class="field-hint tabular" id="seated-tables-summary" aria-live="polite"></p>
+          </div>
+          <ul class="seated-tables__list" id="seated-tables-list" role="list"></ul>
+        </section>
+
         <!-- Invite friends to earn chips (replaces daily check-in) -->
         <div class="referral-box" id="lobby-referral-box">
           <div class="referral-box__head">

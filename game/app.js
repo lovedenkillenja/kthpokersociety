@@ -2,13 +2,14 @@
 
 import {
   getSupabaseClient, fetchMemberRecord, ensureChipProfile, saveChipProfile,
-  fetchChipBalance, fetchRecentLedger, fetchLeaderboard, fetchMyReferral
+  fetchChipBalance, fetchRecentLedger, fetchLeaderboard, fetchMyReferral, fetchMySeatedTables
 } from "./lib/supabase.js";
 import {
   formatChips, validateDisplayName, normalizeLeaderboardRows, friendlyAuthError
 } from "./lib/format.js";
 import { normalizeRoomCode, validateBuyIn } from "./lib/table-helpers.js";
-import { createTable, joinTable, setUnauthorizedHandler } from "./lib/poker-api.js";
+import { createTable, joinTable, fetchTableState, setUnauthorizedHandler } from "./lib/poker-api.js";
+import { isAlreadySeatedAt, shapeSeatedTableRows, seatedChipsHint } from "./lib/seated-tables.js";
 import {
   createCard, createCardBack, createLeaderboardRow, createLedgerRow, createEmptyState, showToast
 } from "./ui/components.js";
@@ -19,11 +20,12 @@ import {
   captureReferralCodeFromUrl, redeemStoredReferralOnAuth,
   claimDeferredReferralRewards, renderReferralPanel, wireReferralCopyButton
 } from "./ui/referral-panel.js";
+import { renderSeatedTablesPanel, wireSeatedTablesPanel } from "./ui/seated-tables-panel.js";
 
 const VALID_VIEWS = new Set(["lobby", "table", "leaderboard", "profile"]);
 const state = {
   user: null, member: null, chipProfile: null, balance: 0,
-  ledger: [], leaderboard: [], referral: null, activeView: "lobby", hydrating: false
+  ledger: [], leaderboard: [], referral: null, seatedTables: [], activeView: "lobby", hydrating: false
 };
 
 const byId = (id) => document.getElementById(id);
@@ -52,7 +54,9 @@ const els = {
   profileDisplayName: byId("profile-display-name"), profileLeaderboardOptin: byId("profile-leaderboard-optin"),
   profileError: byId("profile-error"), profileSaveBtn: byId("profile-save-btn"),
   profileLogoutBtn: byId("profile-logout-btn"), accountFullName: byId("account-full-name"),
-  accountEmail: byId("account-email"), accountProgram: byId("account-program"), accountSince: byId("account-since")
+  accountEmail: byId("account-email"), accountProgram: byId("account-program"), accountSince: byId("account-since"),
+  seatedTablesBox: byId("seated-tables-box"), seatedTablesSummary: byId("seated-tables-summary"),
+  seatedTablesList: byId("seated-tables-list")
 };
 
 let authDialog = null;
@@ -80,14 +84,55 @@ function getTableCodeFromHash() {
   return null;
 }
 
+async function loadSeatedTables(userId) {
+  const { seats, tables } = await fetchMySeatedTables(userId);
+  return shapeSeatedTableRows(seats, tables, userId);
+}
+
+async function refreshSeatedTables() {
+  if (!state.user) return;
+  const userId = state.user.id;
+  const rows = await loadSeatedTables(userId);
+  if (state.user?.id !== userId) return;
+  state.seatedTables = rows;
+  renderLobby();
+}
+
 async function refreshBalanceAndLedger() {
   if (!state.user) return;
-  const [balance, ledger] = await Promise.all([
-    fetchChipBalance(state.user.id), fetchRecentLedger(state.user.id)
+  const userId = state.user.id;
+  const [balance, ledger, seatedTables] = await Promise.all([
+    fetchChipBalance(userId), fetchRecentLedger(userId), loadSeatedTables(userId)
   ]);
+  if (state.user?.id !== userId) return;
   state.balance = balance;
   state.ledger = ledger;
+  state.seatedTables = seatedTables;
   renderAll();
+}
+
+/**
+ * Asks the server (`table` state intent) whether the caller already holds an active or sit-out
+ * seat at this table; if so, opens it. Returns true when the table was opened.
+ */
+async function openIfAlreadySeated(code) {
+  const res = await fetchTableState(code);
+  if (!res.ok || !isAlreadySeatedAt(res.table)) return false;
+  tableController.openWithTable(res.table);
+  setActiveView("table");
+  return true;
+}
+
+async function returnToSeatedTable(code) {
+  if (!state.user || !tableController) return;
+  if (tableController.getActiveTable()?.code === code) {
+    setActiveView("table");
+    return;
+  }
+  const opened = await openIfAlreadySeated(code);
+  if (opened) return;
+  showToast(`Could not reopen Room ${code}. Your seat may have changed.`, { variant: "error" });
+  refreshSeatedTables();
 }
 
 function setActiveView(viewName, { updateHash = true } = {}) {
@@ -102,6 +147,7 @@ function setActiveView(viewName, { updateHash = true } = {}) {
   }
   renderViews();
   if (target === "leaderboard" && state.user) loadLeaderboard();
+  if (target === "lobby" && state.user && !state.hydrating) refreshSeatedTables();
 }
 
 function renderViews() {
@@ -158,6 +204,7 @@ function renderLobby() {
   els.lobbyMemberPill.textContent = displayName;
   els.balanceValue.textContent = formatChips(state.balance);
 
+  renderSeatedTablesPanel(els, state.seatedTables, state.balance);
   renderReferralPanel(els, state.referral, Boolean(state.user));
 
   els.ledgerCountPill.textContent = `${state.ledger.length} recent`;
@@ -274,6 +321,7 @@ async function hydrateAuthenticatedMember(user) {
     state.ledger = [];
     state.leaderboard = [];
     state.referral = null;
+    state.seatedTables = [];
     state.hydrating = false;
     renderAll();
     return;
@@ -302,18 +350,20 @@ async function hydrateAuthenticatedMember(user) {
   const member = await fetchMemberRecord(user);
   state.member = member;
 
-  const [chipProfile, balance, ledger, lbResult, refResult] = await Promise.all([
+  const [chipProfile, balance, ledger, lbResult, refResult, seatedTables] = await Promise.all([
     ensureChipProfile(user, member),
     fetchChipBalance(user.id),
     fetchRecentLedger(user.id),
     fetchLeaderboard(),
-    fetchMyReferral()
+    fetchMyReferral(),
+    loadSeatedTables(user.id)
   ]);
 
   state.hydrating = false;
   state.chipProfile = chipProfile;
   state.balance = balance;
   state.ledger = ledger;
+  state.seatedTables = seatedTables;
   if (!refResult.error && refResult.code) {
     state.referral = refResult;
   }
@@ -372,6 +422,8 @@ function wireEvents() {
     setActiveView("table");
   });
 
+  wireSeatedTablesPanel(els, returnToSeatedTable);
+
   els.createTableForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!state.user) return;
@@ -383,7 +435,8 @@ function wireEvents() {
       balance: state.balance
     });
     if (!buyInCheck.valid) {
-      els.createTableError.textContent = buyInCheck.error;
+      const hint = buyInCheck.value > state.balance ? seatedChipsHint(state.seatedTables) : "";
+      els.createTableError.textContent = hint ? `${buyInCheck.error} ${hint}` : buyInCheck.error;
       return;
     }
 
@@ -421,13 +474,25 @@ function wireEvents() {
       return;
     }
 
+    // Already seated here? Open the table instead of asking for a new buy-in (server decides via isSelf).
+    els.joinTableBtn.setAttribute("aria-busy", "true");
+    els.joinTableBtn.disabled = true;
+    const reopened = await openIfAlreadySeated(codeCheck.value);
+    els.joinTableBtn.removeAttribute("aria-busy");
+    els.joinTableBtn.disabled = false;
+    if (reopened) {
+      showToast(`Back at Room ${codeCheck.value}.`);
+      return;
+    }
+
     const buyInCheck = validateBuyIn(els.joinTableBuyIn.value, {
       minBuyIn: 400,
       maxBuyIn: 2000,
       balance: state.balance
     });
     if (!buyInCheck.valid) {
-      els.joinTableError.textContent = buyInCheck.error;
+      const hint = buyInCheck.value > state.balance ? seatedChipsHint(state.seatedTables) : "";
+      els.joinTableError.textContent = hint ? `${buyInCheck.error} ${hint}` : buyInCheck.error;
       return;
     }
 
