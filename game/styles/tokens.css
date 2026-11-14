@@ -50,10 +50,21 @@
   --radius-pill: 999px;
   --tap-min: 48px;
 
+  /* Poker chips: face colour, rim insert colour, edge (thickness) colour per denomination */
+  --chip-1-face: #7d8a9e;    --chip-1-insert: #eef2f8;    --chip-1-edge: #4b5668;
+  --chip-5-face: #b3372f;    --chip-5-insert: #f7e4e1;    --chip-5-edge: #702019;
+  --chip-25-face: #1f7a4d;   --chip-25-insert: #e3f3ea;   --chip-25-edge: #114a2e;
+  --chip-100-face: #22396a;  --chip-100-insert: #dfe7f5;  --chip-100-edge: #0e1c3a;
+  --chip-500-face: #6b3fa0;  --chip-500-insert: #eadff7;  --chip-500-edge: #3e2362;
+  --chip-1000-face: #d1a02f; --chip-1000-insert: #fff7dc; --chip-1000-edge: #8a6618;
+  /* The society's game-tree mark (same paths as the favicon), white, cropped to the glyph */
+  --chip-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='80 80 240 210'%3E%3Cg stroke='white' fill='none' stroke-linecap='round'%3E%3Cpath d='M200 108 L130 188 M130 188 L95 270 M130 188 L165 270 M270 188 L305 270' stroke-opacity='.7' stroke-width='14'/%3E%3Cpath d='M200 108 L270 188 L235 268' stroke-width='22'/%3E%3C/g%3E%3Ccircle cx='200' cy='108' r='28' fill='white'/%3E%3C/svg%3E");
+
   /* Motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast: 150ms;
   --duration-normal: 220ms;
+  --duration-slow: 360ms;
 
   color-scheme: dark;
 }
@@ -62,5 +73,6 @@
   :root {
     --duration-fast: 0ms;
     --duration-normal: 0ms;
+    --duration-slow: 0ms;
   }
 }

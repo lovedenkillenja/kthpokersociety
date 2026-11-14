@@ -305,7 +305,7 @@
   line-height: 1.5;
 }
 .table-seat-plaque .chip-amount { gap: 4px; font-size: 13px; line-height: 1.3; }
-.table-seat-plaque .chip-disc { width: 10px; height: 10px; border-width: 1.5px; }
+.table-seat-plaque .chip-disc { --chip-size: 12px; }
 .table-seat-handname {
   color: var(--chip);
   font-size: 12px;
@@ -399,7 +399,7 @@
   line-height: 1.2;
 }
 
-/* Bets: flat chip disc + amount, beside the seat on the side that faces the pot */
+/* Bets: small chip stacks + amount, beside the seat on the side that faces the pot */
 .table-bet {
   position: absolute;
   z-index: 3;
@@ -416,7 +416,7 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.table-bet .chip-disc { width: 12px; height: 12px; border-width: 1.5px; }
+.table-bet .chip-stacks { --chip-size: 13px; }
 .table-bet[data-dir="right"] { left: calc(100% + 6px); top: 30%; transform: translateY(-50%); }
 .table-bet[data-dir="left"] { right: calc(100% + 6px); top: 70%; transform: translateY(-50%); }
 /* Phones: upper side seats keep the chip level with the top edge so it clears the top-centre seat's chip */
