@@ -5,7 +5,7 @@
 import { formatChips } from "../lib/format.js";
 import {
   normalizeIncomingTableState, partitionTableSeats, computeRaisePresets,
-  computeRemainingTurnSeconds, describeHandStatus, buildHandHistoryEntry
+  computeRemainingTurnSeconds, describeHandStatus, buildHandHistoryEntry, computeActionBarState
 } from "../lib/table-helpers.js";
 import {
   fetchTableState, joinTable, leaveTable, closeTable, setTableSeatStatus,
@@ -221,9 +221,10 @@ export function createTableViewController({
       return;
     }
 
-    const isMyTurn = hand.actingSeat === selfSeat.seatNo;
+    // Seat status does not matter here: a `sitout` seat still dealt into this hand gets the controls on its turn.
+    const barState = computeActionBarState(currentTable);
+    const isMyTurn = barState.mode === "controls";
     const legal = hand.legalActions || null;
-    const actingSeat = (currentTable.seats || []).find((s) => s.seatNo === hand.actingSeat);
     const urgent = remainingSeconds !== null && remainingSeconds <= 8;
 
     els.actionBar.classList.toggle("action-bar--my-turn", isMyTurn);
@@ -242,10 +243,8 @@ export function createTableViewController({
     if (!isMyTurn || !legal) {
       closeRaiseSheet();
       els.controlsWrap.hidden = true;
-      if (els.idleRow) els.idleRow.hidden = selfSeat.status !== "sitout";
-      const actorName = actingSeat?.displayName || `Seat ${(hand.actingSeat ?? 0) + 1}`;
-      els.waitingText.textContent =
-        selfSeat.status === "sitout" ? "Sitting out this hand" : `Waiting for ${actorName}…`;
+      if (els.idleRow) els.idleRow.hidden = !barState.showIdleRow;
+      els.waitingText.textContent = barState.waitingText;
       return;
     }
 

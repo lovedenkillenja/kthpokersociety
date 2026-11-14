@@ -18,6 +18,7 @@ export const STATE_NAMES = [
   "river-folded-self",
   "showdown-split",
   "sitout",
+  "sitout-in-hand-to-act",
   "timer-low"
 ];
 
@@ -72,6 +73,7 @@ function toPublicTable({ players, engineState, selfSeat, remainingSeconds = 24, 
         status: p.status || "active",
         consecutiveTimeouts: 0,
         isSelf: p.seat === selfSeat,
+        inHand: Boolean(hs),
         bet: hs ? hs.bet : 0,
         totalCommitted: hs ? hs.totalCommitted : 0,
         folded: hs ? hs.folded : false,
@@ -241,6 +243,20 @@ function build(name) {
       });
       const players = [P(0, "Alex", 1000, { status: "sitout" }), ...live];
       return { table: toPublicTable({ players, engineState: st, selfSeat: 0, remainingSeconds: 17 }), self: 0, st };
+    }
+
+    case "sitout-in-hand-to-act": {
+      // Heads-up, self (seat 1) is `sitout` but still dealt into this hand: Sam (dealer, SB) called,
+      // and it is self's turn with a free check (BB option). The action controls must show.
+      const players = [P(0, "Sam", 1000), P(1, "Alex", 1000, { status: "sitout" })];
+      const st = play({
+        players,
+        dealer: 0,
+        holes: [["Kc", "Jd"], ["8s", "8d"]],
+        board: ["Ah", "7c", "2s", "Td", "4h"],
+        actions: [[0, "call"]]
+      });
+      return { table: toPublicTable({ players, engineState: st, selfSeat: 1, remainingSeconds: 22 }), self: 1, st };
     }
 
     case "timer-low": {
