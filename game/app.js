@@ -9,7 +9,7 @@ import {
 } from "./lib/format.js";
 import { normalizeRoomCode, validateBuyIn } from "./lib/table-helpers.js";
 import { createTable, joinTable, fetchTableState, setUnauthorizedHandler } from "./lib/poker-api.js";
-import { isAlreadySeatedAt, shapeSeatedTableRows, seatedChipsHint } from "./lib/seated-tables.js";
+import { sumSeatedChips, isAlreadySeatedAt, shapeSeatedTableRows, seatedChipsHint } from "./lib/seated-tables.js";
 import {
   createCard, createCardBack, createLeaderboardRow, createLedgerRow, createEmptyState, showToast
 } from "./ui/components.js";
@@ -189,11 +189,11 @@ function renderViews() {
   if (isSignedIn) {
     const name = state.chipProfile?.display_name || "Member";
     els.headerAuthBtn.textContent = `${formatChips(state.balance)} chips`;
-    els.headerAuthBtn.className = "btn btn--ghost tabular";
+    els.headerAuthBtn.className = "btn btn--ghost btn--compact tabular";
     els.headerAuthBtn.setAttribute("aria-label", `Signed in as ${name}. Open profile.`);
   } else {
     els.headerAuthBtn.textContent = "Log in";
-    els.headerAuthBtn.className = "btn btn--primary";
+    els.headerAuthBtn.className = "btn btn--primary btn--compact";
     els.headerAuthBtn.removeAttribute("aria-label");
   }
 }
@@ -203,6 +203,12 @@ function renderLobby() {
   const displayName = state.chipProfile?.display_name || state.member?.full_name || "Member";
   els.lobbyMemberPill.textContent = displayName;
   els.balanceValue.textContent = formatChips(state.balance);
+  const atTables = sumSeatedChips(state.seatedTables);
+  const atTablesItem = byId("at-tables-item");
+  if (atTablesItem) {
+    atTablesItem.hidden = state.seatedTables.length === 0;
+    byId("at-tables-value").textContent = formatChips(atTables);
+  }
 
   renderSeatedTablesPanel(els, state.seatedTables, state.balance);
   renderReferralPanel(els, state.referral, Boolean(state.user));
@@ -220,7 +226,7 @@ function renderLobby() {
         title: state.hydrating ? "Loading chip history…" : "No chip entries yet",
         message: state.hydrating
           ? "Fetching your balance and recent transactions."
-          : "Invite friends with your link above to record your first entry."
+          : "Invite friends with your link to record your first entry."
       })
     );
   } else {
@@ -334,7 +340,7 @@ async function hydrateAuthenticatedMember(user) {
   redeemStoredReferralOnAuth(user, ({ balance, ledger }) => {
     state.balance = balance;
     state.ledger = ledger;
-    renderHeader();
+    renderViews();
     renderLobby();
   });
 
@@ -343,7 +349,7 @@ async function hydrateAuthenticatedMember(user) {
     state.balance = balance;
     state.ledger = ledger;
     if (referral) state.referral = referral;
-    renderHeader();
+    renderViews();
     renderLobby();
   });
 
@@ -621,7 +627,18 @@ function wireEvents() {
   });
 }
 
+function wireCreateDisclosure() {
+  const details = byId("create-table-details");
+  if (!details || !window.matchMedia) return;
+  const mq = window.matchMedia("(min-width: 900px)");
+  const sync = () => { if (mq.matches) details.open = true; };
+  details.open = mq.matches;
+  details.addEventListener("toggle", sync);
+  mq.addEventListener("change", (e) => { details.open = e.matches; });
+}
+
 async function init() {
+  wireCreateDisclosure();
   captureReferralCodeFromUrl();
   renderGuestCards();
   state.activeView = getViewFromHash();

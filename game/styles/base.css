@@ -163,13 +163,11 @@ a:hover {
 }
 
 .play-money-strip .wrap {
-  min-height: 36px;
-  padding-block: 6px;
+  min-height: 32px;
+  padding-block: 4px;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-2);
+  justify-content: center;
 }
 
 .play-money-badge {
@@ -205,8 +203,7 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
 }
 
 .brand {
@@ -238,7 +235,11 @@ a:hover {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  margin-left: auto;
 }
+
+.header-help-btn__icon { display: none; font-family: var(--font-body); font-weight: 600; font-size: var(--text-base); line-height: 1; }
+.hide-xs { display: inline; }
 
 /* Primary view navigation (Lobby / Leaderboard / Profile) */
 .view-nav {
@@ -249,7 +250,13 @@ a:hover {
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
   padding: 4px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+
+.view-nav::-webkit-scrollbar { display: none; }
 
 .view-nav__btn {
   min-height: var(--tap-min);
@@ -259,6 +266,7 @@ a:hover {
   background: transparent;
   color: var(--muted);
   font: 600 var(--text-xs) / 1 var(--font-body);
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
@@ -266,6 +274,10 @@ a:hover {
 
 .view-nav__btn:hover {
   color: var(--paper);
+}
+
+.view-nav__btn:focus-visible {
+  outline-offset: -2px;
 }
 
 .view-nav__btn[aria-current="page"] {
@@ -296,27 +308,42 @@ a:hover {
 }
 
 .game-footer .wrap {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
 }
 
+.game-footer p { max-width: 70ch; }
+
+.game-footer a { display: inline-block; padding-block: 12px; }
+
 @media (max-width: 600px) {
-  .game-header .wrap {
-    gap: var(--space-1);
-  }
+  .header-right { order: 1; }
   .view-nav {
     width: 100%;
-    order: 3;
+    order: 2;
     justify-content: stretch;
   }
   .view-nav__btn {
-    flex: 1;
+    flex: 1 0 auto;
     padding: 0 var(--space-1);
   }
   .game-main {
     padding-block: var(--space-3) var(--space-5);
   }
+}
+
+@media (max-width: 480px) {
+  .brand-subtitle,
+  .hide-xs,
+  .header-help-btn__text { display: none; }
+  .header-help-btn__icon { display: inline; }
+  .game-header .header-help-btn { padding-inline: 0; min-width: var(--tap-min); }
+}
+
+@media (max-width: 360px) {
+  .game-header .wrap { gap: var(--space-1); }
+  .brand { gap: 8px; font-size: var(--text-xs); }
+  .header-right { gap: 4px; }
+  .game-header .header-right .btn--compact { padding-inline: 12px; }
+  .game-header .header-right .header-help-btn { padding-inline: 0; }
 }

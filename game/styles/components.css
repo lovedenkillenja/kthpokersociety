@@ -28,6 +28,12 @@
 .btn--full { width: 100%; }
 .btn:disabled, .btn[aria-busy="true"] { opacity: 0.58; cursor: not-allowed; }
 .btn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+/* Compact buttons keep the 48px tap target (table.css only lowers it for the table topbar) */
+.game-header .btn--compact,
+.panel .btn--compact { min-height: var(--tap-min); min-width: var(--tap-min); padding: 0 16px; font-size: var(--text-xs); }
+@media (max-width: 599px) {
+  .btn-row--hero { flex-direction: column; align-items: stretch; }
+}
 
 /* 2. Pills (radius 999px) */
 .pill {
@@ -59,6 +65,9 @@
   gap: var(--space-2);
   min-width: 0;
 }
+@media (max-width: 360px) {
+  .panel { padding: var(--space-2); }
+}
 @media (min-width: 640px) {
   .panel { padding: var(--space-4); gap: var(--space-3); }
 }
@@ -68,6 +77,16 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-1) var(--space-2);
+}
+.panel__head--center { align-items: center; }
+.panel__facts { margin-top: 4px; }
+/* Quiet panels: secondary content, lighter than the main call to action */
+.panel--quiet { background: transparent; }
+.panel--hero { gap: var(--space-3); justify-items: start; }
+.panel--hero .felt-preview { justify-self: center; }
+.panel--hero h1 { max-width: 20ch; }
+@media (min-width: 640px) {
+  .panel--hero { padding: var(--space-5) var(--space-4); }
 }
 .panel__lede { overflow-wrap: anywhere; color: var(--muted); font-size: var(--text-base); max-width: 60ch; }
 .panel__divider { border: 0; border-top: 1px solid var(--line); margin: 0; }
@@ -137,6 +156,13 @@
   justify-content: center;
   gap: var(--space-2);
   text-align: center;
+}
+.felt-preview__facts {
+  color: var(--paper);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 .card-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
 /* Preview card rows shrink on narrow screens instead of forcing the page wider */
@@ -269,15 +295,16 @@
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
   min-height: 54px;
   padding: 10px 8px;
   border-bottom: 1px solid var(--line);
 }
 .leaderboard-row--self {
-  background: rgba(31, 102, 201, 0.14);
+  background: rgba(31, 102, 201, 0.18);
   border-radius: var(--radius-card);
   padding-inline: 12px;
+  box-shadow: inset 3px 0 0 var(--sky);
 }
 .leaderboard-rank {
   font-family: var(--font-display);
@@ -286,6 +313,16 @@
   font-variant-numeric: tabular-nums;
 }
 .leaderboard-row:first-child .leaderboard-rank { color: var(--chip); }
+.leaderboard-row .chip-amount { white-space: nowrap; }
+.leaderboard-name .pill { flex: none; }
+@media (max-width: 400px) {
+  .leaderboard-row { grid-template-columns: 36px minmax(0, 1fr) auto; column-gap: var(--space-1); padding-inline: 4px; }
+  .leaderboard-name { gap: 6px; }
+  .leaderboard-name .pill { padding: 2px 8px; }
+  .leaderboard-row--self { padding-inline: 8px; }
+  .leaderboard-row .chip-amount { font-size: var(--text-xs); }
+  .leaderboard-row .chip-disc { display: none; }
+}
 .leaderboard-name {
   font-weight: 600;
   color: var(--paper);
@@ -435,8 +472,14 @@ dialog.game-dialog.game-dialog--wide {
 }
 dialog.game-dialog::backdrop { background: rgba(2, 8, 20, 0.76); }
 .dialog-inner { padding: var(--space-3); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
-.dialog-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+@media (min-width: 640px) {
+  .dialog-inner { padding: var(--space-4); gap: var(--space-3); }
+}
+.dialog-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
+.dialog-top > div { display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.dialog-top h2 { font-size: var(--text-lg); }
 .icon-close-btn {
+  flex: none;
   min-width: var(--tap-min);
   min-height: var(--tap-min);
   border-radius: var(--radius-pill);
@@ -444,8 +487,11 @@ dialog.game-dialog::backdrop { background: rgba(2, 8, 20, 0.76); }
   background: transparent;
   color: var(--paper);
   font-size: var(--text-md);
+  line-height: 1;
   cursor: pointer;
 }
+.icon-close-btn:hover { border-color: var(--sky); }
+#auth-tabs-wrap > .form-stack { margin-top: var(--space-2); }
 .auth-tabs {
   display: flex;
   gap: 4px;
@@ -456,7 +502,7 @@ dialog.game-dialog::backdrop { background: rgba(2, 8, 20, 0.76); }
 }
 .auth-tabs button {
   flex: 1;
-  min-height: 42px;
+  min-height: 44px;
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
@@ -510,116 +556,120 @@ body[data-active-view="table"] .toast-region {
   top: calc(56px + env(safe-area-inset-top, 0px));
 }
 
-/* 13. Referral invite panel */
-.referral-box {
-  background: rgba(8, 26, 52, 0.45);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  padding: var(--space-2);
-  margin-top: var(--space-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+/* 13. Lobby: play area (join first, then create) */
+.screen--lobby { max-width: 880px; }
+.play-grid { display: grid; gap: var(--space-2); }
+@media (min-width: 900px) {
+  .play-grid { grid-template-columns: 1fr 1fr; gap: var(--space-3); align-items: stretch; }
 }
-.referral-box__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-.referral-box__title {
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  color: var(--paper);
-  display: block;
-}
-.referral-box__copy-row {
-  display: flex;
-  gap: var(--space-1);
-  align-items: center;
-}
-.referral-link-input {
-  flex: 1;
-  min-width: 0;
-  background: var(--navy);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
-  padding: 10px 12px;
-  color: var(--sky);
-  font-size: var(--text-xs);
-  font-family: monospace;
-}
-.referral-link-input:focus {
-  outline: none;
-  border-color: var(--sky);
-}
-.referral-box__stats {
+.play-card {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-2) var(--space-2) var(--space-3);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-1);
-  padding-top: var(--space-1);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
 }
-.referral-stat {
+.play-card .btn { align-self: end; }
+.play-card--create > summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: var(--tap-min);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
-  padding: 6px 4px;
-}
-.referral-stat__num {
-  font-size: var(--text-base);
-  font-weight: 700;
-  color: var(--gold);
-}
-.referral-stat__lbl {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 2px;
-}
-@media (max-width: 480px) {
-  .referral-box__copy-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .referral-link-input {
-    width: 100%;
-  }
-}
-
-
-/* 14. Lobby: chips still seated at tables */
-.seated-tables {
-  background: rgba(8, 26, 52, 0.45);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  padding: var(--space-2);
-  margin-top: var(--space-2);
-  display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   gap: var(--space-1);
 }
-.seated-tables__head {
+.play-card--create > summary::-webkit-details-marker { display: none; }
+.play-card--create > summary::after { content: "+"; font-family: var(--font-body); color: var(--sky); font-size: var(--text-md); }
+.play-card--create[open] > summary::after { content: "\2212"; }
+.play-card--create[open] > summary { margin-bottom: var(--space-2); }
+.play-card__body { display: grid; gap: var(--space-2); }
+@media (max-width: 899px) {
+  .play-card--create { padding-block: var(--space-1); }
+  .play-card--create[open] { padding-bottom: var(--space-3); }
+}
+@media (min-width: 900px) {
+  .play-card--create > summary { pointer-events: none; }
+  .play-card--create > summary::after,
+  .play-card--create[open] > summary::after { content: none; }
+}
+.play-card__title { font-family: var(--font-display); font-weight: 400; font-size: var(--text-md); line-height: 1.15; margin: 0; }
+.code-input { text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600; font-variant-numeric: tabular-nums; }
+.active-table-banner {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-2);
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-panel);
+  background: rgba(31, 102, 201, 0.16);
+  border: 1px solid var(--sky);
 }
-.seated-tables__title {
+
+/* 14. Lobby: "Your chips" (wallet and chips at tables as two aligned figures) */
+.chips-summary { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); }
+.chips-summary__item { display: grid; gap: 2px; align-content: start; min-width: 0; }
+.chips-summary__label { font-size: var(--text-xs); color: var(--muted); }
+.chips-summary__figure { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.chips-summary__value {
   font-family: var(--font-display);
-  font-size: var(--text-lg);
-  color: var(--paper);
-  margin: 0;
+  font-size: var(--text-xl);
+  line-height: 1.05;
+  color: var(--chip);
 }
+.chips-summary__unit { font-size: var(--text-base); color: var(--muted); }
+/* Seated chips: first thing in the lobby when present */
+.seated-tables { gap: var(--space-1); }
+.seated-tables__head { display: flex; align-items: baseline; justify-content: space-between; gap: 4px var(--space-2); flex-wrap: wrap; }
+.seated-tables__title { font-family: var(--font-display); font-size: var(--text-lg); font-weight: 400; margin: 0; }
 .seated-tables__list { list-style: none; margin: 0; padding: 0; }
 .seated-tables__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
   padding: 10px 0;
   border-top: 1px solid var(--line);
 }
 .seated-tables__code { color: var(--paper); font-weight: 600; letter-spacing: 0.08em; }
+
+/* 15. Referral invite panel (secondary) */
+.referral-box__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+  flex-wrap: wrap;
+}
+.referral-box__title { font-size: var(--text-md); }
+.referral-box__copy-row { display: flex; gap: var(--space-1); align-items: center; min-width: 0; }
+.referral-link-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--tap-min);
+  background: var(--ink);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-card);
+  padding: 0 14px;
+  color: var(--sky);
+  font: 400 var(--text-xs) var(--font-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.referral-link-input:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+.referral-box__copy-row .btn { flex: none; }
+.referral-box__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+.referral-stat { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; min-width: 0; }
+.referral-stat__num { font-family: var(--font-display); font-size: var(--text-lg); line-height: 1.1; color: var(--chip); }
+.referral-stat__lbl { font-size: var(--text-xs); color: var(--muted); }
