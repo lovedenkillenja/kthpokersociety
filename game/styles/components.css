@@ -55,7 +55,9 @@
   border-radius: var(--radius-panel);
   padding: var(--space-3);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
+  min-width: 0;
 }
 @media (min-width: 640px) {
   .panel { padding: var(--space-4); gap: var(--space-3); }
@@ -67,7 +69,7 @@
   justify-content: space-between;
   gap: var(--space-1) var(--space-2);
 }
-.panel__lede { color: var(--muted); font-size: var(--text-base); max-width: 60ch; }
+.panel__lede { overflow-wrap: anywhere; color: var(--muted); font-size: var(--text-base); max-width: 60ch; }
 .panel__divider { border: 0; border-top: 1px solid var(--line); margin: 0; }
 
 /* 4. ChipAmount & Flat Disc Icon (--chip warm accent used sparingly) */
@@ -137,6 +139,16 @@
   text-align: center;
 }
 .card-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+/* Preview card rows shrink on narrow screens instead of forcing the page wider */
+.felt-preview .card-row { width: 100%; max-width: 100%; min-width: 0; gap: clamp(4px, 1.5vw, 10px); }
+.felt-preview .card-row .playing-card {
+  flex: 0 1 56px;
+  min-width: 0;
+  width: auto;
+  height: auto;
+  aspect-ratio: 56 / 78;
+  padding: clamp(3px, 1vw, 6px) clamp(3px, 1vw, 7px);
+}
 .playing-card {
   width: 56px;
   height: 78px;
@@ -422,7 +434,7 @@ dialog.game-dialog.game-dialog--wide {
   gap: 4px;
 }
 dialog.game-dialog::backdrop { background: rgba(2, 8, 20, 0.76); }
-.dialog-inner { padding: var(--space-3); display: grid; gap: var(--space-2); }
+.dialog-inner { padding: var(--space-3); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
 .dialog-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .icon-close-btn {
   min-width: var(--tap-min);
