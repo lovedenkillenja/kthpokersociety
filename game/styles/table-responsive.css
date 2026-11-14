@@ -355,7 +355,7 @@
 
 /* Bets: between the seat and the pot */
 .table-shell[data-layout-mode="desktop"] .table-bet { font-size: 15px; padding: 2px 10px 2px 6px; gap: 6px; }
-.table-shell[data-layout-mode="desktop"] .table-bet .chip-stacks { --chip-size: 17px; }
+.table-shell[data-layout-mode="desktop"] .table-bet .chip-stacks { --chip-size: 13px; gap: 2px; }
 .table-shell[data-layout-mode="desktop"] .table-bet[data-dir="right"] { top: 62%; left: calc(100% + 12px); }
 .table-shell[data-layout-mode="desktop"] .table-bet[data-dir="left"] { top: 62%; right: calc(100% + 12px); }
 .table-shell[data-layout-mode="desktop"] .table-bet[data-pdir="right"] { top: 62%; left: calc(100% + 12px); bottom: auto; transform: translateY(-50%); }

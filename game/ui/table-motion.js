@@ -88,12 +88,18 @@ export function diffSnapshots(prev, next, { dealtHandId = null } = {}) {
 
   if (!newHand) {
     const sum = (o) => Object.values(o).reduce((n, v) => n + v, 0);
+    const completing = prev.status !== "complete" && next.status === "complete";
     if (sum(prev.bets) > 0 && sum(next.bets) === 0) {
       ev.sweep = Object.keys(prev.bets)
         .filter((s) => prev.bets[s] > 0)
         .map((s) => ({ seatNo: Number(s), amount: prev.bets[s] }));
+    } else if (completing && sum(next.bets) > 0) {
+      // The hand ended with bets still shown in front of the seats: they join the pot before it is paid out
+      ev.sweep = Object.keys(next.bets)
+        .filter((s) => next.bets[s] > 0)
+        .map((s) => ({ seatNo: Number(s), amount: next.bets[s] }));
     }
-    if (prev.status !== "complete" && next.status === "complete") {
+    if (completing) {
       const payouts = Object.keys(next.payouts).map((s) => ({ seatNo: Number(s), amount: next.payouts[s] }));
       if (payouts.length) ev.payouts = payouts;
     }
@@ -143,7 +149,7 @@ export function settle() {
   runs = [];
   if (typeof document !== "undefined") {
     document.querySelectorAll(".motion-ghost").forEach((g) => g.remove());
-    document.querySelectorAll(".playing-card--flipping").forEach((c) => c.classList.remove("playing-card--flipping"));
+    document.querySelectorAll(".card-flip-cover").forEach((c) => c.remove());
   }
 }
 
@@ -168,9 +174,14 @@ function track(a) {
   return a;
 }
 
-/** Slides an element from an offset (in px, relative to its resting place) to rest. Resting style stays the visible one. */
+/**
+ * Slides an element from an offset (in px, relative to its resting place) to rest. Resting style stays the visible one.
+ * A face-up card that is dealt shows a back-pattern cover while it flies; the cover is itself animated (opacity 1 while
+ * flying, CSS default 0 otherwise), so it vanishes by itself when the animation ends, is cancelled or is finished.
+ * Nothing here relies on an event handler having run.
+ */
 function flyIn(el, dx, dy, { delay = 0, duration = DEAL_MS, elapsed = 0, flip = false, rotate = -10, scale = 0.6 } = {}) {
-  const a = track(
+  const anims = [
     el.animate(
       [
         { translate: `${dx}px ${dy}px`, rotate: `${rotate}deg`, scale: String(scale), opacity: 0 },
@@ -179,18 +190,18 @@ function flyIn(el, dx, dy, { delay = 0, duration = DEAL_MS, elapsed = 0, flip = 
       ],
       { duration, delay, easing: EASE, fill: "backwards" }
     )
-  );
+  ];
   if (flip) {
-    el.classList.add("playing-card--flipping");
-    const flipUp = () => {
-      el.classList.remove("playing-card--flipping");
-      track(el.animate([{ scale: "0.04 1" }, { scale: "1 1" }], { duration: FLIP_MS, easing: EASE }));
-    };
-    a.addEventListener("finish", flipUp);
-    a.addEventListener("cancel", () => el.classList.remove("playing-card--flipping"));
+    el.classList.add("playing-card--covered");
+    const cover = document.createElement("span");
+    cover.className = "card-flip-cover";
+    cover.setAttribute("aria-hidden", "true");
+    el.appendChild(cover);
+    anims.push(cover.animate([{ opacity: 1 }, { opacity: 1 }], { duration, delay, fill: "backwards" }));
+    anims.push(el.animate([{ scale: "0.04 1" }, { scale: "1 1" }], { duration: FLIP_MS, delay: delay + duration, easing: EASE }));
   }
-  if (elapsed > 0) a.currentTime = elapsed;
-  return a;
+  anims.forEach((a) => { track(a); if (elapsed > 0) a.currentTime = elapsed; });
+  return anims;
 }
 
 function flipOnly(el, { delay = 0, elapsed = 0 } = {}) {

@@ -103,7 +103,6 @@
 /* Poker chip, drawn in CSS: rim with edge inserts (count differs per denomination, so colour is not the only cue),
    an inner ring and the society mark in the centre. Decorative (aria-hidden); the amount is always printed as text. */
 .chip {
-  --chip-size: 18px;
   --n: 8;
   --chip-face: var(--chip-25-face);
   --chip-insert: var(--chip-25-insert);
@@ -111,8 +110,8 @@
   position: relative;
   display: inline-block;
   flex: none;
-  width: var(--chip-size);
-  height: var(--chip-size);
+  width: var(--chip-size, 18px);
+  height: var(--chip-size, 18px);
   border-radius: 50%;
   background:
     radial-gradient(circle closest-side, var(--chip-face) 0 63%, transparent 64%),
@@ -124,7 +123,7 @@
   position: absolute;
   inset: 21%;
   border-radius: 50%;
-  border: max(1px, calc(var(--chip-size) * 0.045)) solid rgba(255, 255, 255, 0.55);
+  border: max(1px, calc(var(--chip-size, 18px) * 0.045)) solid rgba(255, 255, 255, 0.55);
 }
 .chip::after {
   content: "";
@@ -141,13 +140,13 @@
 /* The small icon beside a stack amount (kept under its old name so existing size rules still apply) */
 .chip-disc { --chip-size: 14px; }
 .chip-disc::before { display: none; }
-.chip-stacks { display: inline-flex; align-items: flex-end; gap: 3px; flex: none; --chip-size: 14px; }
+.chip-stacks { display: inline-flex; align-items: flex-end; gap: 3px; flex: none; }
 .chip-stack {
-  --step: calc(var(--chip-size) * 0.16);
+  --step: calc(var(--chip-size, 14px) * 0.16);
   position: relative;
   flex: none;
-  width: var(--chip-size);
-  height: calc(var(--chip-size) + (var(--count, 1) - 1) * var(--step) + 1.5px);
+  width: var(--chip-size, 14px);
+  height: calc(var(--chip-size, 14px) + (var(--count, 1) - 1) * var(--step) + 1.5px);
 }
 .chip-stack .chip { position: absolute; left: 0; bottom: calc(var(--i, 0) * var(--step) + 1.5px); }
 .chip-balance-hero {
@@ -265,10 +264,19 @@
 /* Motion (deal, fold, chips) is driven from ui/table-motion.js with the Web Animations API. The resting style of every
    card and chip is the visible one; animations only run FROM an offset, so nothing depends on them having run. */
 .table-motion-layer { position: absolute; inset: 0; z-index: 20; pointer-events: none; overflow: hidden; border-radius: inherit; }
-.motion-ghost { position: absolute; left: 0; top: 0; margin: 0; pointer-events: none; }
-/* While a face-up card is "in flight" it shows its back; removed after the flip (and always by the fallback timer) */
-.playing-card--flipping { background-color: var(--brand); background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.12) 0 2px, transparent 2px 8px); border: 2px solid var(--paper); }
-.playing-card--flipping > * { visibility: hidden; }
+.motion-ghost { position: absolute; left: 0; top: 0; margin: 0; pointer-events: none; opacity: 0; } /* invisible unless its animation is running */
+/* Face-up cards show a back-pattern cover while they fly; the cover is invisible at rest and only an animation makes it visible */
+.playing-card--covered { position: relative; }
+.card-flip-cover {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  background-color: var(--brand);
+  background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.12) 0 2px, transparent 2px 8px);
+  border: 2px solid var(--paper);
+}
 .pot-chips { display: inline-flex; align-items: flex-end; margin-right: 8px; --chip-size: 15px; }
 .pot-chips:empty { display: none; }
 

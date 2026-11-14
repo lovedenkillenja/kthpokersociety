@@ -54,6 +54,15 @@ test("end of street sweeps bets into the pot", () => {
   assert.equal(ev.bets, undefined);
 });
 
+test("a hand that ends with bets still in front sweeps them, then pays", () => {
+  const prev = snap(table({ seats: [seat(0, { bet: 200 }), seat(1), seat(2)] }));
+  const next = snap(table({ status: "complete", seats: [seat(0, { bet: 200 }), seat(1, { bet: 200 }), seat(2)], payouts: { 1: 400 } }));
+  const ev = diffSnapshots(prev, next);
+  assert.deepEqual(ev.sweep, [{ seatNo: 0, amount: 200 }, { seatNo: 1, amount: 200 }]);
+  assert.deepEqual(ev.payouts, [{ seatNo: 1, amount: 400 }]);
+  assert.equal(ev.bets, undefined);
+});
+
 test("hand completing pays the pot to every winner (split pots)", () => {
   const prev = snap(table());
   const next = snap(table({ status: "complete", payouts: { 0: 50, 1: 50, 2: 0 } }));
