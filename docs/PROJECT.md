@@ -1,6 +1,6 @@
 # KTH Poker Society: project overview
 
-Last updated: 2026-11-13. Update the "Current state" and "Open issues" sections at the end of every work session.
+Last updated: 2026-11-14. Update the "Current state" and "Open issues" sections at the end of every work session.
 
 ## 1. What this project is
 KTH Poker Society is a student association at KTH Royal Institute of Technology (Stockholm) for poker strategy, probability and game theory. **No real money, ever.** The project has three parts:
@@ -43,7 +43,7 @@ Branches in the repo:
 
 **Game.** `game/` is plain ES modules. The server decides everything: Edge Functions `table` (create/join/leave) and `act` (fold/check/call/raise/all-in, timers) run the shared pure engine (`game/engine/`, copied to `supabase/functions/_shared/engine/` by `game/scripts/sync-engine.js`) and persist through SQL functions (`start_hand_tx`, `apply_hand_tx`). Browsers can only read (RLS) and never write chips. Realtime channels broadcast table state. Chips are an append-only ledger (`chip_ledger`, balance = sum of `delta`). Referral system: `get_my_referral`, `redeem_referral`, `claim_referral_rewards` (reward 250 chips, cap 20 rewarded invites, payout delay set in `referral_config()`, currently immediate). Full schema: `supabase/schema/`. Rules and data model: `docs/poker/SPEC.md`. Build history: `docs/history/game-milestones.md`.
 
-**Tests.** `node --test` from the repo root (48 tests: engine, edge-function handlers, store transactions, layout, referral, format).
+**Tests.** `node --test` from the repo root (58 tests: engine, edge-function handlers, store transactions, layout, referral, format, game gate, netlify config).
 
 ## 4. How things get deployed
 - **Website and game files:** `git push` to `v3-merged-design`; Netlify deploys to kthpokersociety.se. There is no staging gate, so **push risky changes on a feature branch first** and check the branch preview.
@@ -59,15 +59,25 @@ Branches in the repo:
 - The members database holds 20 accounts from testing, some of them real friends. See open issues.
 - The site is still `noindex` (search engines will not list it).
 
+## 5b. Wave 1 (2026-11-14): on branch `work/wave1`, NOT merged to the live branch, NOT pushed
+Three reviewed worker branches merged into `work/wave1` (`node --test` 58/58):
+- `work/perf-a11y`: board photos moved out of `index.html` to `assets/board/*.jpg` (file went from 390 KB to 80 KB; the "never print line 524" warning no longer applies after merge), skip link, canonical and OG tags, SRI on supabase-js.
+- `work/game-mobile-overflow`: the game lobby no longer scrolls sideways at 375px (`game/styles/components.css`). Logged-in views and dialogs share the fix but are UNVERIFIED.
+- `work/security-headers`: CSP, X-Frame-Options, Permissions-Policy in `netlify.toml`; forced 404 for `/docs/*`, `/supabase/*`, `/netlify/*`, repo meta files, `/game/tests/*`, `/game/scripts/*`; SRI on supabase-js in `game/index.html`; test `game/tests/netlify-config.test.js`.
+- UNVERIFIED until checked on a Netlify branch preview: headers actually sent (also on the gate page), gate unlock POST under `form-action 'self'`, login/signup on `/`, Realtime (wss) in a logged-in game, the 404 rules (they rewrite to `/404.html`, which does not exist yet), `/game/engine/*` still 200.
+- Follow-ups: replace `'unsafe-inline'` in `script-src` with hashes or external script files; the CSP pins jsDelivr to `supabase-js@2.45.4/`, so a version bump must update the CSP and both SRI hashes; add a real `404.html`; add an `og:image`; convert board photos to WebP.
+
 ## 6. Open issues and decisions for Love (highest priority first)
-1. **Set the game gate env vars** (see current state). Without them nobody can open `/game`, including Love.
-2. **Clean up test data in the members project.** 20 accounts exist; about 10 are obvious test accounts and about 8 look like real people who tested the game. Love has not yet said whether to delete all or only test accounts. Deleting removes accounts, chips, hand history, tables and referrals and cannot be undone. Ask before doing anything. (Deleting a row in `auth.users` cascades to `members` and everything that references it, except `poker_tables.host_id` and `table_seats.member_id`, which are `ON DELETE RESTRICT`: delete seats, hands and tables first.)
-3. **Supabase Auth Site URL: UNVERIFIED.** It was `http://localhost:3000`. It must be `https://kthpokersociety.se`, and the redirect URL list must include `https://kthpokersociety.se/**` and the branch previews. This affects confirmation and password-reset emails. The MCP cannot read or change it; check in the dashboard (Authentication, URL Configuration).
+1. **Game gate env vars: appear to be set.** On 2026-11-14 `/game/` answered 401 with the code form (403 would mean missing vars). Love should confirm the code works.
+2. **Clean up test data in the members project.** Love decided 2026-11-14: delete the obvious test accounts only (9 identified; 2 more look like Love's own duplicates). Exact list awaits Love's confirmation; nothing deleted yet. 20 accounts exist; about 10 are obvious test accounts and about 8 look like real people who tested the game. Love has not yet said whether to delete all or only test accounts. Deleting removes accounts, chips, hand history, tables and referrals and cannot be undone. Ask before doing anything. (Deleting a row in `auth.users` cascades to `members` and everything that references it, except `poker_tables.host_id` and `table_seats.member_id`, which are `ON DELETE RESTRICT`: delete seats, hands and tables first.)
+3. **Supabase Auth Site URL: set by Love 2026-11-14 to `https://kthpokersociety.se` in both projects; still UNVERIFIED by a real confirmation email, and the redirect URL list has not been checked.** It was `http://localhost:3000`. It must be `https://kthpokersociety.se`, and the redirect URL list must include `https://kthpokersociety.se/**` and the branch previews. This affects confirmation and password-reset emails. The MCP cannot read or change it; check in the dashboard (Authentication, URL Configuration).
 4. **Applications database can pause again** (Supabase pauses inactive projects on the free plan; check the plan). If it pauses, the form fails silently for visitors. Options: upgrade, move the table into the members project, or add a keep-alive. There is no notification for new applications: consider an email notification or a small admin view.
 5. **`noindex`** is still on in `index.html`. Remove it when Love wants the site to appear in Google.
 6. **Game launch checklist:** remove the game gate; decide the referral payout delay (currently immediate; Love suggested 7 days later: change `referral_config()`); verify Site URL (above); run the two-account referral test on a preview; decide what happens with test accounts and their chips; the in-game invite link points to `kthpokersociety.se/game/?ref=CODE`.
 7. **Database hygiene (low risk, not urgent):** `anon`/`authenticated` hold broader table privileges than needed on `members` (INSERT/DELETE/TRUNCATE etc.), on the views `chip_balances` and `public_hands`, and on `board_applications` in the applications project. RLS and `security_invoker` views make this unexploitable through the API today, but revoking the extra privileges is cleaner. Also: leaked-password protection is off (Love's call), `pg_cron` is not installed (idle empty poker tables only close when a host creates a new table).
-8. **Content:** Adam Kango's board photo is missing (initials are used).
+8. **Content:** Adam Kango's board photo is missing (initials are used). No date for the first event yet (Events section stays an empty state).
+8b. **Welcome email (requested by Love 2026-11-14):** planned for wave 2. Simplest: turn the Supabase "Confirm signup" email template into a welcome email; a separate post-confirmation email needs a mail provider and an API key.
+8c. **Found in review, not fixed:** the turn timer only advances while a client is connected (needs `pg_cron`); referral rewards pay out immediately (farmable with fake accounts); the application form has no spam protection and no notification.
 9. **Privacy.** The applications table holds personal data (name, email, phone, LinkedIn, CV link). Members are students. Keep access to the owner, never put exports in the repo, and keep the site's privacy notice accurate.
 10. **Housekeeping:** decide what to do with the two old Netlify projects, the unused domain and the old branches.
 
