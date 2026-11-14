@@ -466,3 +466,27 @@ export function describeHandStatus(tableState) {
     isMyTurn: false
   };
 }
+
+/**
+ * Pots worth showing as a breakdown: only when at least two non-empty pots exist AND they are contested by
+ * different sets of players (a plain main pot, or slices with identical eligibility, is just "the pot").
+ * While a hand is still running a breakdown also needs a player who is all-in. Returns an empty array otherwise.
+ */
+export function getDisplayPots(hand, seats = []) {
+  if (!hand) return [];
+  // While a hand is running, pot slices only matter once someone is all-in (otherwise they are just bet levels).
+  const someoneAllIn = (Array.isArray(seats) ? seats : []).some((s) => s.allIn && !s.folded);
+  if (hand.status !== "complete" && !someoneAllIn) return [];
+  const list = hand.showdown?.pots?.length > 1 ? hand.showdown.pots : hand.pots;
+  const pots = (Array.isArray(list) ? list : []).filter((p) => Number(p?.amount) > 0);
+  if (pots.length < 2) return [];
+  const keyOf = (p) =>
+    Array.isArray(p.eligibleSeats)
+      ? [...p.eligibleSeats].sort((a, b) => a - b).join(",")
+      : Array.isArray(p.winners)
+        ? `w:${[...p.winners].sort((a, b) => a - b).join(",")}`
+        : "";
+  const keys = new Set(pots.map(keyOf));
+  const distinct = keys.size > 1 || keys.has("");
+  return distinct ? pots : [];
+}

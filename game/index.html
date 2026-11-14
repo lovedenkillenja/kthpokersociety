@@ -286,10 +286,11 @@
           <div id="table-opponent-seat" class="table-opponents-grid" aria-label="Opponent seats"></div>
 
           <div class="table-center">
-            <div class="table-pot-box" aria-live="polite">
+            <div class="table-pot-box" id="table-pot-box" aria-live="polite" hidden>
               <div class="table-pot-value">
-                <span class="chip-disc" aria-hidden="true"></span>
-                <span id="table-pot-amount">Pot: 0</span>
+                <span class="table-pot-label">Pot</span>
+                <span id="table-pot-amount">0</span>
+                <span class="sr-only">chips</span>
               </div>
               <div id="table-side-pots" class="table-side-pots" hidden></div>
             </div>
@@ -336,7 +337,7 @@
 
         <div class="action-bar__inner">
           <div class="action-bar__head">
-            <span id="action-waiting-text">Waiting for players…</span>
+            <span id="action-waiting-text" class="sr-only">Waiting for players…</span>
             <div class="action-bar__meta">
               <span id="action-timer-pill" class="pill tabular" hidden>30s</span>
               <span class="action-bar__keys">F Fold · C Call · R Raise</span>
