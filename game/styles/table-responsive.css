@@ -190,7 +190,10 @@
   .table-seat-plaque .pill { font-size: 10px; }
   .table-seat-handname { font-size: 11px; }
   .table-bet { font-size: 11px; padding: 1px 6px 1px 3px; }
-  .table-bet .chip-stacks { --chip-size: 12px; }
+  /* The landscape felt is only about 250px tall: smaller chips so bets, pot and seats keep clear of each other */
+  .table-bet .chip-stacks { --chip-size: 16px; }
+  .table-bet .chip-stack { --step: 2.5px; }
+  .pot-chips { --chip-size: 18px; }
   .table-status-banner { font-size: 11px; padding: 2px 8px; max-width: min(46%, 340px); }
   .table-pot-value { font-size: 20px; }
   .table-seat-card--self .table-seat-plaque { width: 128px; }
@@ -336,7 +339,7 @@
 .table-shell[data-layout-mode="desktop"] .table-seat-plaque__name strong { font-size: 17px; line-height: 1.25; -webkit-line-clamp: 1; }
 .table-shell[data-layout-mode="desktop"] .seat-you-tag { font-size: 11px; padding: 0 8px; }
 .table-shell[data-layout-mode="desktop"] .table-seat-plaque .chip-amount { font-size: 16px; gap: 6px; }
-.table-shell[data-layout-mode="desktop"] .table-seat-plaque .chip-disc { --chip-size: 15px; }
+.table-shell[data-layout-mode="desktop"] .table-seat-plaque .chip-disc { --chip-size: 18px; }
 .table-shell[data-layout-mode="desktop"] .table-seat-plaque .pill { font-size: 13px; padding: 0 9px; }
 .table-shell[data-layout-mode="desktop"] .table-seat-handname { font-size: 14px; }
 .table-shell[data-layout-mode="desktop"] .seat-timer-bar { height: 5px; margin-top: 3px; }
@@ -355,13 +358,15 @@
 
 /* Bets: between the seat and the pot */
 .table-shell[data-layout-mode="desktop"] .table-bet { font-size: 15px; padding: 2px 10px 2px 6px; gap: 6px; }
-.table-shell[data-layout-mode="desktop"] .table-bet .chip-stacks { --chip-size: 13px; gap: 2px; }
-.table-shell[data-layout-mode="desktop"] .table-bet[data-dir="right"] { top: 62%; left: calc(100% + 12px); }
-.table-shell[data-layout-mode="desktop"] .table-bet[data-dir="left"] { top: 62%; right: calc(100% + 12px); }
+.table-shell[data-layout-mode="desktop"] .table-bet .chip-stacks { --chip-size: 28px; gap: 3px; }
+.table-shell[data-layout-mode="desktop"] .pot-chips { --chip-size: 34px; }
+.table-shell[data-layout-mode="desktop"] .table-bet[data-dir="right"] { top: 72%; left: calc(100% + 12px); }
+.table-shell[data-layout-mode="desktop"] .table-bet[data-dir="left"] { top: 72%; right: calc(100% + 12px); }
 .table-shell[data-layout-mode="desktop"] .table-bet[data-pdir="right"] { top: 62%; left: calc(100% + 12px); bottom: auto; transform: translateY(-50%); }
 .table-shell[data-layout-mode="desktop"] .table-bet[data-row="upper"][data-dir="right"],
-.table-shell[data-layout-mode="desktop"] .table-bet[data-row="upper"][data-dir="left"] { top: 46%; }
-.table-shell[data-layout-mode="desktop"] .table-bet[data-dir="up"] { bottom: calc(100% + 8px); }
+.table-shell[data-layout-mode="desktop"] .table-bet[data-row="upper"][data-dir="left"] { top: -10%; }
+.table-shell[data-layout-mode="desktop"] .table-bet[data-dir="down"]:not([data-pdir]) { left: 0; transform: none; }
+.table-shell[data-layout-mode="desktop"] .table-bet[data-dir="up"] { bottom: 100%; left: 0; transform: none; }
 
 /* Observers: the buy-in form takes the own seat's spot */
 .table-shell[data-layout-mode="desktop"] .table-sitdown-inline { top: auto; bottom: 28px; transform: translateX(-50%); padding: 10px 12px; gap: 12px; }
@@ -467,4 +472,8 @@
   .table-shell[data-layout-mode="desktop"] .table-pot-value { font-size: 32px; }
   .table-shell[data-layout-mode="desktop"] .table-status-banner { font-size: 14px; padding: 3px 14px; }
   .table-shell[data-layout-mode="desktop"] .table-bet { font-size: 14px; }
+  .table-shell[data-layout-mode="desktop"] .table-bet .chip-stacks { --chip-size: 30px; }
+  .table-shell[data-layout-mode="desktop"] .table-bet .chip-stack:nth-child(n+3) { display: block; }
+  .table-shell[data-layout-mode="desktop"] .table-bet[data-dir="right"],
+  .table-shell[data-layout-mode="desktop"] .table-bet[data-dir="left"] { top: 86%; }
 }
