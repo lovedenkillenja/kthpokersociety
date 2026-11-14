@@ -452,6 +452,9 @@ test("M5: 30s action timer, atomic timeout-fold, 2x timeout sit-out, skipping si
   assert.equal(tickRes.body.timedOutSeatNo, 2);
   assert.equal(tickRes.body.table.seats[2].folded, false, "Free check on timeout must not fold");
   assert.equal(tickRes.body.table.hand.street, "flop");
+  const carolActions = admin.handActions.filter((a) => a.seat_no === 2).map((a) => a.action);
+  assert.equal(carolActions.includes("check"), true, "A timed-out free check is stored as `check`");
+  assert.equal(carolActions.includes("timeout-fold"), false, "A timed-out check must not be stored as `timeout-fold`");
 
   // Bob folds on flop to finish Hand #1 quickly
   await handleActRequest({ store, jwt: "jwt-bob", payload: { table: code, intent: "fold" }, now });
@@ -469,7 +472,9 @@ test("M5: 30s action timer, atomic timeout-fold, 2x timeout sit-out, skipping si
   await handleActRequest({ store, jwt: "jwt-bob", payload: { table: code, intent: "fold" }, now });
   await handleActRequest({ store, jwt: "jwt-carol", payload: { table: code, intent: "call" }, now });
 
-  // Alice times out a 2nd time in a row -> consecutiveTimeouts reaches 2 and Alice is set to `sitout`!
+  // Alice times out a 2nd time in a row -> consecutiveTimeouts reaches 2 and Alice is set to `sitout`.
+  // Although checking is free for her (BB option), the seat is folded because it is being sat out,
+  // which leaves Carol alone and ends Hand #2.
   admin.setClock(2_035_000);
   tickRes = await handleActRequest({
     store,
@@ -482,9 +487,10 @@ test("M5: 30s action timer, atomic timeout-fold, 2x timeout sit-out, skipping si
   assert.equal(tickRes.body.satOut, true);
   assert.equal(tickRes.body.table.seats[0].status, "sitout");
   assert.equal(tickRes.body.table.seats[0].consecutiveTimeouts, 2);
-
-  // Carol folds on flop to finish Hand #2
-  await handleActRequest({ store, jwt: "jwt-carol", payload: { table: code, intent: "fold" }, now });
+  assert.equal(tickRes.body.table.seats[0].folded, true, "A seat sat out by a timeout is folded even if it could check");
+  assert.equal(tickRes.body.table.hand.status, "complete", "Hand #2 ends: only Carol is left");
+  assert.equal(tickRes.body.table.hand.payouts[2], 40);
+  assert.deepEqual(admin.checkChipConservationSql(), []);
 
   // Start Hand #3 -> Alice (Seat 0, sitout) is skipped; only Bob (Seat 1) and Carol (Seat 2) are dealt in!
   const h3Res = await handleActRequest({
@@ -513,6 +519,112 @@ test("M5: 30s action timer, atomic timeout-fold, 2x timeout sit-out, skipping si
   assert.equal(sitInRes.body.table.seats[0].status, "active");
   assert.equal(sitInRes.body.table.seats[0].consecutiveTimeouts, 0);
   assert.deepEqual(admin.checkChipConservationSql(), []);
+});
+
+// Allowed values of the `hand_actions.action` check constraint (supabase/migrations/20261102012000_poker_tables.sql)
+const HAND_ACTION_LABELS = new Set([
+  "post-sb", "post-bb", "fold", "check", "call", "bet", "raise", "all-in", "timeout-fold", "showdown", "win"
+]);
+
+test("M5: a sitout seat still in the hand can act, and is folded (not auto-checked) when it times out", async () => {
+  const admin = createM5MockSupabaseAdmin();
+  const store = createSupabaseStore(admin);
+  const now = () => admin.getClock();
+  const ALICE = "11111111-1111-1111-1111-111111111111";
+  const BOB = "22222222-2222-2222-2222-222222222222";
+
+  const cRes = await handleTableRequest({
+    store, jwt: "jwt-alice",
+    payload: { intent: "create", sb: 10, bb: 20, maxSeats: 6, buyIn: 500, seat: 0 },
+    rng: createSeededRng(30), now
+  });
+  const code = cRes.body.table.code;
+  await handleTableRequest({ store, jwt: "jwt-bob", payload: { intent: "join", table: code, buyIn: 500, seat: 1 }, now });
+
+  // Heads-up: dealer seat 0 (Alice) posts SB and acts first; Bob is BB
+  admin.setClock(5_000_000);
+  let res = await handleActRequest({ store, jwt: "jwt-alice", payload: { table: code, intent: "start" }, rng: createSeededRng(31), now });
+  assert.equal(res.body.table.hand.actingSeat, 0);
+  res = await handleActRequest({ store, jwt: "jwt-alice", payload: { table: code, intent: "call" }, now });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.table.hand.actingSeat, 1);
+
+  // Bob ends up `sitout` while still dealt into the running hand (as happened under the old timeout rule)
+  admin.tableSeats.find((s) => s.member_id === BOB).status = "sitout";
+
+  // (b) The server still accepts Bob's action in this hand, and the public state marks him as in the hand
+  const stateRes = await handleTableRequest({ store, jwt: "jwt-bob", payload: { table: code, intent: "state" }, now });
+  const bobSeat = stateRes.body.table.seats.find((s) => s.seatNo === 1);
+  assert.equal(bobSeat.status, "sitout");
+  assert.equal(bobSeat.inHand, true);
+  assert.equal(stateRes.body.table.hand.legalActions.canCheck, true);
+  res = await handleActRequest({ store, jwt: "jwt-bob", payload: { table: code, intent: "check" }, now });
+  assert.equal(res.status, 200, "A sitout seat that is still in the hand may act");
+  assert.equal(res.body.table.hand.street, "flop");
+
+  // Flop: Bob (non-dealer) acts first. He is still `sitout`, so his timeout folds although a check is free.
+  const flopDeadline = res.body.table.hand.turnDeadlineAt;
+  assert.equal(res.body.table.hand.actingSeat, 1);
+  admin.setClock(flopDeadline + 1);
+  const tickRes = await handleActRequest({ store, jwt: "jwt-alice", payload: { table: code, intent: "tick" }, now });
+  assert.equal(tickRes.body.timedOut, true);
+  assert.equal(tickRes.body.timedOutSeatNo, 1);
+  assert.equal(tickRes.body.satOut, true);
+  assert.equal(tickRes.body.table.seats.find((s) => s.seatNo === 1).folded, true);
+  assert.equal(tickRes.body.table.hand.status, "complete", "Only Alice is left, so the hand ends at once");
+  assert.equal(tickRes.body.table.hand.payouts[0], 40);
+  assert.equal(admin.tableSeats.find((s) => s.member_id === ALICE).stack, 520);
+  assert.equal(admin.tableSeats.find((s) => s.member_id === BOB).stack, 480);
+  assert.deepEqual(admin.checkChipConservationSql(), []);
+
+  const handId = tickRes.body.table.hand.id;
+  const bobActions = admin.handActions.filter((a) => a.hand_id === handId && a.seat_no === 1).map((a) => a.action);
+  assert.deepEqual(bobActions, ["post-bb", "check", "timeout-fold"]);
+  for (const a of admin.handActions) {
+    assert.equal(HAND_ACTION_LABELS.has(a.action), true, `hand_actions.action "${a.action}" violates the DB check constraint`);
+  }
+});
+
+test("M5: two absent players do not auto-check a whole board: the second consecutive timeout folds and ends the hand", async () => {
+  const admin = createM5MockSupabaseAdmin();
+  const store = createSupabaseStore(admin);
+  const now = () => admin.getClock();
+
+  const cRes = await handleTableRequest({
+    store, jwt: "jwt-alice",
+    payload: { intent: "create", sb: 10, bb: 20, maxSeats: 6, buyIn: 500, seat: 0 },
+    rng: createSeededRng(40), now
+  });
+  const code = cRes.body.table.code;
+  await handleTableRequest({ store, jwt: "jwt-bob", payload: { intent: "join", table: code, buyIn: 500, seat: 1 }, now });
+
+  admin.setClock(7_000_000);
+  let res = await handleActRequest({ store, jwt: "jwt-alice", payload: { table: code, intent: "start" }, rng: createSeededRng(41), now });
+  // Alice (SB, first to act) calls; from here on nobody acts and only clients' ticks move the hand
+  res = await handleActRequest({ store, jwt: "jwt-alice", payload: { table: code, intent: "call" }, now });
+
+  let table = res.body.table;
+  let ticks = 0;
+  while (table.hand.status === "playing" && ticks < 10) {
+    admin.setClock(table.hand.turnDeadlineAt + 1);
+    const t = await handleActRequest({ store, jwt: "jwt-alice", payload: { table: code, intent: "tick" }, now });
+    assert.equal(t.body.timedOut, true);
+    table = t.body.table;
+    ticks += 1;
+    assert.deepEqual(admin.checkChipConservationSql(), []);
+  }
+  // Bob's BB option times out as a check (timeout 1); on the flop Bob acts first and his 2nd timeout folds him
+  assert.equal(table.hand.status, "complete");
+  assert.equal(ticks, 2, "The hand ends at the first sit-out instead of running to the river");
+  assert.equal(table.hand.board.length, 3);
+  const bob = table.seats.find((s) => s.seatNo === 1);
+  assert.equal(bob.status, "sitout");
+  assert.equal(bob.folded, true);
+  assert.equal(table.seats.find((s) => s.seatNo === 0).status, "active");
+  assert.equal(table.hand.payouts[0], 40);
+  for (const a of admin.handActions) {
+    assert.equal(HAND_ACTION_LABELS.has(a.action), true, `hand_actions.action "${a.action}" violates the DB check constraint`);
+  }
 });
 
 test("M5: 30-minute idle empty table auto-cleanup and host close-table intent", async () => {

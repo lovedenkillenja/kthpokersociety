@@ -450,7 +450,7 @@ test("3-6 player hands: dealer rotation, SB/BB/UTG positions, and skipping sitou
   assert.equal(h2.actingSeat, 0);
 });
 
-test("Engine timeout action checks when free and folds when facing a bet, logging timeout-fold", () => {
+test("Engine timeout action checks when free (logged as check) and folds when facing a bet (logged as timeout-fold)", () => {
   const seats = [
     { seat: 0, stack: 500, name: "P0" },
     { seat: 1, stack: 500, name: "P1" },
@@ -462,7 +462,7 @@ test("Engine timeout action checks when free and folds when facing a bet, loggin
   state = apply(state, 0, { type: "timeout" });
   assert.equal(state.seats.find((s) => s.seat === 0).folded, true);
   assert.equal(state.actions.at(-1).type, "timeout-fold");
-  assert.equal(state.actions.at(-1).mode, "fold");
+  assert.equal(state.actions.at(-1).timeout, true);
 
   // SB (seat 1) calls 20 -> now BB (seat 2) has option to check for free -> timeout must check!
   state = apply(state, 1, { type: "call" });
@@ -470,7 +470,28 @@ test("Engine timeout action checks when free and folds when facing a bet, loggin
   state = apply(state, 2, { type: "timeout" });
   assert.equal(state.seats.find((s) => s.seat === 2).folded, false, "Timeout when canCheck is true must check, not fold");
   assert.equal(state.street, "flop");
-  assert.equal(state.actions.at(-1).type, "timeout-fold");
-  assert.equal(state.actions.at(-1).mode, "check");
+  assert.equal(state.actions.at(-1).type, "check", "A timed-out check is logged as a check, not as timeout-fold");
+  assert.equal(state.actions.at(-1).timeout, true);
   assert.equal(checkChipConservation(state, 1500).conserved, true);
+});
+
+test("Engine forced timeout fold folds even when checking is free and ends the hand when one player remains", () => {
+  const seats = [
+    { seat: 0, stack: 500, name: "P0" },
+    { seat: 1, stack: 500, name: "P1" }
+  ];
+  // Heads-up: dealer=0 posts SB and acts first; SB calls, BB (seat 1) has a free check option
+  let state = newHand(seats, 0, { sb: 10, bb: 20 }, createSeededRng(89));
+  state = apply(state, 0, { type: "call" });
+  assert.equal(state.actingSeat, 1);
+  assert.equal(legalActions(state, 1).canCheck, true);
+
+  state = apply(state, 1, { type: "timeout", fold: true });
+  assert.equal(state.seats.find((s) => s.seat === 1).folded, true, "Forced timeout must fold although a check was legal");
+  assert.equal(state.actions.at(-1).type, "timeout-fold");
+  assert.equal(state.status, "complete", "Hand ends when only one player remains");
+  assert.equal(state.payouts[0], 40);
+  assert.equal(state.seats.find((s) => s.seat === 0).stack, 520);
+  assert.equal(state.seats.find((s) => s.seat === 1).stack, 480);
+  assert.equal(checkChipConservation(state, 1000).conserved, true);
 });

@@ -491,3 +491,41 @@ export function getDisplayPots(hand, seats = []) {
   const distinct = keys.size > 1 || keys.has("");
   return distinct ? pots : [];
 }
+
+/**
+ * True when `seat` is still dealt into the running hand (not folded). A `sitout` seat can be: sitting out
+ * only takes effect from the next deal. Uses the server's `inHand` flag, with a fallback for older payloads.
+ */
+export function isSeatInRunningHand(seat, hand) {
+  if (!seat || !hand || hand.status !== "playing" || seat.folded) return false;
+  if (typeof seat.inHand === "boolean") return seat.inHand;
+  return Number(seat.totalCommitted) > 0 || Boolean(seat.allIn) || hand.actingSeat === seat.seatNo;
+}
+
+/**
+ * Decides what the docked action bar shows during a running hand for the viewer's own seat.
+ * `mode` is "controls" (Fold / Check-Call / Raise) whenever it is the viewer's turn and the server sent
+ * legal actions, whatever the seat status is (a `sitout` seat still in the hand must be able to act).
+ * Otherwise "waiting"; `showIdleRow` keeps the "Sit back in" control reachable for a sitting-out seat.
+ */
+export function computeActionBarState(tableState) {
+  const hand = tableState?.hand || null;
+  const seats = Array.isArray(tableState?.seats) ? tableState.seats : [];
+  const selfSeat = seats.find((s) => s.isSelf) || null;
+  if (!selfSeat || !hand || hand.status !== "playing") {
+    return { mode: "idle", isMyTurn: false, showIdleRow: true, waitingText: "" };
+  }
+  const isSitout = selfSeat.status === "sitout";
+  const inHand = isSeatInRunningHand(selfSeat, hand);
+  const isMyTurn = hand.actingSeat === selfSeat.seatNo;
+  if (isMyTurn && hand.legalActions) {
+    return { mode: "controls", isMyTurn: true, showIdleRow: false, waitingText: "Your turn" };
+  }
+  const actingSeat = seats.find((s) => s.seatNo === hand.actingSeat);
+  const actorName = actingSeat?.displayName || `Seat ${(hand.actingSeat ?? 0) + 1}`;
+  let waitingText = `Waiting for ${actorName}…`;
+  if (isSitout) {
+    waitingText = inHand ? `${waitingText} You sit out from the next hand` : "Sitting out this hand";
+  }
+  return { mode: "waiting", isMyTurn, showIdleRow: isSitout, waitingText };
+}
