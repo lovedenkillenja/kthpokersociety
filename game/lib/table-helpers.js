@@ -25,9 +25,10 @@ export function normalizeRoomCode(raw) {
 }
 
 /**
- * Validates a chip buy-in amount against table bounds and member balance.
+ * Validates a chip buy-in amount against the given bounds (a stakes preset or the joined
+ * table's own range) and the member balance.
  */
-export function validateBuyIn(rawAmount, { minBuyIn = 400, maxBuyIn = 2000, balance = 0 } = {}) {
+export function validateBuyIn(rawAmount, { minBuyIn = 1, maxBuyIn = 100000, balance = 0 } = {}) {
   const num = Number(rawAmount);
   if (!Number.isFinite(num) || !Number.isInteger(num)) {
     return { valid: false, value: 0, error: "Enter a whole number of chips." };

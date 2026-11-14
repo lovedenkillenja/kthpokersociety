@@ -8,8 +8,14 @@ import {
   formatChips, validateDisplayName, normalizeLeaderboardRows, friendlyAuthError
 } from "./lib/format.js";
 import { normalizeRoomCode, validateBuyIn } from "./lib/table-helpers.js";
+import {
+  STAKES_PRESETS, DEFAULT_STAKES_ID, getStakesPreset, formatBlinds, formatBuyInRange,
+  formatBuyInFieldLabel, defaultBuyInFor, joinRangeMessage
+} from "./lib/stakes.js";
 import { createTable, joinTable, fetchTableState, setUnauthorizedHandler } from "./lib/poker-api.js";
-import { sumSeatedChips, isAlreadySeatedAt, shapeSeatedTableRows, seatedChipsHint } from "./lib/seated-tables.js";
+import {
+  sumSeatedChips, isAlreadySeatedAt, shapeSeatedTableRows, seatedChipsHint, shouldShowActiveTableBanner
+} from "./lib/seated-tables.js";
 import {
   createCard, createCardBack, createLeaderboardRow, createLedgerRow, createEmptyState, showToast
 } from "./ui/components.js";
@@ -38,6 +44,9 @@ const els = {
   activeTableBanner: byId("active-table-banner"), activeTableBannerTitle: byId("active-table-banner-title"),
   returnTableBtn: byId("return-table-btn"), createTableForm: byId("create-table-form"),
   createTableMaxSeats: byId("create-table-max-seats"), createTableBuyIn: byId("create-table-buyin"),
+  createTableStakesOptions: byId("create-table-stakes-options"), createTableStakesHint: byId("create-table-stakes-hint"),
+  createTableBuyInLabel: byId("create-table-buyin-label"),
+  joinTableBuyInLabel: byId("join-table-buyin-label"), joinTableHint: byId("join-table-hint"),
   createTableError: byId("create-table-error"), createTableBtn: byId("create-table-btn"),
   joinTableForm: byId("join-table-form"), joinTableCode: byId("join-table-code"),
   joinTableBuyIn: byId("join-table-buyin"), joinTableError: byId("join-table-error"),
@@ -59,6 +68,8 @@ const els = {
   seatedTablesList: byId("seated-tables-list")
 };
 
+const JOIN_HINT_GENERIC = "The buy-in range is set by the table you join.";
+let createBuyInTouched = false;
 let authDialog = null;
 let tableController = null;
 
@@ -95,6 +106,7 @@ async function refreshSeatedTables() {
   const rows = await loadSeatedTables(userId);
   if (state.user?.id !== userId) return;
   state.seatedTables = rows;
+  renderViews();
   renderLobby();
 }
 
@@ -115,12 +127,90 @@ async function refreshBalanceAndLedger() {
  * Asks the server (`table` state intent) whether the caller already holds an active or sit-out
  * seat at this table; if so, opens it. Returns true when the table was opened.
  */
-async function openIfAlreadySeated(code) {
+async function lookupAndOpenIfSeated(code) {
   const res = await fetchTableState(code);
-  if (!res.ok || !isAlreadySeatedAt(res.table)) return false;
+  if (!res.ok || !isAlreadySeatedAt(res.table)) return { opened: false, table: res.ok ? res.table : null };
   tableController.openWithTable(res.table);
   setActiveView("table");
-  return true;
+  return { opened: true, table: res.table };
+}
+
+async function openIfAlreadySeated(code) {
+  return (await lookupAndOpenIfSeated(code)).opened;
+}
+
+/** Stakes preset currently selected in the create form. */
+function selectedStakes() {
+  const checked = els.createTableStakesOptions?.querySelector('input[name="stakes"]:checked');
+  return getStakesPreset(checked?.value || DEFAULT_STAKES_ID);
+}
+
+/** Makes the create form's buy-in input, label and hint follow the chosen preset. */
+function applyCreateStakes({ resetValue = false } = {}) {
+  const stakes = selectedStakes();
+  const input = els.createTableBuyIn;
+  if (!input) return;
+  input.min = String(stakes.minBuyIn);
+  input.max = String(stakes.maxBuyIn);
+  input.step = String(stakes.bb);
+  if (resetValue || !createBuyInTouched || !input.value) {
+    input.value = String(defaultBuyInFor(stakes, state.balance));
+  }
+  if (els.createTableBuyInLabel) els.createTableBuyInLabel.textContent = formatBuyInFieldLabel(stakes);
+  if (els.createTableStakesHint) {
+    els.createTableStakesHint.textContent = `${formatBlinds(stakes.sb, stakes.bb)} · ${formatBuyInRange(stakes.minBuyIn, stakes.maxBuyIn)}`;
+  }
+}
+
+function buildStakesPicker() {
+  const host = els.createTableStakesOptions;
+  if (!host) return;
+  host.replaceChildren(
+    ...STAKES_PRESETS.map((p) => {
+      const label = document.createElement("label");
+      label.className = "stakes-option";
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "stakes";
+      input.value = p.id;
+      input.checked = p.id === DEFAULT_STAKES_ID;
+      const name = document.createElement("span");
+      name.className = "stakes-option__name";
+      name.textContent = p.name;
+      const blinds = document.createElement("span");
+      blinds.className = "stakes-option__blinds tabular";
+      blinds.textContent = `${p.sb} / ${p.bb}`;
+      label.append(input, name, blinds);
+      return label;
+    })
+  );
+  host.addEventListener("change", () => applyCreateStakes({ resetValue: true }));
+  els.createTableBuyIn?.addEventListener("input", () => { createBuyInTouched = true; });
+  applyCreateStakes({ resetValue: true });
+}
+
+/** Resets the join form's buy-in input to the neutral state used before a table is known. */
+function resetJoinBuyInRange() {
+  const input = els.joinTableBuyIn;
+  if (!input) return;
+  input.min = "1";
+  input.removeAttribute("max");
+  input.step = "1";
+  if (els.joinTableBuyInLabel) els.joinTableBuyInLabel.textContent = "Your buy-in (chips)";
+  if (els.joinTableHint) els.joinTableHint.textContent = JOIN_HINT_GENERIC;
+}
+
+/** Shows a looked-up table's own buy-in range in the join form. */
+function applyJoinTableRange(table) {
+  const input = els.joinTableBuyIn;
+  if (!input) return;
+  input.min = String(table.minBuyIn);
+  input.max = String(table.maxBuyIn);
+  input.step = String(table.bb);
+  if (els.joinTableBuyInLabel) els.joinTableBuyInLabel.textContent = formatBuyInFieldLabel(table);
+  if (els.joinTableHint) {
+    els.joinTableHint.textContent = `Room ${table.code} plays ${formatBlinds(table.sb, table.bb)}. ${formatBuyInRange(table.minBuyIn, table.maxBuyIn)}.`;
+  }
 }
 
 async function returnToSeatedTable(code) {
@@ -172,7 +262,9 @@ function renderViews() {
   }
 
   if (els.activeTableBanner) {
-    els.activeTableBanner.hidden = !activeTable;
+    // The "Your chips at tables" panel already lists seated tables with "Return to table";
+    // the banner only stays for an open table that is not in that list.
+    els.activeTableBanner.hidden = !shouldShowActiveTableBanner(activeTable, state.seatedTables);
     if (activeTable && els.activeTableBannerTitle) {
       els.activeTableBannerTitle.textContent = `Active table · Room ${activeTable.code}`;
     }
@@ -203,6 +295,7 @@ function renderLobby() {
   const displayName = state.chipProfile?.display_name || state.member?.full_name || "Member";
   els.lobbyMemberPill.textContent = displayName;
   els.balanceValue.textContent = formatChips(state.balance);
+  applyCreateStakes();
   const atTables = sumSeatedChips(state.seatedTables);
   const atTablesItem = byId("at-tables-item");
   if (atTablesItem) {
@@ -429,15 +522,18 @@ function wireEvents() {
   });
 
   wireSeatedTablesPanel(els, returnToSeatedTable);
+  buildStakesPicker();
+  els.joinTableCode?.addEventListener("input", resetJoinBuyInRange);
 
   els.createTableForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!state.user) return;
     els.createTableError.textContent = "";
 
+    const stakes = selectedStakes();
     const buyInCheck = validateBuyIn(els.createTableBuyIn.value, {
-      minBuyIn: 400,
-      maxBuyIn: 2000,
+      minBuyIn: stakes.minBuyIn,
+      maxBuyIn: stakes.maxBuyIn,
       balance: state.balance
     });
     if (!buyInCheck.valid) {
@@ -451,7 +547,7 @@ function wireEvents() {
 
     const maxSeats = Math.min(6, Math.max(2, Math.trunc(Number(els.createTableMaxSeats?.value || 6))));
     const res = await createTable({
-      sb: 10, bb: 20, minBuyIn: 400, maxBuyIn: 2000, maxSeats, buyIn: buyInCheck.value, seat: 0
+      sb: stakes.sb, bb: stakes.bb, minBuyIn: stakes.minBuyIn, maxBuyIn: stakes.maxBuyIn, maxSeats, buyIn: buyInCheck.value, seat: 0
     });
 
     els.createTableBtn.removeAttribute("aria-busy");
@@ -483,7 +579,7 @@ function wireEvents() {
     // Already seated here? Open the table instead of asking for a new buy-in (server decides via isSelf).
     els.joinTableBtn.setAttribute("aria-busy", "true");
     els.joinTableBtn.disabled = true;
-    const reopened = await openIfAlreadySeated(codeCheck.value);
+    const { opened: reopened, table: knownTable } = await lookupAndOpenIfSeated(codeCheck.value);
     els.joinTableBtn.removeAttribute("aria-busy");
     els.joinTableBtn.disabled = false;
     if (reopened) {
@@ -491,9 +587,21 @@ function wireEvents() {
       return;
     }
 
+    // Use the joined table's own range when the server told us (sb, bb, minBuyIn, maxBuyIn);
+    // otherwise only sanity-check here and let the server judge.
+    const hasRange = knownTable && Number.isFinite(Number(knownTable.minBuyIn)) && Number.isFinite(Number(knownTable.maxBuyIn));
+    if (hasRange) {
+      applyJoinTableRange(knownTable);
+      const rangeMsg = joinRangeMessage(knownTable, Number(els.joinTableBuyIn.value));
+      if (rangeMsg && Number.isInteger(Number(els.joinTableBuyIn.value))) {
+        els.joinTableError.textContent = rangeMsg;
+        els.joinTableBuyIn.focus();
+        return;
+      }
+    }
     const buyInCheck = validateBuyIn(els.joinTableBuyIn.value, {
-      minBuyIn: 400,
-      maxBuyIn: 2000,
+      minBuyIn: hasRange ? knownTable.minBuyIn : 1,
+      maxBuyIn: hasRange ? knownTable.maxBuyIn : 100000,
       balance: state.balance
     });
     if (!buyInCheck.valid) {

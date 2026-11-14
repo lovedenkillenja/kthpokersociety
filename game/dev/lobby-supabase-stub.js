@@ -36,8 +36,8 @@ export async function fetchMySeatedTables() {
       { table_id: "t2", seat_no: 2, member_id: USER.id, stack: 500, status: "sitout" }
     ],
     tables: [
-      { id: "t1", code: "DEMO1", status: "playing" },
-      { id: "t2", code: "DEMO2", status: "waiting" }
+      { id: "t1", code: "DEMO1", status: "playing", sb: 5, bb: 10 },
+      { id: "t2", code: "DEMO2", status: "waiting", sb: 1, bb: 2 }
     ],
     error: null
   };

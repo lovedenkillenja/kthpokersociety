@@ -116,10 +116,10 @@ async function callEdgeFunction(fnName, payload, { isRetry = false } = {}) {
  * Creates a new poker table via the `table` Edge Function (`intent: "create"`).
  */
 export async function createTable({
-  sb = 10,
-  bb = 20,
-  minBuyIn = 400,
-  maxBuyIn = 2000,
+  sb = 5,
+  bb = 10,
+  minBuyIn = 200,
+  maxBuyIn = 1000,
   maxSeats = 6,
   buyIn = 500,
   seat = 0

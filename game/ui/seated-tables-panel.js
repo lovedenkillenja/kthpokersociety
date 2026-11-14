@@ -3,6 +3,7 @@
 // still goes through the table view's existing leave flow.
 
 import { formatChips } from "../lib/format.js";
+import { formatBlinds } from "../lib/stakes.js";
 import { sumSeatedChips, formatSeatedSummary } from "../lib/seated-tables.js";
 
 function createSeatedRow(row) {
@@ -16,7 +17,8 @@ function createSeatedRow(row) {
   const meta = document.createElement("div");
   meta.className = "field-hint tabular";
   const statusText = row.seatStatus === "sitout" ? "Sitting out" : "Seated";
-  meta.textContent = `${formatChips(row.stack)} chips · ${statusText}`;
+  const blinds = row.sb && row.bb ? ` · ${formatBlinds(row.sb, row.bb)}` : "";
+  meta.textContent = `${formatChips(row.stack)} chips · ${statusText}${blinds}`;
   info.append(title, meta);
 
   const btn = document.createElement("button");
