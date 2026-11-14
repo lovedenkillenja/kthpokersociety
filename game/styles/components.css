@@ -128,7 +128,7 @@
 .chip::after {
   content: "";
   position: absolute;
-  inset: 29%;
+  inset: 25%;
   background: var(--chip-mark) center / contain no-repeat;
 }
 .chip[data-denom="1"] { --chip-face: var(--chip-1-face); --chip-insert: var(--chip-1-insert); --chip-edge: var(--chip-1-edge); }
@@ -137,12 +137,14 @@
 .chip[data-denom="100"] { --chip-face: var(--chip-100-face); --chip-insert: var(--chip-100-insert); --chip-edge: var(--chip-100-edge); }
 .chip[data-denom="500"] { --chip-face: var(--chip-500-face); --chip-insert: var(--chip-500-insert); --chip-edge: var(--chip-500-edge); }
 .chip[data-denom="1000"] { --chip-face: var(--chip-1000-face); --chip-insert: var(--chip-1000-insert); --chip-edge: var(--chip-1000-edge); }
-/* The small icon beside a stack amount (kept under its old name so existing size rules still apply) */
-.chip-disc { --chip-size: 14px; }
-.chip-disc::before { display: none; }
+/* The small icon beside a stack amount (kept under its old name so existing size rules still apply):
+   simplified for crispness, rim plus solid centre, no ring and no logo */
+.chip-disc { --chip-size: 16px; box-shadow: 0 0 0 0.5px rgba(2, 8, 20, 0.7); }
+.chip-disc::before,
+.chip-disc::after { display: none; }
 .chip-stacks { display: inline-flex; align-items: flex-end; gap: 3px; flex: none; }
 .chip-stack {
-  --step: calc(var(--chip-size, 14px) * 0.16);
+  --step: 3.5px;
   position: relative;
   flex: none;
   width: var(--chip-size, 14px);
@@ -277,7 +279,7 @@
   background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.12) 0 2px, transparent 2px 8px);
   border: 2px solid var(--paper);
 }
-.pot-chips { display: inline-flex; align-items: flex-end; margin-right: 8px; --chip-size: 15px; }
+.pot-chips { display: inline-flex; align-items: flex-end; --chip-size: 26px; }
 .pot-chips:empty { display: none; }
 
 /* 6. Seat & ActionBar primitives (reused in M4+) */

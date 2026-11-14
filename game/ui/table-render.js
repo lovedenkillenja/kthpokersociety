@@ -120,7 +120,7 @@ export function createBetChip(seat, slotIndex, total) {
   el.setAttribute("role", "img");
   const who = seat.isSelf ? "Your" : `${seat.displayName || `Seat ${seat.seatNo + 1}`}'s`;
   el.setAttribute("aria-label", `${who} bet: ${formatChips(seat.bet)} chips`);
-  const chips = createChipStacks(seat.bet, { maxPerStack: 4, maxStacks: 2 });
+  const chips = createChipStacks(seat.bet, { maxPerStack: 5, maxStacks: 3 });
   const amt = document.createElement("span");
   amt.className = "table-bet__amount";
   amt.textContent = formatChips(seat.bet);

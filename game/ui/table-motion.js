@@ -448,8 +448,8 @@ function buildRuns(felt, events, before) {
         start() {
           const rect = before.bets.get(seatNo) || seatEl(seatNo)?.querySelector(".table-seat-plaque")?.getBoundingClientRect();
           if (!rect) return;
-          const g = createChipStacks(amount, { maxPerStack: 4, maxStacks: 2 });
-          g.style.setProperty("--chip-size", "14px");
+          const g = createChipStacks(amount, { maxPerStack: 5, maxStacks: 3 });
+          g.style.setProperty("--chip-size", "24px");
           ghostFlight(g, centre(rect), potCentre(), { delay: i * 40, duration: CHIP_MS, fadeAt: 0.75 });
           const pot = felt.querySelector(".pot-chips");
           if (pot && i === 0) {
@@ -470,8 +470,8 @@ function buildRuns(felt, events, before) {
         start() {
           const plaque = seatEl(seatNo)?.querySelector(".table-seat-plaque");
           if (!plaque) return;
-          const g = createChipStacks(amount, { maxPerStack: 4, maxStacks: 2 });
-          g.style.setProperty("--chip-size", "16px");
+          const g = createChipStacks(amount, { maxPerStack: 5, maxStacks: 3 });
+          g.style.setProperty("--chip-size", "28px");
           ghostFlight(g, potCentre(), centre(plaque.getBoundingClientRect()), { delay, duration: PAYOUT_MS, fadeAt: 0.8 });
         }
       });

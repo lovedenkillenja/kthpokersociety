@@ -58,7 +58,7 @@
   --chip-500-face: #6b3fa0;  --chip-500-insert: #eadff7;  --chip-500-edge: #3e2362;
   --chip-1000-face: #d1a02f; --chip-1000-insert: #fff7dc; --chip-1000-edge: #8a6618;
   /* The society's game-tree mark (same paths as the favicon), white, cropped to the glyph */
-  --chip-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='80 80 240 210'%3E%3Cg stroke='white' fill='none' stroke-linecap='round'%3E%3Cpath d='M200 108 L130 188 M130 188 L95 270 M130 188 L165 270 M270 188 L305 270' stroke-opacity='.7' stroke-width='14'/%3E%3Cpath d='M200 108 L270 188 L235 268' stroke-width='22'/%3E%3C/g%3E%3Ccircle cx='200' cy='108' r='28' fill='white'/%3E%3C/svg%3E");
+  --chip-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='70 60 260 230'%3E%3Cg stroke='white' fill='none' stroke-linecap='round'%3E%3Cpath d='M200 108 L130 188 M130 188 L95 270 M130 188 L165 270 M270 188 L305 270' stroke-opacity='.9' stroke-width='24'/%3E%3Cpath d='M200 108 L270 188 L235 268' stroke-width='34'/%3E%3C/g%3E%3Ccircle cx='200' cy='108' r='38' fill='white'/%3E%3C/svg%3E");
 
   /* Motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
