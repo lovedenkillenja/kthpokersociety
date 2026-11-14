@@ -53,14 +53,24 @@ function setupDemo(controller, setHoleCards) {
   btn.textContent = "Play sequence";
   bar.append(btn, label);
   let timer = null;
+  // Jump buttons: start the sequence at the first step of one hand (the step before it is shown instantly so the diff is right)
+  steps.forEach((st, i) => {
+    if (!st.first) return;
+    const jump = document.createElement("button");
+    jump.type = "button";
+    jump.textContent = `▶ ${st.handName}`;
+    jump.addEventListener("click", () => { clearTimeout(timer); show(i - 1); timer = setTimeout(() => playFrom(i), 450); });
+    bar.insertBefore(jump, label);
+  });
   const show = (i) => {
     setHoleCards(steps[i].holeCards);
     controller.openWithTable(steps[i].table);
     label.textContent = ` ${i + 1}/${steps.length} ${steps[i].label}`;
   };
-  const play = () => {
+  const play = () => playFrom(0);
+  const playFrom = (start) => {
     clearTimeout(timer);
-    let i = 0;
+    let i = start;
     const next = () => {
       show(i);
       i += 1;
@@ -69,9 +79,50 @@ function setupDemo(controller, setHoleCards) {
     next();
   };
   btn.addEventListener("click", play);
-  window.__demo = { steps, show, play };
+  window.__demo = { steps, show, play, playFrom };
   show(0);
   if (params.get("auto") !== "0") timer = setTimeout(play, STEP_MS);
+}
+
+/** "Sound test" panel: one button per cue, a sound on/off toggle, and an offline render check of every cue. */
+async function buildSoundPanel() {
+  const bar = document.getElementById("harness-bar");
+  if (params.get("bar") === "0") return;
+  const sound = await import("../ui/table-sound.js");
+  const box = document.createElement("span");
+  box.id = "harness-sound";
+  box.setAttribute("role", "group");
+  box.setAttribute("aria-label", "Sound test");
+  const title = document.createElement("span");
+  title.className = "harness-bar__label";
+  title.textContent = "Sound test";
+  const mk = (text, fn) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = text;
+    b.addEventListener("click", fn);
+    box.appendChild(b);
+    return b;
+  };
+  box.appendChild(title);
+  const toggle = mk(sound.isSoundEnabled() ? "Sound on" : "Sound off", () => { sound.toggleSoundEnabled(); });
+  sound.onSoundChange(() => { toggle.textContent = sound.isSoundEnabled() ? "Sound on" : "Sound off"; });
+  [["deal", {}], ["flip", {}], ["bet", { count: 2 }], ["bet", { count: 5 }], ["bet", { cascade: true }], ["sweep", {}], ["check", {}], ["fold", {}], ["turn", {}], ["tick", {}], ["win", {}], ["win", { big: true }]].forEach(([name, extra]) => {
+    const label = name === "bet" ? (extra.cascade ? "bet cascade" : `bet ×${extra.count}`) : name === "win" && extra.big ? "win big" : name;
+    mk(label, () => sound.previewCue(name, extra));
+  });
+  const report = document.createElement("span");
+  report.id = "harness-sound-report";
+  mk("Verify offline", async () => {
+    const rows = [];
+    for (const [name, extra] of [["deal", {}], ["flip", {}], ["bet", { count: 5 }], ["bet", { cascade: true }], ["sweep", {}], ["check", {}], ["fold", {}], ["turn", {}], ["tick", {}], ["win", {}], ["win", { big: true }]]) {
+      rows.push({ ...(await sound.measureCue(name, extra)), variant: extra.cascade ? "cascade" : extra.big ? "big" : extra.count ? `x${extra.count}` : "" });
+    }
+    window.__soundReport = rows;
+    report.textContent = rows.map((r) => `${r.cue}${r.variant ? `(${r.variant})` : ""} ${r.durationSec.toFixed(2)}s peak ${r.peak.toFixed(3)}${r.nonSilent ? "" : " SILENT"}`).join(" | ");
+  });
+  box.appendChild(report);
+  bar.appendChild(box);
 }
 
 async function main() {
@@ -96,6 +147,7 @@ async function main() {
   });
   if (stateName === DEMO) setupDemo(controller, setMockHoleCards);
   else controller.openWithTable(mock.table);
+  buildSoundPanel().catch((err) => console.error("sound panel:", err));
 }
 
 main().catch((err) => {
