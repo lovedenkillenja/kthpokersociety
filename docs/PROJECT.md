@@ -59,13 +59,13 @@ Branches in the repo:
 - The members database holds 10 accounts after the 2026-11-14 cleanup (see open issues).
 - The site is still `noindex` (search engines will not list it).
 
-## 5b. Wave 1 (2026-11-14): on branch `work/wave1`, NOT merged to the live branch, NOT pushed
-Three reviewed worker branches merged into `work/wave1` (`node --test` 58/58):
-- `work/perf-a11y`: board photos moved out of `index.html` to `assets/board/*.jpg` (file went from 390 KB to 80 KB; the "never print line 524" warning no longer applies after merge), skip link, canonical and OG tags, SRI on supabase-js.
-- `work/game-mobile-overflow`: the game lobby no longer scrolls sideways at 375px (`game/styles/components.css`). Logged-in views and dialogs share the fix but are UNVERIFIED.
-- `work/security-headers`: CSP, X-Frame-Options, Permissions-Policy in `netlify.toml`; forced 404 for `/docs/*`, `/supabase/*`, `/netlify/*`, repo meta files, `/game/tests/*`, `/game/scripts/*`; SRI on supabase-js in `game/index.html`; test `game/tests/netlify-config.test.js`.
-- `work/wave1` was pushed to GitHub 2026-11-14, but Netlify did not build a preview for it (`work-wave1--kthpokersociety-v3.netlify.app` is 404 while the `poker-game` preview is 200): branch deploys seem limited to selected branches. Love must allow the branch in Netlify (Project configuration, Build & deploy, Branches and deploy contexts) or approve another route.
-- UNVERIFIED until checked on a Netlify branch preview: headers actually sent (also on the gate page), gate unlock POST under `form-action 'self'`, login/signup on `/`, Realtime (wss) in a logged-in game, the 404 rules (they rewrite to `/404.html`, which does not exist yet), `/game/engine/*` still 200.
+## 5b. Wave 1 (merged to live 2026-11-14 through PR #2)
+- `index.html` is now about 80 KB: board photos live in `assets/board/*.jpg` (the old "never print the base64 line" warning no longer applies). Skip link, canonical and OG tags, SRI on supabase-js (both pages).
+- Game lobby no longer scrolls sideways at 375px.
+- `netlify.toml`: CSP, X-Frame-Options, Permissions-Policy; forced 404 for `/docs/*`, `/supabase/*`, `/netlify/*`, repo meta files, `/game/tests/*`, `/game/scripts/*`. Test: `game/tests/netlify-config.test.js`.
+- Verified on the PR deploy preview with a logged-in test account: headers sent, 404 rules, site login, gate unlock form, lobby, table view, leaderboard, profile, Edge Function calls. UNVERIFIED: a hand in progress and Realtime between two players under the CSP.
+- Netlify: project `kthpokersociety-v3` was NOT linked to GitHub before 2026-11-14 (earlier deploys were manual). Love linked it; pushes to `v3-merged-design` now deploy to production and pull requests get deploy previews (`deploy-preview-<n>--kthpokersociety-v3.netlify.app`). Plain branch URLs are not built. The old project `kthpokersociety-prototype-2` is also linked to the repo (production branch `main`) and builds its own, login-protected previews.
+- The Netlify preview toolbar iframe is blocked by the CSP on previews only (harmless).
 - Follow-ups: replace `'unsafe-inline'` in `script-src` with hashes or external script files; the CSP pins jsDelivr to `supabase-js@2.45.4/`, so a version bump must update the CSP and both SRI hashes; add a real `404.html`; add an `og:image`; convert board photos to WebP.
 
 ## 6. Open issues and decisions for Love (highest priority first)
@@ -78,7 +78,9 @@ Three reviewed worker branches merged into `work/wave1` (`node --test` 58/58):
 7. **Database hygiene (low risk, not urgent):** `anon`/`authenticated` hold broader table privileges than needed on `members` (INSERT/DELETE/TRUNCATE etc.), on the views `chip_balances` and `public_hands`, and on `board_applications` in the applications project. RLS and `security_invoker` views make this unexploitable through the API today, but revoking the extra privileges is cleaner. Also: leaked-password protection is off (Love's call), `pg_cron` is not installed (idle empty poker tables only close when a host creates a new table).
 8. **Content:** Adam Kango's board photo is missing (initials are used). No date for the first event yet (Events section stays an empty state).
 8b. **Welcome email (requested by Love 2026-11-14):** planned for wave 2. Simplest: turn the Supabase "Confirm signup" email template into a welcome email; a separate post-confirmation email needs a mail provider and an API key.
-8c. **Found in review, not fixed:** the turn timer only advances while a client is connected (needs `pg_cron`); referral rewards pay out immediately (farmable with fake accounts); the application form has no spam protection and no notification.
+8c. **Game bug, fix before launch:** a member whose wallet is 0 but who still has chips seated at a table cannot get back in: the lobby's join form rejects on balance before checking for an existing seat, and "Return to table" is not shown after a reload (workaround: open `/game/#/table/CODE`). The lobby balance and the leaderboard do not count chips at tables. Closing the tab does not cash out.
+8d. **Next wave (game design, requested by Love 2026-11-14):** fix 8c; a local design harness page that renders the table in every state with mock data; redesigned table (oval felt, visible empty seats, one status line); redesigned lobby (play first, compact mobile header).
+8e. **Found in review, not fixed:** the turn timer only advances while a client is connected (needs `pg_cron`); referral rewards pay out immediately (farmable with fake accounts); the application form has no spam protection and no notification.
 9. **Privacy.** The applications table holds personal data (name, email, phone, LinkedIn, CV link). Members are students. Keep access to the owner, never put exports in the repo, and keep the site's privacy notice accurate.
 10. **Housekeeping:** decide what to do with the two old Netlify projects, the unused domain and the old branches.
 
