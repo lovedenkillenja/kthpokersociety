@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="./styles/tokens.css">
   <link rel="stylesheet" href="./styles/base.css">
   <link rel="stylesheet" href="./styles/components.css">
+  <link rel="stylesheet" href="./styles/lobby.css">
   <link rel="stylesheet" href="./styles/table.css">
   <link rel="stylesheet" href="./styles/table-responsive.css">
 </head>
@@ -76,6 +77,10 @@
           <button type="button" class="btn btn--ghost" id="guest-signup-btn">Become a member</button>
           <button type="button" class="btn btn--ghost" data-open-tutorial>How to play</button>
         </div>
+        <a class="practice-card practice-card--guest" href="./practice/">
+          <span class="practice-card__title">Practice against bots</span>
+          <span class="practice-card__text">Warm up against bots before you sit down with friends.</span>
+        </a>
         <div class="felt-preview" aria-label="Sample playing cards on poker felt">
           <div class="card-row" id="guest-card-showcase"></div>
           <span class="felt-preview__facts tabular">Micro, Low or Standard stakes · 2–6 seats</span>
@@ -137,6 +142,32 @@
           </div>
         </div>
 
+        <!-- Open tables: tables with free seats (counts only, no player names) -->
+        <section class="open-tables" id="open-tables-box" aria-labelledby="open-tables-heading">
+          <div class="open-tables__head">
+            <h2 class="open-tables__title" id="open-tables-heading">Open tables</h2>
+            <div class="open-tables__tools">
+              <label class="open-tables__toggle" id="open-tables-toggle-wrap" hidden>
+                <input type="checkbox" id="open-tables-show-full">
+                <span>Show full tables<span id="open-tables-toggle-count"></span></span>
+              </label>
+              <button type="button" class="btn btn--ghost btn--compact" id="open-tables-refresh">Refresh</button>
+            </div>
+          </div>
+          <p class="sr-only" id="open-tables-status" aria-live="polite"></p>
+          <p class="form-error" id="open-tables-error" role="alert"></p>
+          <p class="field-hint" id="open-tables-loading">Looking for open tables…</p>
+          <ul class="open-tables__list" id="open-tables-list" role="list" hidden></ul>
+          <div class="empty-state open-tables__empty" id="open-tables-empty" hidden>
+            <h3>No open tables right now</h3>
+            <p>Create one and share the code, or practise against bots.</p>
+            <div class="btn-row open-tables__empty-actions">
+              <button type="button" class="btn btn--primary" id="open-tables-create-btn">Create a table</button>
+              <a class="btn btn--ghost" href="./practice/">Practice</a>
+            </div>
+          </div>
+        </section>
+
         <div class="play-grid">
           <form id="join-table-form" class="play-card" novalidate>
             <h2 class="play-card__title">Join by room code</h2>
@@ -180,6 +211,11 @@
             </form>
           </details>
         </div>
+
+        <a class="practice-card" href="./practice/">
+          <span class="practice-card__title">Practice against bots</span>
+          <span class="practice-card__text">Warm up against bots without waiting for other players.</span>
+        </a>
       </div>
 
       <div class="panel">
