@@ -6,7 +6,7 @@
 
 export const ALL_STATES = [
   "waiting-1", "waiting-3", "preflop-2", "preflop-6", "flop-self-to-act",
-  "turn-allin-sidepots", "river-folded-self", "showdown-split", "sitout", "timer-low"
+  "turn-allin-sidepots", "river-folded-self", "showdown-split", "sitout", "sitout-in-hand-to-act", "timer-low"
 ];
 
 function measure(win) {
@@ -55,6 +55,45 @@ function measure(win) {
       if (ox > 2 && oy > 2) issues.push(`OVERLAP ${items[i].n} x ${items[j].n} (${Math.round(ox)}x${Math.round(oy)})`);
     }
   }
+  // Oval felts clip anything outside the ellipse (overflow: hidden), so plaques, bets and the board must keep inside it,
+  // with a margin for the rail.
+  const mode = d.getElementById("view-table").dataset.layoutMode;
+  if (mode === "desktop") {
+    const rail = 9;
+    const cx = (felt.left + felt.right) / 2;
+    const cy = (felt.top + felt.bottom) / 2;
+    const rx = felt.width / 2 - rail;
+    const ry = felt.height / 2 - rail;
+    d.querySelectorAll(".table-seat-plaque, .table-seat-empty, .table-bet, .table-board-row, .table-sitdown-inline:not([hidden])").forEach((el) => {
+      if (!visible(el)) return;
+      const r = el.getBoundingClientRect();
+      const k = 6; // corners are rounded, so the extreme corner point may sit a little outside
+      const out = [[r.left + k, r.top + k], [r.right - k, r.top + k], [r.left + k, r.bottom - k], [r.right - k, r.bottom - k]].some(([x, y]) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 > 1.001);
+      if (out) issues.push(`OUTOVAL ${String(el.className).split(" ")[0]} ${el.textContent.trim().slice(0, 14)}`);
+    });
+  }
+  // The dealer button must never cover the content of its own plaque, nor any other seat, bet or the board
+  const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+  d.querySelectorAll(".table-dealer").forEach((btn) => {
+    if (!visible(btn)) return;
+    const br = btn.getBoundingClientRect();
+    const own = btn.closest(".table-seat-card");
+    const label = `dealer in seat ${own?.dataset.seatNo}`;
+    own?.querySelectorAll(".table-seat-plaque__name, .table-seat-plaque__meta, .table-seat-handname, .seat-timer-bar").forEach((c) => {
+      if (hit(br, c.getBoundingClientRect())) issues.push(`DEALER covers ${String(c.className).split(" ")[0]} (${label})`);
+    });
+    own?.querySelectorAll(".table-seat-plaque__name strong, .chip-amount, .pill, .seat-you-tag").forEach((c) => {
+      if (hit(br, c.getBoundingClientRect())) issues.push(`DEALER covers ${String(c.className).split(" ")[0] || c.tagName} (${label})`);
+    });
+    items.forEach((it) => {
+      if (own && (it.r === own.getBoundingClientRect() || it.n.startsWith("table-seat-card") && it.n.endsWith(`#${own.dataset.seatNo}`))) return;
+      if (it.n.startsWith("table-bet") && own?.contains([...d.querySelectorAll(".table-bet")].find((b) => b.getBoundingClientRect().left === it.r.left && b.getBoundingClientRect().top === it.r.top))) {
+        if (hit(br, it.r)) issues.push(`DEALER covers own bet (${label})`);
+        return;
+      }
+      if (hit(br, it.r)) issues.push(`DEALER overlaps ${it.n} (${label})`);
+    });
+  });
   d.querySelectorAll(".table-seat-plaque__name strong").forEach((s) => {
     if (s.scrollHeight > s.clientHeight + 1 || s.scrollWidth > s.clientWidth + 1) issues.push(`TRUNC ${s.textContent}`);
   });

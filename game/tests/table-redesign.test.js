@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 
 import { getSeatSlots, assignSeatSlots, betDirection, clampSeatTotal } from "../lib/table-layout.js";
 import { getDisplayPots } from "../lib/table-helpers.js";
+import { dealerCorner } from "../ui/table-render.js";
 
 test("getSeatSlots: own seat is bottom centre and every table size has distinct in-bounds positions", () => {
-  for (const shape of ["portrait", "wide"]) {
+  for (const shape of ["portrait", "wide", "desktop"]) {
     for (let total = 2; total <= 6; total += 1) {
       const slots = getSeatSlots(total, shape);
       assert.equal(slots.length, total, `${shape} ${total}`);
@@ -95,4 +96,34 @@ test("getDisplayPots only shows a breakdown for real side pots", () => {
     2
   );
   assert.deepEqual(getDisplayPots(null, seats), []);
+});
+
+test("desktop seat slots keep the side seats clear of the board column", () => {
+  for (let total = 3; total <= 6; total += 1) {
+    getSeatSlots(total, "desktop").slice(1).forEach(([x, y]) => {
+      if (x === 50) return; // top centre seat
+      // A plaque is about 20% of the felt wide; its inner edge must stay outside the board (30%..70%)
+      assert.ok(x <= 30 || x >= 70, `${total} seats: slot ${x},${y} sits in the board column`);
+    });
+  }
+  const six = getSeatSlots(6, "desktop");
+  assert.deepEqual(six.slice(1).map((p) => (p[0] < 50 ? "left" : p[0] > 50 ? "right" : "top")), ["left", "left", "top", "right", "right"]);
+});
+
+test("dealerCorner keeps the dealer button on a top plaque corner, away from the bet chip", () => {
+  assert.equal(dealerCorner("right", 1, 6), "right"); // seat on the left of the felt: pot-side corner
+  assert.equal(dealerCorner("left", 4, 6), "left"); // seat on the right of the felt: pot-side corner
+  assert.equal(dealerCorner("down", 3, 6), "left"); // 6-max top seat: its chip sits to the right
+  assert.equal(dealerCorner("down", 2, 4), "right");
+  assert.equal(dealerCorner("up", 0, 6), "right"); // own seat: chip above the hole cards
+});
+
+test("the action bar keeps a visible (not sr-only) turn cue element on desktop", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const tag = html.match(/<span id="action-waiting-text"[^>]*>/)?.[0] || "";
+  assert.ok(tag, "#action-waiting-text exists");
+  assert.ok(!/sr-only/.test(tag), "the turn cue is styled by CSS (screen-reader only only below desktop)");
+  const css = readFileSync(new URL("../styles/table-responsive.css", import.meta.url), "utf8");
+  assert.match(css, /\.action-bar--my-turn \.action-bar__status/);
 });
