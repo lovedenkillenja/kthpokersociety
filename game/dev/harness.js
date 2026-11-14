@@ -2,11 +2,13 @@
 // with deterministic mock data. Select a state with `?state=<name>`; hide the switcher with `?bar=0`.
 // Nothing here talks to a network: poker-api.js is replaced by an offline stub via the import map.
 
-import { STATE_NAMES, FIXED_NOW, getMockState } from "./mock-states.js";
+import { STATE_NAMES, FIXED_NOW, getMockState, getDemoSteps } from "./mock-states.js";
 import { setMockHoleCards } from "./poker-api-stub.js";
 
 const params = new URLSearchParams(location.search);
-const stateName = STATE_NAMES.includes(params.get("state")) ? params.get("state") : STATE_NAMES[0];
+const DEMO = "demo-hand";
+const stateName = [...STATE_NAMES, DEMO].includes(params.get("state")) ? params.get("state") : STATE_NAMES[0];
+const STEP_MS = Number(params.get("step")) || 1200;
 
 // Freeze the clock so turn timers are deterministic and never expire.
 Date.now = () => FIXED_NOW;
@@ -16,7 +18,7 @@ try { Object.defineProperty(navigator, "vibrate", { value: () => false, configur
 function buildSwitcher() {
   const bar = document.getElementById("harness-bar");
   if (params.get("bar") === "0") { bar.hidden = true; return; }
-  STATE_NAMES.forEach((name) => {
+  [...STATE_NAMES, DEMO].forEach((name) => {
     const a = document.createElement("a");
     a.href = `?state=${name}`;
     a.textContent = name;
@@ -38,12 +40,46 @@ async function loadTableMarkup() {
   document.body.appendChild(document.adoptNode(drawer));
 }
 
+/** Plays one hand step by step through the real controller (about 1.2 s apart): `?state=demo-hand`, `&step=ms` to change the pace, `&auto=0` to wait for the button. */
+function setupDemo(controller, setHoleCards) {
+  const steps = getDemoSteps();
+  const bar = document.getElementById("harness-bar");
+  const label = document.createElement("span");
+  label.id = "harness-step";
+  label.setAttribute("role", "status");
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "harness-play";
+  btn.textContent = "Play sequence";
+  bar.append(btn, label);
+  let timer = null;
+  const show = (i) => {
+    setHoleCards(steps[i].holeCards);
+    controller.openWithTable(steps[i].table);
+    label.textContent = ` ${i + 1}/${steps.length} ${steps[i].label}`;
+  };
+  const play = () => {
+    clearTimeout(timer);
+    let i = 0;
+    const next = () => {
+      show(i);
+      i += 1;
+      if (i < steps.length) timer = setTimeout(next, STEP_MS);
+    };
+    next();
+  };
+  btn.addEventListener("click", play);
+  window.__demo = { steps, show, play };
+  show(0);
+  if (params.get("auto") !== "0") timer = setTimeout(play, STEP_MS);
+}
+
 async function main() {
   buildSwitcher();
   document.title = `Harness: ${stateName}`;
   await loadTableMarkup();
 
-  const mock = getMockState(stateName);
+  const mock = stateName === DEMO ? { table: null, holeCards: null } : getMockState(stateName);
   setMockHoleCards(mock.holeCards);
 
   // Imported after the clock freeze and markup injection; the real controller looks up its elements on creation.
@@ -58,7 +94,8 @@ async function main() {
     onNavigateView: noop,
     onOpenAuth: noop
   });
-  controller.openWithTable(mock.table);
+  if (stateName === DEMO) setupDemo(controller, setMockHoleCards);
+  else controller.openWithTable(mock.table);
 }
 
 main().catch((err) => {
