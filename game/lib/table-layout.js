@@ -34,6 +34,10 @@ export function detectTableLayoutMode({ viewportWidth = 375, viewportHeight = 66
   return "mobile-portrait";
 }
 
+// Desktop felt cap: roughly 2:1, never edge to edge on wide screens
+export const DESKTOP_FELT_MAX_W = 1000;
+export const DESKTOP_FELT_MAX_H = 570;
+
 /**
  * Computes container-relative pixel metrics (applied as CSS custom properties on `#view-table`)
  * so the felt, seats, community cards, and player hole cards fill the available stage cleanly
@@ -52,39 +56,32 @@ export function computeTableLayoutVars({
   const opponentsCount = clamp(Math.max(1, Number(seatCount || 6) - 1), 1, 5);
 
   if (mode === "desktop") {
-    const padOuterX = clamp(Math.round(sw * 0.025), 16, 44);
-    const padOuterY = clamp(Math.round(sh * 0.025), 10, 28);
-    const maxFeltW = sw - padOuterX * 2;
-    const maxFeltH = sh - padOuterY * 2;
+    // A composed table, not a stretched one: the felt is capped (between 1.75:1 and 2.05:1, at most 1000px wide) and centred.
+    const padX = clamp(Math.round(sw * 0.04), 24, 64);
+    const padY = clamp(Math.round(sh * 0.04), 16, 32);
+    let actualFeltH = Math.min(sh - padY * 2, DESKTOP_FELT_MAX_H);
+    const actualFeltW = Math.min(DESKTOP_FELT_MAX_W, sw - padX * 2, Math.round(actualFeltH * 2.05));
+    actualFeltH = Math.min(actualFeltH, Math.round(actualFeltW / 1.75));
 
-    // Wide oval ratio ~1.72..2.05, constrained to available stage box
-    const feltH = clamp(maxFeltH, 420, 900);
-    const feltW = clamp(Math.min(maxFeltW, Math.round(feltH * 1.92)), 860, 1400);
-    const actualFeltW = Math.min(maxFeltW, feltW);
-    const actualFeltH = Math.min(maxFeltH, feltH);
-
-    // Scale cards & seat pods proportionally to both width and height
-    const unit = Math.min(actualFeltH / 540, actualFeltW / 980);
-    const boardCardW = clamp(Math.round(56 * unit), 48, 82);
+    // Cards and seat plaques scale with the felt (1 = a 1000x570 felt)
+    const unit = clamp(Math.min(actualFeltH / 570, actualFeltW / 1000), 0.6, 1);
+    const boardCardW = clamp(Math.round(72 * unit), 44, 76);
     const boardCardH = Math.round(boardCardW * 1.4);
-    const selfCardW = clamp(Math.round(62 * unit), Math.max(52, boardCardW), 88);
+    const selfCardW = clamp(Math.round(74 * unit), Math.max(46, boardCardW), 80);
     const selfCardH = Math.round(selfCardW * 1.4);
-    const oppCardW = clamp(Math.round(34 * unit), 28, 46);
+    const oppCardW = clamp(Math.round(38 * unit), 26, 42);
     const oppCardH = Math.round(oppCardW * 1.4);
 
-    // Ensure center column always fits 5 board cards + gaps comfortably
-    const minCenterW = boardCardW * 5 + 56;
-    const maxSideCol = Math.floor((actualFeltW - minCenterW - 48) / 2);
-    // Seat plaque width: wide enough for a 12-character name, never wider than the side gutter
-    const seatColW = clamp(Math.round(actualFeltW * 0.15), 150, Math.max(150, Math.min(200, maxSideCol)));
+    // Seat plaque width: wide enough for a 12-character name at desktop type sizes
+    const seatColW = clamp(Math.round(actualFeltW * 0.2), 160, 200);
 
     return {
       mode,
       feltW: actualFeltW,
       feltH: actualFeltH,
-      feltPadX: clamp(Math.round(22 * unit), 14, 34),
-      feltPadY: clamp(Math.round(16 * unit), 10, 26),
-      feltRadius: clamp(Math.round(actualFeltH * 0.34), 96, 240),
+      feltPadX: clamp(Math.round(22 * unit), 14, 24),
+      feltPadY: clamp(Math.round(16 * unit), 10, 18),
+      feltRadius: Math.round(actualFeltH / 2),
       seatColW,
       boardCardW,
       boardCardH,
@@ -162,7 +159,9 @@ export function computeTableLayoutVars({
 }
 
 // Seat positions as [x%, y%] of the felt box, clockwise from the bottom-centre slot 0 (the player's own seat).
-// "portrait" is the tall stadium on phones; "wide" is the landscape / desktop oval.
+// "portrait" is the tall stadium on phones; "wide" is the phone-landscape oval; "desktop" is the capped ~2:1 oval,
+// where slot 0 is only nominal (the own seat is anchored to the bottom edge with CSS) and the side seats sit further
+// in so the larger plaques stay clear of the rail.
 const SEAT_SLOTS = {
   portrait: {
     2: [[50, 87], [50, 11]],
@@ -170,6 +169,13 @@ const SEAT_SLOTS = {
     4: [[50, 87], [22, 67], [50, 8], [78, 67]],
     5: [[50, 87], [22, 68], [22, 22], [78, 22], [78, 68]],
     6: [[50, 87], [22, 68], [22, 22], [50, 8], [78, 22], [78, 68]]
+  },
+  desktop: {
+    2: [[50, 90], [50, 14]],
+    3: [[50, 90], [17, 40], [83, 40]],
+    4: [[50, 90], [17, 52], [50, 14], [83, 52]],
+    5: [[50, 90], [18, 62], [27, 19], [73, 19], [82, 62]],
+    6: [[50, 90], [18, 62], [18, 30], [50, 14], [82, 30], [82, 62]]
   },
   wide: {
     2: [[50, 88], [50, 13]],
@@ -186,7 +192,7 @@ export function clampSeatTotal(maxSeats) {
 }
 
 /**
- * Returns the [x%, y%] positions for `total` seats in the given shape ("portrait" | "wide").
+ * Returns the [x%, y%] positions for `total` seats in the given shape ("portrait" | "wide" | "desktop").
  * Index 0 is always the bottom-centre seat; indexes then run clockwise (bottom-left first).
  */
 export function getSeatSlots(total, shape = "portrait") {

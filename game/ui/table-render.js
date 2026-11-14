@@ -92,9 +92,9 @@ export function updateTurnTimerInPlace(rootEl, remainingSeconds, totalSeconds = 
   }
 }
 
-/** Writes the position of a seat for both table shapes (portrait stadium / wide oval) as CSS custom properties. */
+/** Writes the position of a seat for both table shapes (portrait stadium / phone-landscape oval / desktop oval) as CSS custom properties. */
 function setSlotVars(el, slotIndex, total) {
-  [["p", "portrait"], ["w", "wide"]].forEach(([key, shape]) => {
+  [["p", "portrait"], ["w", "wide"], ["d", "desktop"]].forEach(([key, shape]) => {
     const pos = getSeatSlots(total, shape)[slotIndex];
     if (!pos) return;
     el.style.setProperty(`--sx-${key}`, `${pos[0]}%`);
@@ -135,6 +135,13 @@ export function createBetChip(seat, slotIndex, total, animate = false) {
   amt.textContent = formatChips(seat.bet);
   el.append(disc, amt);
   return el;
+}
+
+/** Top plaque corner for the dealer button (set in CSS, mostly outside the plaque): the pot-facing side, clear of the bet chip. */
+export function dealerCorner(dir, slotIndex, total) {
+  if (dir === "left") return "left";
+  if (dir === "down" && total === 6 && slotIndex === 3) return "left"; // phones: this chip sits to the right
+  return "right";
 }
 
 export function createSeatBox(
@@ -285,7 +292,9 @@ export function createSeatBox(
     dealerBtn.title = "Dealer button";
     dealerBtn.setAttribute("aria-label", "Dealer button");
     dealerBtn.textContent = "D";
-    wrap.appendChild(dealerBtn);
+    // Lives on the plaque corner (see table.css) so it can never sit on another seat's cards or the bet chip
+    dealerBtn.dataset.corner = dealerCorner(wrap.dataset.dir, slotIndex, slotTotal);
+    plaque.appendChild(dealerBtn);
   }
 
   return wrap;
