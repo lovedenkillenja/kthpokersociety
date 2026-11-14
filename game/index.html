@@ -270,6 +270,13 @@
           <button type="button" class="btn btn--ghost btn--topbar btn--icon" data-open-tutorial aria-label="How to play and hand rankings" title="How to play &amp; hand rankings">
             ?
           </button>
+          <button type="button" class="btn btn--ghost btn--topbar btn--icon sound-quick-btn" id="table-sound-quick-btn" aria-pressed="false" aria-label="Sound on/off" title="Sound on/off">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke-width="1.5"/>
+              <path class="sound-quick-btn__waves" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>
+              <path class="sound-quick-btn__slash" d="M16 9.5l5 5M21 9.5l-5 5"/>
+            </svg>
+          </button>
           <button type="button" class="btn btn--ghost btn--topbar btn--icon" id="table-fullscreen-btn" aria-pressed="false" aria-label="Enter fullscreen" title="Toggle fullscreen">
             ⛶
           </button>
@@ -362,6 +369,7 @@
           </div>
 
           <div id="action-controls-wrap" class="action-controls-wrap" hidden>
+            <p id="action-timeout-note" class="action-timeout-note" role="status" hidden>Next timeout sits you out</p>
             <div class="action-btn-grid">
               <button type="button" class="btn btn--danger" id="action-fold-btn">Fold</button>
               <button type="button" class="btn btn--primary" id="action-check-call-btn">Check</button>
@@ -568,6 +576,12 @@
         <button type="button" class="btn btn--ghost" data-drawer-jump="leaderboard">Leaderboard</button>
         <button type="button" class="btn btn--ghost" data-drawer-jump="profile">Profile</button>
         <button type="button" class="btn btn--ghost" id="table-close-btn" hidden>Close empty table</button>
+      </div>
+
+      <div class="sound-volume" role="group" aria-labelledby="table-volume-label">
+        <span id="table-volume-label" class="sound-volume__label">Sound volume</span>
+        <button type="button" class="btn btn--ghost sound-volume__btn" id="table-volume-low-btn" aria-pressed="false">Low</button>
+        <button type="button" class="btn btn--ghost sound-volume__btn" id="table-volume-normal-btn" aria-pressed="true">Normal</button>
       </div>
 
       <div id="table-history-panel" class="table-history-panel">

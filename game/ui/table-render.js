@@ -16,7 +16,8 @@ import {
   createChipAmount,
   createChipStacks
 } from "./components.js";
-import { captureBefore, animateTable, makeSnapshot } from "./table-motion.js";
+import { captureBefore, animateTable, makeSnapshot, computeWinSpec } from "./table-motion.js";
+import { playSoundForEvents, panForX } from "./table-sound.js";
 
 function buildRoleBadges(seat, hand) {
   const pills = [];
@@ -231,6 +232,13 @@ export function createSeatBox(
   const statusPill = buildSeatStatusPill(seat, hand, remainingSeconds);
   if (!["In hand", "Ready"].includes(statusPill.textContent)) stackRow.appendChild(statusPill);
   plaque.append(nameRow, stackRow);
+  // Decorative overlays for the "your turn" ring and the win glow; invisible at rest, only an animation shows them
+  ["ring", "glow"].forEach((kind) => {
+    const fx = document.createElement("span");
+    fx.className = `seat-fx seat-fx--${kind}`;
+    fx.setAttribute("aria-hidden", "true");
+    plaque.appendChild(fx);
+  });
 
   if (evalName) {
     const hn = document.createElement("div");
@@ -294,6 +302,36 @@ function renderPotChips(potAmountEl, pot) {
   }
   holder.replaceChildren();
   if (pot > 0) holder.appendChild(createChipStacks(pot, { maxPerStack: 5, maxStacks: 3 }));
+}
+
+/** Marks the five cards that make each winning hand and dims the rest (resting state of a showdown). */
+function applyWinMarks(els, win, board) {
+  const dim = (card) => card.classList.add("playing-card--dim");
+  const lit = (card) => card.classList.add("playing-card--win");
+  if (!win || win.kind !== "showdown") return;
+  const anyMarked = win.boardWin.length > 0 || Object.keys(win.holeWin).length > 0;
+  if (!anyMarked) return;
+  [...els.boardRow.children].forEach((card, i) => {
+    if (!card.classList.contains("playing-card")) return;
+    (win.boardWin.includes(i) ? lit : dim)(card);
+  });
+  const rows = [...els.opponentArea.querySelectorAll(".table-seat-card[data-seat-no]"), ...els.selfArea.querySelectorAll(".table-seat-card[data-seat-no]")];
+  rows.forEach((seat) => {
+    const seatNo = Number(seat.dataset.seatNo);
+    const litCodes = win.holeWin[seatNo] || [];
+    const hole = [...seat.querySelectorAll(".table-seat-cards .playing-card:not(.playing-card--back)")];
+    hole.forEach((card) => {
+      const label = card.getAttribute("aria-label") || "";
+      (litCodes.some((code) => cardMatchesCode(label, code)) ? lit : dim)(card);
+    });
+  });
+}
+
+const RANK_LABEL = { A: "A", K: "K", Q: "Q", J: "J", T: "10" };
+const SUIT_LABEL = { s: "spades", h: "hearts", d: "diamonds", c: "clubs" };
+function cardMatchesCode(ariaLabel, code) {
+  const rank = RANK_LABEL[code[0]] || code[0];
+  return String(ariaLabel).toLowerCase().startsWith(`${rank} of ${SUIT_LABEL[code[1]] || ""}`.toLowerCase());
 }
 
 export function renderHandHistoryList(listEl, panelEl, historyEntries = [], emptyEl = null, openBtnEl = null) {
@@ -466,10 +504,19 @@ export function renderTableFelt({
   // The pot is already shown in the centre, so a "Pot N chips" detail would only repeat it
   const statusDetail = /^Pot [\d,.\s]+chips?$/i.test(status.detail || "") ? "" : status.detail;
   els.statusDetail.textContent = statusDetail ? ` · ${statusDetail}` : "";
+  // The win moment: the same banner slot (so nothing moves) shows the hand name in the display serif and who won what
+  const win = computeWinSpec(currentTable, { myHoleCards, myHoleCardsHandId: lastHoleCardsHandId });
   const statusBanner = els.statusHeadline.parentElement;
+  if (win) {
+    els.statusHeadline.textContent = win.headline;
+    els.statusDetail.textContent = win.detail;
+    applyWinMarks(els, win, board);
+  }
   if (statusBanner) {
     statusBanner.classList.toggle("table-status-banner--turn", Boolean(status.isMyTurn));
     statusBanner.classList.toggle("table-status-banner--showdown", Boolean(showdownSummary));
+    statusBanner.classList.toggle("table-status-banner--win", Boolean(win));
+    statusBanner.classList.toggle("table-status-banner--win-self", Boolean(win?.selfWins));
   }
 
   // 6. Deal / Sit-in / Sit-out / Close Table controls (docked in action bar + drawer)
@@ -514,5 +561,24 @@ export function renderTableFelt({
       ((Array.isArray(myHoleCards) && myHoleCards.length === 2 && lastHoleCardsHandId === handId) ||
         (Array.isArray(selfSeat.revealedCards) && selfSeat.revealedCards.length === 2))
   );
-  animateTable(els, makeSnapshot(currentTable, { selfCardsKnown }), motionBefore);
+  const events = animateTable(els, makeSnapshot(currentTable, { selfCardsKnown }), motionBefore, { win });
+
+  // Sound comes from the same diff as the motion, so the two stay in sync (nothing plays on first render or re-render)
+  if (Object.keys(events).length) {
+    const seatPans = {};
+    seats.forEach((seat) => {
+      const slot = seat.isSelf ? 0 : slotBySeat.get(seat.seatNo);
+      const pos = seat.isSelf ? [50, 100] : slot === undefined ? null : getSeatSlots(slotTotal, "portrait")[slot];
+      seatPans[seat.seatNo] = pos ? panForX(pos[0]) : 0;
+    });
+    playSoundForEvents(events, {
+      seatNos: seats.filter((s) => s.status === "active" || Number(s.totalCommitted) > 0).map((s) => s.seatNo),
+      dealtSeats: seats.filter((s) => !s.folded && (s.status === "active" || Number(s.totalCommitted) > 0)).map((s) => s.seatNo),
+      selfSeatNo: selfSeat ? selfSeat.seatNo : null,
+      seatPans,
+      bb: currentTable.bb,
+      allInSeats: seats.filter((s) => s.allIn).map((s) => s.seatNo),
+      win
+    });
+  }
 }
