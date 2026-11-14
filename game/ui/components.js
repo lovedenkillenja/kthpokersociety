@@ -2,6 +2,7 @@
 // Uses safe DOM construction (`textContent`) so user display names can never inject HTML.
 
 import { formatChips, formatDelta, formatLedgerSource } from "../lib/format.js";
+import { chipStacks, iconDenomination, RIM_INSERTS } from "../lib/chips.js";
 
 const SUIT_META = Object.freeze({
   s: { symbol: "♠", label: "spades", red: false },
@@ -43,17 +44,46 @@ export function createPill(text, variant = "default") {
 }
 
 /**
- * Creates a ChipAmount display with a flat chip disc and tabular numerals.
+ * One poker chip (decorative, drawn in CSS: rim inserts, inner ring, society mark). See components.css.
+ * `extraClass` lets callers size it (e.g. "chip-disc" for the small icon beside an amount).
+ */
+export function createChip(denom = 1, extraClass = "") {
+  const chip = document.createElement("span");
+  chip.className = `chip${extraClass ? ` ${extraClass}` : ""}`;
+  chip.dataset.denom = String(denom);
+  chip.style.setProperty("--n", String(RIM_INSERTS[denom] || 8));
+  chip.setAttribute("aria-hidden", "true");
+  return chip;
+}
+
+/** A tidy cluster of chip stacks for an amount (capped, see lib/chips.js). Decorative: the number is the truth. */
+export function createChipStacks(amount, { maxPerStack = 5, maxStacks = 3, className = "" } = {}) {
+  const wrap = document.createElement("span");
+  wrap.className = `chip-stacks${className ? ` ${className}` : ""}`;
+  wrap.setAttribute("aria-hidden", "true");
+  chipStacks(amount, { maxPerStack, maxStacks }).forEach(({ denom, count }) => {
+    const stack = document.createElement("span");
+    stack.className = "chip-stack";
+    stack.style.setProperty("--count", String(count));
+    for (let i = 0; i < count; i += 1) {
+      const chip = createChip(denom);
+      chip.style.setProperty("--i", String(i));
+      stack.appendChild(chip);
+    }
+    wrap.appendChild(stack);
+  });
+  return wrap;
+}
+
+/**
+ * Creates a ChipAmount display: a single chip of the highest fitting denomination plus tabular numerals.
  */
 export function createChipAmount(amount, { showDisc = true, suffix = "chips" } = {}) {
   const wrap = document.createElement("span");
   wrap.className = "chip-amount tabular";
 
   if (showDisc) {
-    const disc = document.createElement("span");
-    disc.className = "chip-disc";
-    disc.setAttribute("aria-hidden", "true");
-    wrap.appendChild(disc);
+    wrap.appendChild(createChip(iconDenomination(amount), "chip-disc"));
   }
 
   const num = document.createElement("span");

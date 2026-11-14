@@ -13,17 +13,10 @@ import {
   createCard,
   createCardBack,
   createPill,
-  createChipAmount
+  createChipAmount,
+  createChipStacks
 } from "./components.js";
-
-// Tracks last-seen hand/board/bet state so deal & chip animations only fire on real transitions
-const animState = {
-  handId: null,
-  boardCount: 0,
-  selfHoleHandId: null,
-  pot: 0,
-  betsBySeat: new Map()
-};
+import { captureBefore, animateTable, makeSnapshot } from "./table-motion.js";
 
 function buildRoleBadges(seat, hand) {
   const pills = [];
@@ -115,10 +108,10 @@ export function createEmptySeat(slotIndex, total) {
   return el;
 }
 
-/** Flat chip disc + amount. Placed beside its seat, on the side facing the pot (see betDirection). */
-export function createBetChip(seat, slotIndex, total, animate = false) {
+/** Small chip stack + amount. Placed beside its seat, on the side facing the pot (see betDirection). */
+export function createBetChip(seat, slotIndex, total) {
   const el = document.createElement("div");
-  el.className = `table-bet tabular${animate ? " chip-move-anim" : ""}`;
+  el.className = `table-bet tabular`;
   const pos = getSeatSlots(total, "portrait")[slotIndex] || [50, 50];
   el.dataset.dir = betDirection(pos);
   el.dataset.row = pos[1] < 45 ? "upper" : "lower";
@@ -127,13 +120,11 @@ export function createBetChip(seat, slotIndex, total, animate = false) {
   el.setAttribute("role", "img");
   const who = seat.isSelf ? "Your" : `${seat.displayName || `Seat ${seat.seatNo + 1}`}'s`;
   el.setAttribute("aria-label", `${who} bet: ${formatChips(seat.bet)} chips`);
-  const disc = document.createElement("span");
-  disc.className = "chip-disc";
-  disc.setAttribute("aria-hidden", "true");
+  const chips = createChipStacks(seat.bet, { maxPerStack: 4, maxStacks: 2 });
   const amt = document.createElement("span");
   amt.className = "table-bet__amount";
   amt.textContent = formatChips(seat.bet);
-  el.append(disc, amt);
+  el.append(chips, amt);
   return el;
 }
 
@@ -153,9 +144,7 @@ export function createSeatBox(
     slotTotal = 6,
     myHoleCards = null,
     lastHoleCardsHandId = null,
-    remainingSeconds = null,
-    animateHoleCards = false,
-    animateBet = false
+    remainingSeconds = null
   } = {}
 ) {
   const isTurn = Boolean(hand?.status === "playing" && hand?.actingSeat === seat.seatNo);
@@ -207,18 +196,10 @@ export function createSeatBox(
       c1.classList.add("playing-card--opp-reveal");
       c2.classList.add("playing-card--opp-reveal");
     }
-    if (animateHoleCards) {
-      c1.classList.add("playing-card--deal");
-      c2.classList.add("playing-card--deal", "playing-card--deal-2");
-    }
     cardsRow.append(c1, c2);
   } else if (isSeatInHand && !seat.folded) {
     const b1 = createCardBack();
     const b2 = createCardBack();
-    if (animateHoleCards) {
-      b1.classList.add("playing-card--deal");
-      b2.classList.add("playing-card--deal", "playing-card--deal-2");
-    }
     cardsRow.append(b1, b2);
   }
 
@@ -284,7 +265,7 @@ export function createSeatBox(
   wrap.appendChild(plaque);
 
   if (slotIndex !== null) wrap.dataset.dir = betDirection(getSeatSlots(slotTotal, "portrait")[slotIndex] || [50, 50]);
-  if (hand && Number(seat.bet) > 0) wrap.appendChild(createBetChip(seat, slotIndex ?? 0, slotTotal, animateBet));
+  if (hand && Number(seat.bet) > 0) wrap.appendChild(createBetChip(seat, slotIndex ?? 0, slotTotal));
 
   if (hand && hand.dealerSeat === seat.seatNo) {
     const dealerBtn = document.createElement("span");
@@ -298,6 +279,21 @@ export function createSeatBox(
   }
 
   return wrap;
+}
+
+/** Decorative chip cluster next to the pot amount (aria-hidden; the number is the truth). */
+function renderPotChips(potAmountEl, pot) {
+  const row = potAmountEl.parentElement;
+  if (!row) return;
+  let holder = row.querySelector(".pot-chips");
+  if (!holder) {
+    holder = document.createElement("span");
+    holder.className = "pot-chips";
+    holder.setAttribute("aria-hidden", "true");
+    row.insertBefore(holder, row.firstChild);
+  }
+  holder.replaceChildren();
+  if (pot > 0) holder.appendChild(createChipStacks(pot, { maxPerStack: 5, maxStacks: 3 }));
 }
 
 export function renderHandHistoryList(listEl, panelEl, historyEntries = [], emptyEl = null, openBtnEl = null) {
@@ -364,16 +360,9 @@ export function renderTableFelt({
   const seats = Array.isArray(currentTable.seats) ? currentTable.seats : [];
 
   const handId = hand?.id || null;
-  const isNewHand = Boolean(handId && handId !== animState.handId);
-  const prevBoardCount = isNewHand ? 0 : animState.boardCount;
   const board = Array.isArray(hand?.board) ? hand.board : [];
-  const animateSelfHole = Boolean(
-    handId &&
-      Array.isArray(myHoleCards) &&
-      myHoleCards.length === 2 &&
-      lastHoleCardsHandId === handId &&
-      animState.selfHoleHandId !== handId
-  );
+  // Where cards and bets are right now, so leaving ones (fold, bets swept to the pot) can animate away from there
+  const motionBefore = captureBefore(els);
 
   // 1. Seats around the felt: opponents, open seats and bets between each seat and the pot
   const slotTotal = clampSeatTotal(currentTable.maxSeats);
@@ -396,9 +385,7 @@ export function renderTableFelt({
         slotTotal,
         myHoleCards,
         lastHoleCardsHandId,
-        remainingSeconds,
-        animateHoleCards: isNewHand || Boolean(hand?.status === "complete" && oppSeat.revealedCards),
-        animateBet: Number(oppSeat.bet || 0) > (isNewHand ? 0 : Number(animState.betsBySeat.get(oppSeat.seatNo) || 0))
+        remainingSeconds
       })
     );
   });
@@ -415,9 +402,7 @@ export function renderTableFelt({
         slotTotal,
         myHoleCards,
         lastHoleCardsHandId,
-        remainingSeconds,
-        animateHoleCards: isNewHand || animateSelfHole,
-        animateBet: Number(selfSeat.bet || 0) > (isNewHand ? 0 : Number(animState.betsBySeat.get(selfSeat.seatNo) || 0))
+        remainingSeconds
       })
     );
   } else {
@@ -434,13 +419,10 @@ export function renderTableFelt({
 
   // 3. Pot & side pots: hidden until a hand is running; breakdown only when it tells the players something
   const pot = hand ? Number(hand.pot || 0) : 0;
-  const potIncreased = hand && (!isNewHand ? pot > animState.pot : pot > 0);
   els.potAmount.textContent = formatChips(pot);
   const potBox = els.potAmount.closest(".table-pot-box");
   if (potBox) potBox.hidden = !(hand && pot > 0);
-  if (els.potAmount.parentElement) {
-    els.potAmount.parentElement.classList.toggle("chip-move-anim", Boolean(potIncreased));
-  }
+  renderPotChips(els.potAmount, hand && pot > 0 ? pot : 0);
 
   els.sidePotsRow.replaceChildren();
   const showdownSummary = summarizeShowdown(currentTable);
@@ -465,18 +447,11 @@ export function renderTableFelt({
     els.sidePotsRow.hidden = true;
   }
 
-  // 4. Community Board (animate newly dealt cards, respecting prefers-reduced-motion)
+  // 4. Community Board (new cards animate from table-motion.js; the resting DOM is always the final state)
   els.boardRow.replaceChildren();
   for (let i = 0; i < 5; i += 1) {
     if (board[i]) {
-      const cardEl = createCard(board[i]);
-      if (i >= prevBoardCount) {
-        cardEl.classList.add("playing-card--deal");
-        const stepIdx = Math.min(2, Math.max(0, i - prevBoardCount));
-        if (stepIdx === 1) cardEl.classList.add("playing-card--deal-2");
-        if (stepIdx === 2) cardEl.classList.add("playing-card--deal-3");
-      }
-      els.boardRow.appendChild(cardEl);
+      els.boardRow.appendChild(createCard(board[i]));
     } else {
       const slot = document.createElement("div");
       slot.className = "card-slot-empty";
@@ -533,11 +508,11 @@ export function renderTableFelt({
     els.closeTableBtn.disabled = actionBusy;
   }
 
-  // Update animation state snapshot
-  animState.handId = handId;
-  animState.boardCount = board.length;
-  if (animateSelfHole) animState.selfHoleHandId = handId;
-  animState.pot = pot;
-  animState.betsBySeat.clear();
-  seats.forEach((s) => animState.betsBySeat.set(s.seatNo, Number(s.bet || 0)));
+  // Diff against the previous render and play deal / fold / chip motion on the DOM built above
+  const selfCardsKnown = Boolean(
+    selfSeat &&
+      ((Array.isArray(myHoleCards) && myHoleCards.length === 2 && lastHoleCardsHandId === handId) ||
+        (Array.isArray(selfSeat.revealedCards) && selfSeat.revealedCards.length === 2))
+  );
+  animateTable(els, makeSnapshot(currentTable, { selfCardsKnown }), motionBefore);
 }

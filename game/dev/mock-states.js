@@ -283,3 +283,47 @@ export function getMockState(name) {
     holeCards: selfEngine && built.table.hand ? [...selfEngine.holeCards] : null
   };
 }
+
+
+/**
+ * Steps of one realistic hand for the animated demo (`?state=demo-hand`), produced by the real engine.
+ * Each step is `{ label, table, holeCards }`; the harness shows them one after another so the deal, bet, fold,
+ * street change and showdown motion can be reviewed without a server.
+ */
+export function getDemoSteps() {
+  const players = [P(0, "Alex", 1000), P(1, "Sam", 1000), P(2, "Kim", 1000), P(3, "Jo", 1000)];
+  const holes = [["As", "Ah"], ["8c", "8d"], ["Kd", "Qd"], ["5c", "3c"]];
+  const board = ["Kh", "7d", "2c", "9s", "4h"];
+  const steps = [{ label: "Waiting", table: toPublicTable({ players, engineState: null, selfSeat: 0 }), holeCards: null }];
+  let st = newHand(
+    players.map((p) => ({ seat: p.seat, id: p.id, name: p.name, stack: p.stack, status: "active" })),
+    3,
+    { sb: 10, bb: 20 },
+    fixedDeck(holes, board)
+  );
+  const push = (label) => {
+    const mine = st.seats.find((s) => s.seat === 0);
+    steps.push({ label, table: toPublicTable({ players, engineState: st, selfSeat: 0, remainingSeconds: 24 }), holeCards: [...mine.holeCards] });
+  };
+  push("Deal, blinds posted");
+  const script = [
+    [2, { type: "raise", amount: 60 }, "Kim raises to 60"],
+    [3, "fold", "Jo folds"],
+    [0, "call", "Alex calls"],
+    [1, "call", "Sam calls, flop"],
+    [0, "check", "Alex checks"],
+    [1, "check", "Sam checks"],
+    [2, { type: "raise", amount: 100 }, "Kim bets 100"],
+    [0, "call", "Alex calls"],
+    [1, "fold", "Sam folds, turn"],
+    [0, "check", "Alex checks"],
+    [2, "check", "Kim checks, river"],
+    [0, { type: "raise", amount: 200 }, "Alex bets 200"],
+    [2, "call", "Kim calls, showdown"]
+  ];
+  for (const [seat, action, label] of script) {
+    st = apply(st, seat, action);
+    push(label);
+  }
+  return steps;
+}
