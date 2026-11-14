@@ -174,7 +174,7 @@ export async function fetchMySeatedTables(userId) {
   const tableIds = Array.from(new Set(seats.map((s) => s.table_id).filter(Boolean)));
   const { data: tables, error: tableErr } = await sb
     .from("poker_tables")
-    .select("id, code, status")
+    .select("id, code, status, sb, bb")
     .in("id", tableIds)
     .neq("status", "closed");
   if (tableErr || !Array.isArray(tables)) return { seats: [], tables: [], error: tableErr || null };
