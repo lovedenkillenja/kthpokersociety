@@ -85,3 +85,14 @@ test("formatSeatedSummary and seatedChipsHint render play-money totals", () => {
     "You have 1,000 chips seated at 2 tables. Use “Return to table” under “Your chips at tables” above."
   );
 });
+
+test("the Active table banner is hidden for tables already listed under Your chips at tables", async () => {
+  const { shouldShowActiveTableBanner } = await import("../lib/seated-tables.js");
+  const rows = [{ code: "NFVPM", stack: 500 }];
+  assert.equal(shouldShowActiveTableBanner(null, rows), false);
+  assert.equal(shouldShowActiveTableBanner({ code: "NFVPM" }, rows), false);
+  assert.equal(shouldShowActiveTableBanner({ code: "nfvpm" }, rows), false);
+  assert.equal(shouldShowActiveTableBanner({ code: "OTHER" }, rows), true);
+  assert.equal(shouldShowActiveTableBanner({ code: "NFVPM" }, []), true);
+  assert.equal(shouldShowActiveTableBanner({ code: "NFVPM" }, undefined), true);
+});

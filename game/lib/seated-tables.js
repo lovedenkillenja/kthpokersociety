@@ -107,3 +107,14 @@ export function seatedChipsHint(rows) {
   const where = count === 1 ? "1 table" : `${count} tables`;
   return `You have ${formatChips(total)} chips seated at ${where}. Use “Return to table” under “Your chips at tables” above.`;
 }
+
+/**
+ * The lobby's "Active table" banner is only a fallback way back: a table already listed under
+ * "Your chips at tables" (with its own "Return to table") must not appear twice. The banner stays
+ * for an open table that is not in that list (for example a table being watched without a seat).
+ */
+export function shouldShowActiveTableBanner(activeTable, seatedRows) {
+  if (!activeTable || !activeTable.code) return false;
+  const code = String(activeTable.code).toUpperCase();
+  return !(Array.isArray(seatedRows) ? seatedRows : []).some((r) => r?.code === code);
+}

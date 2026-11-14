@@ -13,7 +13,9 @@ import {
   formatBuyInFieldLabel, defaultBuyInFor, joinRangeMessage
 } from "./lib/stakes.js";
 import { createTable, joinTable, fetchTableState, setUnauthorizedHandler } from "./lib/poker-api.js";
-import { sumSeatedChips, isAlreadySeatedAt, shapeSeatedTableRows, seatedChipsHint } from "./lib/seated-tables.js";
+import {
+  sumSeatedChips, isAlreadySeatedAt, shapeSeatedTableRows, seatedChipsHint, shouldShowActiveTableBanner
+} from "./lib/seated-tables.js";
 import {
   createCard, createCardBack, createLeaderboardRow, createLedgerRow, createEmptyState, showToast
 } from "./ui/components.js";
@@ -262,9 +264,7 @@ function renderViews() {
   if (els.activeTableBanner) {
     // The "Your chips at tables" panel already lists seated tables with "Return to table";
     // the banner only stays for an open table that is not in that list.
-    const listedInPanel = Boolean(activeTable) &&
-      state.seatedTables.some((r) => r.code === String(activeTable.code).toUpperCase());
-    els.activeTableBanner.hidden = !activeTable || listedInPanel;
+    els.activeTableBanner.hidden = !shouldShowActiveTableBanner(activeTable, state.seatedTables);
     if (activeTable && els.activeTableBannerTitle) {
       els.activeTableBannerTitle.textContent = `Active table · Room ${activeTable.code}`;
     }
