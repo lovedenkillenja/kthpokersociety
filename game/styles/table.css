@@ -58,8 +58,11 @@
   margin: 0;
   padding: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 0;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 @media (min-height: 320px) {
@@ -76,9 +79,10 @@
   border-bottom: 1px solid var(--line);
   padding-top: max(2px, env(safe-area-inset-top, 0px));
   padding-bottom: 2px;
-  padding-left: max(8px, env(safe-area-inset-left, 0px));
-  padding-right: max(8px, env(safe-area-inset-right, 0px));
-  min-height: 48px;
+  padding-left: max(6px, env(safe-area-inset-left, 0px));
+  padding-right: max(6px, env(safe-area-inset-right, 0px));
+  min-height: 52px;
+  min-width: 0;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -91,18 +95,18 @@
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 .btn--topbar {
-  min-height: 44px;
-  min-width: 44px;
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
   padding: 0 11px;
   font-size: var(--text-xs);
   white-space: nowrap;
 }
 .btn--icon {
-  width: 44px;
+  width: var(--tap-min);
   padding: 0;
   font-size: 16px;
 }
@@ -122,6 +126,13 @@
 }
 @media (max-width: 430px) {
   .topbar-hide-xs { display: none; }
+  /* Narrow phones: keep Lobby, room code, help, options and Leave inside the viewport */
+  #table-fullscreen-btn { display: none; }
+  .table-topbar .btn--topbar:not(.btn--icon) { padding-inline: 8px; }
+}
+@media (max-width: 360px) {
+  .room-code-btn > span[aria-hidden="true"] { display: none; }
+  .table-topbar__left, .table-topbar__right { gap: 2px; }
 }
 /* Show Play money pill in topbar on >= 620px (covers all landscape phones & desktop) */
 @media (min-width: 620px) {
@@ -169,75 +180,73 @@
   box-shadow: 0 8px 24px rgba(2, 8, 20, 0.6);
 }
 
-/* 4. Oval Felt Surface (Mobile Portrait default: [opponents 2-col | center board | self seat]) */
+
+/* 4. Felt: one oval (a tall stadium on phones). Seats, bets and the centre are placed absolutely, in
+      percentages of the felt box, so nothing can spill past the stage. */
 .poker-felt {
+  --seat-w: var(--seat-col-w);
+  --cy: 44%;
+  position: relative;
   width: var(--felt-w);
   height: var(--felt-h);
   max-width: 100%;
   max-height: 100%;
-  padding: var(--felt-pad-y) var(--felt-pad-x);
   border-radius: var(--felt-radius);
-  background: radial-gradient(ellipse at center, var(--felt-highlight) 0%, var(--felt) 76%);
-  border: 2px solid var(--line);
-  box-shadow: 0 12px 34px rgba(2, 8, 20, 0.55), inset 0 0 0 1px rgba(238, 242, 248, 0.08);
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  align-items: center;
-  justify-items: center;
-  gap: 4px;
-  position: relative;
+  background: radial-gradient(ellipse 72% 62% at 50% 44%, var(--felt-highlight) 0%, var(--felt) 78%);
+  border: 1px solid var(--line);
+  /* thin rail: a --deep band with a --line hairline on the inside edge */
+  box-shadow:
+    0 12px 34px rgba(2, 8, 20, 0.5),
+    inset 0 0 0 6px var(--deep),
+    inset 0 0 0 7px var(--line),
+    inset 0 0 56px rgba(2, 8, 20, 0.32);
+  overflow: hidden;
+}
+.table-shell[data-layout-mode="desktop"] .poker-felt,
+.table-shell[data-layout-mode="mobile-landscape"] .poker-felt {
+  --cy: 50%;
+  border-radius: 50%;
 }
 
-.table-opponents-grid {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1fr;
-  justify-items: center;
-  gap: 5px;
+.table-opponents-grid,
+.table-self-zone {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
-.table-opponents-grid[data-count="2"],
-.table-opponents-grid[data-count="3"],
-.table-opponents-grid[data-count="4"],
-.table-opponents-grid[data-count="5"] {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-}
-.table-seat-card--fullrow {
-  grid-column: 1 / -1;
-  width: min(100%, 205px);
-  justify-self: center;
-}
+.table-opponents-grid > *,
+.table-self-zone > * { pointer-events: auto; }
+.table-self-seat-slot { display: contents; }
 
-/* 5. Compact Seat Pods & Self Seat Dock */
+/* 5. Seats: cards peek out from behind a compact plaque */
 .table-seat-card {
-  width: 100%;
+  position: absolute;
+  left: var(--sx-p, 50%);
+  top: var(--sy-p, 50%);
+  transform: translate(-50%, -50%);
+  width: var(--seat-w);
   min-width: 0;
-  transition: transform var(--duration-fast) var(--ease-out);
-}
-.table-seat-card--opp { max-width: 260px; }
-.table-seat-card--self {
-  width: auto;
-  max-width: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  z-index: 2;
 }
+.table-seat-card--self { width: max(var(--seat-w), 152px); z-index: 3; }
 .table-seat-plaque {
+  position: relative;
+  z-index: 1;
   width: 100%;
   min-width: 0;
   background: var(--deep);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 5px 8px;
+  border-radius: 12px;
+  padding: 5px 8px 6px;
   display: grid;
-  gap: 3px;
-  box-shadow: 0 4px 14px rgba(2, 8, 20, 0.42);
-}
-.table-seat-card--self .table-seat-plaque {
-  min-width: 180px;
-  max-width: 270px;
-  padding: 6px 10px;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(2, 8, 20, 0.4);
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
 }
 .table-seat-card--turn .table-seat-plaque {
   border-color: var(--sky);
@@ -249,75 +258,66 @@
 }
 .table-seat-card--folded .table-seat-plaque,
 .table-seat-card--sitout .table-seat-plaque {
-  background: rgba(6, 20, 42, 0.88);
+  background: var(--ink);
   border-style: dashed;
-  opacity: 0.86;
 }
+.table-seat-card--folded .table-seat-plaque__name,
+.table-seat-card--sitout .table-seat-plaque__name,
+.table-seat-card--folded .chip-amount,
+.table-seat-card--sitout .chip-amount { opacity: 0.62; }
 
-.seat-avatar {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-pill);
-  background: var(--brand);
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 600;
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-}
-.table-seat-plaque__top,
-.table-seat-plaque__bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  min-width: 0;
-}
 .table-seat-plaque__name,
 .table-seat-plaque__meta {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   min-width: 0;
-  overflow: hidden;
+  max-width: 100%;
 }
+.table-seat-plaque__meta { flex-wrap: wrap; row-gap: 2px; column-gap: 6px; }
 .table-seat-plaque__name strong {
   color: var(--paper);
   font-size: 13px;
   line-height: 1.2;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 84px;
 }
-.table-seat-card--self .table-seat-plaque__name strong {
-  font-size: 13px;
-  max-width: 118px;
+.seat-you-tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--control);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 .table-seat-plaque .pill {
-  padding: 1px 6px;
+  padding: 0 7px;
   font-size: 11px;
-  line-height: 1.25;
+  line-height: 1.5;
 }
-.table-seat-plaque .chip-amount { gap: 4px; font-size: 13px; }
-.table-seat-plaque .chip-disc { width: 11px; height: 11px; }
-.table-bet-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  background: rgba(6, 20, 42, 0.9);
-  border: 1px solid rgba(233, 196, 106, 0.5);
+.table-seat-plaque .chip-amount { gap: 4px; font-size: 13px; line-height: 1.3; }
+.table-seat-plaque .chip-disc { width: 10px; height: 10px; border-width: 1.5px; }
+.table-seat-handname {
   color: var(--chip);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  white-space: nowrap;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .seat-timer-bar {
   width: 100%;
   height: 4px;
+  margin-top: 2px;
   border-radius: var(--radius-pill);
   background: rgba(29, 58, 99, 0.7);
   overflow: hidden;
@@ -330,7 +330,23 @@
 }
 .seat-timer-bar__fill--urgent { background: var(--danger); }
 
-.table-seat-cards { display: flex; align-items: center; gap: 4px; flex: none; }
+.table-seat-card--folded .table-seat-cards,
+.table-seat-card--sitout .table-seat-cards { opacity: 0.5; }
+
+/* Dealer button: a small disc on the plaque's top corner, mostly outside it, so it never covers the chip icon,
+   name or stack. The corner is the one not used by the bet chip (data-corner is set in table-render.js). */
+.table-seat-plaque .table-dealer {
+  position: absolute;
+  z-index: 4;
+  top: -14px;
+  right: -14px;
+  width: 20px;
+  height: 20px;
+  box-shadow: 0 0 0 2px var(--felt);
+}
+.table-seat-plaque .table-dealer[data-corner="left"] { right: auto; left: -14px; }
+
+.table-seat-cards { display: flex; align-items: flex-end; justify-content: center; gap: 4px; flex: none; margin-bottom: calc(var(--opp-card-h) * -0.34); }
 .table-seat-cards--opp .playing-card {
   width: var(--opp-card-w);
   height: var(--opp-card-h);
@@ -338,55 +354,97 @@
   border-radius: 4px;
   border-width: 1.5px;
 }
+/* Face-up hole cards: rank and suit share the top row, so both stay readable where the plaque overlaps the card */
+.table-seat-cards .playing-card:not(.playing-card--back) {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 2px;
+}
+.table-seat-cards .playing-card:not(.playing-card--back) .playing-card__suit { align-self: flex-start; }
+/* Showdown: revealed hands must be readable (tucked deeper so the bigger cards do not add height) */
+.table-seat-cards--opp:has(.playing-card--opp-reveal) { margin-bottom: calc(var(--opp-card-h) * -0.62); }
 .table-seat-cards--opp .playing-card--opp-reveal {
-  width: calc(var(--opp-card-w) * 1.38);
-  height: calc(var(--opp-card-h) * 1.35);
-  padding: 2px 3px;
+  width: calc(var(--opp-card-w) * 1.55);
+  height: calc(var(--opp-card-h) * 1.55);
+  padding: 3px 4px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(2, 8, 20, 0.4);
 }
 .table-seat-cards--opp .playing-card__rank { font-size: 11px; }
 .table-seat-cards--opp .playing-card__suit { font-size: 12px; }
+.table-seat-cards--opp .playing-card--opp-reveal .playing-card__rank { font-size: 17px; }
+.table-seat-cards--opp .playing-card--opp-reveal .playing-card__suit { font-size: 19px; }
 
+.table-seat-cards--self { margin-bottom: calc(var(--self-card-h) * -0.26); gap: 6px; }
 .table-seat-cards--self .playing-card {
   width: var(--self-card-w);
   height: var(--self-card-h);
-  padding: 5px 6px;
+  padding: 4px 5px;
   box-shadow: 0 6px 16px rgba(2, 8, 20, 0.48);
 }
-.table-seat-cards--self .playing-card__rank {
-  font-size: clamp(14px, calc(var(--self-card-w) * 0.34), 26px);
-}
-.table-seat-cards--self .playing-card__suit {
-  font-size: clamp(16px, calc(var(--self-card-w) * 0.42), 32px);
-}
+.table-seat-cards--self .playing-card__rank { font-size: clamp(14px, calc(var(--self-card-w) * 0.34), 26px); }
+.table-seat-cards--self .playing-card__suit { font-size: clamp(16px, calc(var(--self-card-w) * 0.42), 32px); }
 
+/* Open seats: quiet placeholder, no copy beyond the label */
+.table-seat-card--empty { z-index: 1; }
 .table-seat-empty {
-  width: min(100%, 260px);
-  padding: 8px 12px;
-  border-radius: var(--radius-panel);
-  border: 1px dashed rgba(238, 242, 248, 0.32);
-  background: rgba(6, 20, 42, 0.55);
-  text-align: center;
-  display: grid;
-  gap: 2px;
-  font-size: 12px;
+  width: 100%;
+  padding: 10px 6px;
+  border-radius: 12px;
+  border: 1px dashed rgba(238, 242, 248, 0.28);
   color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.2;
 }
-.table-seat-empty strong { color: var(--paper); font-size: var(--text-xs); }
 
-.table-self-zone { width: 100%; display: flex; align-items: center; justify-content: center; }
-.table-self-seat-slot { display: flex; justify-content: center; max-width: 100%; }
+/* Bets: flat chip disc + amount, beside the seat on the side that faces the pot */
+.table-bet {
+  position: absolute;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(6, 20, 42, 0.66);
+  color: var(--chip);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.table-bet .chip-disc { width: 12px; height: 12px; border-width: 1.5px; }
+.table-bet[data-dir="right"] { left: calc(100% + 6px); top: 30%; transform: translateY(-50%); }
+.table-bet[data-dir="left"] { right: calc(100% + 6px); top: 70%; transform: translateY(-50%); }
+/* Phones: upper side seats keep the chip level with the top edge so it clears the top-centre seat's chip */
+.table-bet[data-row="upper"][data-dir="right"] { top: 12%; }
+.table-bet[data-row="upper"][data-dir="left"] { top: 88%; }
+.table-bet[data-pdir="right"] { top: 50%; bottom: auto; left: calc(100% + 6px); transform: translateY(-50%); }
+.table-bet[data-dir="down"]:not([data-pdir]) { top: calc(100% + 6px); left: 50%; transform: translateX(-50%); }
+.table-bet[data-dir="up"] { bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); }
+
+/* Self zone: own seat bottom centre; buy-in form takes the same spot for observers */
 .table-sitdown-inline {
+  position: absolute;
+  left: 50%;
+  top: 88%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(6, 20, 42, 0.88);
+  gap: 8px;
+  background: var(--deep);
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
-  padding: 5px 8px;
+  padding: 6px 8px;
+  max-width: calc(100% - 16px);
 }
+.table-sitdown-inline[hidden] { display: none; }
 .table-sitdown-inline input {
   width: 92px;
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 0 8px;
   border-radius: var(--radius-card);
   border: 1px solid var(--control);
@@ -395,57 +453,91 @@
   font: 600 var(--text-base) var(--font-body);
 }
 
-/* 6. Felt Centre: Pot + 5 Community Cards + Concise Status Pill */
+/* 6. Felt centre: pot, community cards and the single status line */
 .table-center {
+  position: absolute;
+  left: 50%;
+  top: var(--cy);
+  transform: translate(-50%, -50%);
   width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 8px;
   text-align: center;
+  z-index: 1;
+  pointer-events: none;
 }
-.table-pot-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 8px; }
+.table-pot-box { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.table-pot-box[hidden] { display: none; }
 .table-pot-value {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 8px;
   font-family: var(--font-display);
-  font-size: clamp(17px, calc(var(--board-card-w) * 0.4), 28px);
+  font-size: clamp(22px, calc(var(--board-card-w) * 0.62), 34px);
   line-height: 1.1;
   color: var(--chip);
   font-variant-numeric: tabular-nums;
 }
+.table-pot-label {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .table-side-pots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
-.table-side-pots .pill { padding: 1px 8px; font-size: 11px; }
-.table-board-row { display: flex; align-items: center; justify-content: center; gap: clamp(4px, 0.8vw, 8px); }
+.table-side-pots[hidden] { display: none; }
+.table-side-pots .pill { padding: 0 8px; font-size: 11px; background: rgba(6, 20, 42, 0.6); }
+.table-board-row { display: flex; align-items: center; justify-content: center; gap: clamp(4px, 1.2vw, 8px); }
 .table-board-row .playing-card,
 .table-board-row .card-slot-empty {
   width: var(--board-card-w);
   height: var(--board-card-h);
   padding: 4px 5px;
 }
-.table-board-row .playing-card__rank { font-size: clamp(13px, calc(var(--board-card-w) * 0.34), 24px); }
-.table-board-row .playing-card__suit { font-size: clamp(15px, calc(var(--board-card-w) * 0.42), 30px); }
+.table-board-row .playing-card { box-shadow: 0 4px 12px rgba(2, 8, 20, 0.4); }
+.table-board-row .playing-card__rank { font-size: clamp(13px, calc(var(--board-card-w) * 0.34), 26px); }
+.table-board-row .playing-card__suit { font-size: clamp(15px, calc(var(--board-card-w) * 0.42), 32px); }
 .card-slot-empty {
   border-radius: var(--radius-card);
-  border: 1px dashed rgba(238, 242, 248, 0.24);
-  background: rgba(6, 20, 42, 0.24);
+  border: 1px dashed rgba(238, 242, 248, 0.22);
+  background: rgba(6, 20, 42, 0.18);
 }
 .table-status-banner {
-  background: rgba(6, 20, 42, 0.84);
-  border: 1px solid rgba(29, 58, 99, 0.9);
-  border-radius: var(--radius-pill);
-  padding: 3px 12px;
-  max-width: min(100%, 440px);
-  font-size: 12px;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: min(92%, 400px);
+  padding: 4px 12px;
+  border-radius: var(--radius-panel);
+  background: rgba(6, 20, 42, 0.6);
+  border: 1px solid transparent;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 .table-status-banner--turn { border-color: var(--sky); }
-.table-status-banner--showdown { border-color: var(--chip); white-space: normal; border-radius: var(--radius-panel); }
+.table-status-banner--showdown { border-color: var(--chip); }
 .table-status-banner__headline { font-weight: 600; color: var(--paper); }
 .table-status-banner__detail { color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .table-seat-plaque,
+  .seat-timer-bar__fill { transition: none; }
+}
+
+/* Short portrait screens (small phones): tighter plaques so seats never collide with the board or each other */
+@media (max-height: 700px) and (orientation: portrait) {
+  .table-seat-plaque { padding: 3px 6px 4px; gap: 1px; }
+  .table-seat-plaque__name strong { font-size: 12px; line-height: 1.15; }
+  .seat-you-tag { font-size: 9px; line-height: 1.35; padding-inline: 5px; }
+  .table-seat-plaque .chip-amount { font-size: 12px; line-height: 1.2; }
+  .table-seat-plaque .pill { font-size: 10.5px; line-height: 1.35; }
+  .table-seat-handname { font-size: 11px; line-height: 1.2; }
+  .seat-timer-bar { margin-top: 1px; }
+  .table-seat-cards--self { margin-bottom: calc(var(--self-card-h) * -0.4); }
+  .table-center { gap: 6px; }
+  .table-status-banner { font-size: 12px; padding: 2px 10px; }
+}

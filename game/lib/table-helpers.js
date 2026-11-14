@@ -25,9 +25,10 @@ export function normalizeRoomCode(raw) {
 }
 
 /**
- * Validates a chip buy-in amount against table bounds and member balance.
+ * Validates a chip buy-in amount against the given bounds (a stakes preset or the joined
+ * table's own range) and the member balance.
  */
-export function validateBuyIn(rawAmount, { minBuyIn = 400, maxBuyIn = 2000, balance = 0 } = {}) {
+export function validateBuyIn(rawAmount, { minBuyIn = 1, maxBuyIn = 100000, balance = 0 } = {}) {
   const num = Number(rawAmount);
   if (!Number.isFinite(num) || !Number.isInteger(num)) {
     return { valid: false, value: 0, error: "Enter a whole number of chips." };
@@ -465,4 +466,66 @@ export function describeHandStatus(tableState) {
     detail: `Pot ${formatChips(hand.pot)} chips`,
     isMyTurn: false
   };
+}
+
+/**
+ * Pots worth showing as a breakdown: only when at least two non-empty pots exist AND they are contested by
+ * different sets of players (a plain main pot, or slices with identical eligibility, is just "the pot").
+ * While a hand is still running a breakdown also needs a player who is all-in. Returns an empty array otherwise.
+ */
+export function getDisplayPots(hand, seats = []) {
+  if (!hand) return [];
+  // While a hand is running, pot slices only matter once someone is all-in (otherwise they are just bet levels).
+  const someoneAllIn = (Array.isArray(seats) ? seats : []).some((s) => s.allIn && !s.folded);
+  if (hand.status !== "complete" && !someoneAllIn) return [];
+  const list = hand.showdown?.pots?.length > 1 ? hand.showdown.pots : hand.pots;
+  const pots = (Array.isArray(list) ? list : []).filter((p) => Number(p?.amount) > 0);
+  if (pots.length < 2) return [];
+  const keyOf = (p) =>
+    Array.isArray(p.eligibleSeats)
+      ? [...p.eligibleSeats].sort((a, b) => a - b).join(",")
+      : Array.isArray(p.winners)
+        ? `w:${[...p.winners].sort((a, b) => a - b).join(",")}`
+        : "";
+  const keys = new Set(pots.map(keyOf));
+  const distinct = keys.size > 1 || keys.has("");
+  return distinct ? pots : [];
+}
+
+/**
+ * True when `seat` is still dealt into the running hand (not folded). A `sitout` seat can be: sitting out
+ * only takes effect from the next deal. Uses the server's `inHand` flag, with a fallback for older payloads.
+ */
+export function isSeatInRunningHand(seat, hand) {
+  if (!seat || !hand || hand.status !== "playing" || seat.folded) return false;
+  if (typeof seat.inHand === "boolean") return seat.inHand;
+  return Number(seat.totalCommitted) > 0 || Boolean(seat.allIn) || hand.actingSeat === seat.seatNo;
+}
+
+/**
+ * Decides what the docked action bar shows during a running hand for the viewer's own seat.
+ * `mode` is "controls" (Fold / Check-Call / Raise) whenever it is the viewer's turn and the server sent
+ * legal actions, whatever the seat status is (a `sitout` seat still in the hand must be able to act).
+ * Otherwise "waiting"; `showIdleRow` keeps the "Sit back in" control reachable for a sitting-out seat.
+ */
+export function computeActionBarState(tableState) {
+  const hand = tableState?.hand || null;
+  const seats = Array.isArray(tableState?.seats) ? tableState.seats : [];
+  const selfSeat = seats.find((s) => s.isSelf) || null;
+  if (!selfSeat || !hand || hand.status !== "playing") {
+    return { mode: "idle", isMyTurn: false, showIdleRow: true, waitingText: "" };
+  }
+  const isSitout = selfSeat.status === "sitout";
+  const inHand = isSeatInRunningHand(selfSeat, hand);
+  const isMyTurn = hand.actingSeat === selfSeat.seatNo;
+  if (isMyTurn && hand.legalActions) {
+    return { mode: "controls", isMyTurn: true, showIdleRow: false, waitingText: "Your turn" };
+  }
+  const actingSeat = seats.find((s) => s.seatNo === hand.actingSeat);
+  const actorName = actingSeat?.displayName || `Seat ${(hand.actingSeat ?? 0) + 1}`;
+  let waitingText = `Waiting for ${actorName}…`;
+  if (isSitout) {
+    waitingText = inHand ? `${waitingText} You sit out from the next hand` : "Sitting out this hand";
+  }
+  return { mode: "waiting", isMyTurn, showIdleRow: isSitout, waitingText };
 }

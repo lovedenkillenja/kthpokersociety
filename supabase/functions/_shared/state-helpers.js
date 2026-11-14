@@ -13,6 +13,8 @@ const tableLocks = new Map();
 
 export const ACTION_TIMEOUT_MS = 30_000;
 export const IDLE_TABLE_TIMEOUT_MS = 30 * 60 * 1000;
+/** Consecutive timeouts after which a seat is moved to `sitout` (and folded in the running hand). */
+export const MAX_CONSECUTIVE_TIMEOUTS = 2;
 
 export function stampTurnTimer(handState, nowMs = Date.now()) {
   if (!handState) return handState;
@@ -142,6 +144,8 @@ export function buildPublicTableState({
         status: s.status,
         consecutiveTimeouts: Number(s.consecutive_timeouts ?? 0),
         isSelf: Boolean(callerMemberId && s.member_id === callerMemberId),
+        // Dealt into the current (or last) hand; a `sitout` seat can still be in a running hand
+        inHand: Boolean(hs),
         bet: hs ? hs.bet : 0,
         totalCommitted: hs ? hs.totalCommitted : 0,
         folded: hs ? hs.folded : false,
@@ -317,7 +321,7 @@ export async function persistHandTransition({
     if (seatTimeoutOverrides && seatTimeoutOverrides[p.seat] !== undefined) {
       const timeouts = Math.max(0, Math.trunc(Number(seatTimeoutOverrides[p.seat])));
       entry.consecutiveTimeouts = timeouts;
-      if (timeouts >= 2 && !entry.status) {
+      if (timeouts >= MAX_CONSECUTIVE_TIMEOUTS && !entry.status) {
         entry.status = "sitout";
       }
     }
@@ -377,10 +381,14 @@ export async function resolveExpiredTurns({
     return { timedOut: false, handRow };
   }
 
-  const nextState = apply(handRow.state, timedOutSeatNo, { type: "timeout" });
   const seatRow = (seats || []).find((s) => s.seat_no === timedOutSeatNo);
   const nextTimeouts = Number(seatRow?.consecutive_timeouts ?? 0) + 1;
-  const shouldSitOut = nextTimeouts >= 2;
+  const shouldSitOut = nextTimeouts >= MAX_CONSECUTIVE_TIMEOUTS;
+  // A seat that is already sitting out, or is sat out by this timeout, is folded even when a check
+  // would be legal, so a hand never auto-checks street after street between absent players.
+  const wasSitout = seatRow?.status === "sitout";
+  const forceFold = wasSitout || shouldSitOut;
+  const nextState = apply(handRow.state, timedOutSeatNo, { type: "timeout", fold: forceFold });
 
   const updatedHand = await persistHandTransition({
     store,
@@ -404,7 +412,8 @@ export async function resolveExpiredTurns({
     timedOut: true,
     timedOutSeatNo,
     consecutiveTimeouts: nextTimeouts,
-    satOut: shouldSitOut,
+    satOut: shouldSitOut || wasSitout,
+    folded: Boolean(nextState.seats.find((p) => p.seat === timedOutSeatNo)?.folded),
     handRow: updatedHand
   };
 }

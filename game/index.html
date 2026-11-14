@@ -30,7 +30,6 @@
         <span class="play-money-dot" aria-hidden="true"></span>
         <span>Play money – no cash value</span>
       </span>
-      <span>KTH Poker Society members only · Chips cannot be bought, sold or cashed out</span>
     </div>
   </div>
 
@@ -49,45 +48,42 @@
       </a>
 
       <nav id="view-nav" class="view-nav" aria-label="Game navigation" hidden>
-        <button type="button" class="view-nav__btn" data-view-btn="lobby" aria-current="page">Chips &amp; Lobby</button>
+        <button type="button" class="view-nav__btn" data-view-btn="lobby" aria-current="page"><span class="hide-xs">Chips &amp; </span>Lobby</button>
         <button type="button" class="view-nav__btn" data-view-btn="table" id="nav-table-btn" hidden>Table</button>
         <button type="button" class="view-nav__btn" data-view-btn="leaderboard">Leaderboard</button>
         <button type="button" class="view-nav__btn" data-view-btn="profile">Profile</button>
       </nav>
-
       <div class="header-right">
-        <button type="button" class="btn btn--ghost btn--compact" data-open-tutorial>How to play</button>
-        <a class="btn btn--ghost btn--compact" href="/">Society site</a>
+        <button type="button" class="btn btn--ghost btn--compact header-help-btn" data-open-tutorial aria-label="How to play">
+          <span class="header-help-btn__icon" aria-hidden="true">?</span><span class="header-help-btn__text" aria-hidden="true">How to play</span>
+        </button>
         <button type="button" class="btn btn--primary btn--compact" id="header-auth-btn">Log in</button>
       </div>
+
     </div>
   </header>
 
   <main class="game-main wrap" id="main-content">
-    <!-- GUEST EXPLAINER VIEW (shown when signed out; max 2 panels) -->
+    <!-- GUEST VIEW (shown when signed out) -->
     <section id="view-guest" class="screen" aria-labelledby="guest-heading">
-      <div class="panel">
-        <div class="panel__head">
-          <span class="pill pill--chip">Play money – no cash value</span>
-          <span class="pill">Members only</span>
-        </div>
+      <div class="panel panel--hero">
         <h1 id="guest-heading">Texas Hold'em for KTH Poker Society</h1>
         <p class="panel__lede">
-          A quiet, mobile-first poker room for KTH students. Sign in with your society member account to invite friends for play-money chips, set your display name, and play 2–6 player tables with friends.
+          Sit down with friends at a private 2–6 player table, play for chips and see who tops the society leaderboard. Log in with your member account to get started.
         </p>
-        <div class="btn-row">
+        <div class="btn-row btn-row--hero">
           <button type="button" class="btn btn--primary" id="guest-login-btn">Log in with member account</button>
           <button type="button" class="btn btn--ghost" id="guest-signup-btn">Become a member</button>
-          <button type="button" class="btn btn--ghost" data-open-tutorial>How to play &amp; hand ranks</button>
+          <button type="button" class="btn btn--ghost" data-open-tutorial>How to play</button>
+        </div>
+        <div class="felt-preview" aria-label="Sample playing cards on poker felt">
+          <div class="card-row" id="guest-card-showcase"></div>
+          <span class="felt-preview__facts tabular">Micro, Low or Standard stakes · 2–6 seats</span>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="felt-preview" aria-label="Sample playing cards on poker felt">
-          <div class="card-row" id="guest-card-showcase"></div>
-          <span class="pill pill--chip tabular">10 / 20 blinds · 2–6 seats · No cash value</span>
-        </div>
-        <h3>How society chips work</h3>
+      <div class="panel panel--quiet">
+        <h2>How society chips work</h2>
         <ul class="ledger-list" aria-label="How chips work">
           <li class="ledger-row">
             <div>
@@ -114,120 +110,135 @@
       </div>
     </section>
 
-    <!-- MEMBER LOBBY VIEW (shown when signed in; max 2 panels) -->
-    <section id="view-lobby" class="screen" aria-labelledby="lobby-heading" hidden>
+    <!-- MEMBER LOBBY VIEW (shown when signed in): play first, then chips, then invites and history -->
+    <section id="view-lobby" class="screen screen--lobby" aria-labelledby="lobby-heading" hidden>
+      <div id="active-table-banner" class="active-table-banner" hidden>
+        <div>
+          <strong id="active-table-banner-title">Active table</strong>
+          <div class="field-hint">Your seat is waiting on the felt.</div>
+        </div>
+        <button type="button" class="btn btn--primary" id="return-table-btn">Return to table</button>
+      </div>
+
+      <!-- Chips still seated at tables (read-only; server decides) -->
+      <section class="seated-tables panel" id="seated-tables-box" aria-labelledby="seated-tables-heading" hidden>
+        <div class="seated-tables__head">
+          <h3 class="seated-tables__title" id="seated-tables-heading">Your chips at tables</h3>
+          <p class="sr-only" id="seated-tables-summary" aria-live="polite"></p>
+        </div>
+        <ul class="seated-tables__list" id="seated-tables-list" role="list"></ul>
+      </section>
+
       <div class="panel">
         <div class="panel__head">
           <div>
-            <span class="pill pill--chip">Play money – no cash value</span>
-            <h1 id="lobby-heading" style="margin-top: 8px">Your chip stack</h1>
-          </div>
-          <span class="pill" id="lobby-member-pill">Member</span>
-        </div>
-
-        <div class="chip-balance-hero" aria-live="polite">
-          <div>
-            <span class="chip-balance-hero__label">Current balance</span>
-            <span class="chip-balance-hero__value" id="balance-value">0</span>
-            <span class="chip-balance-hero__unit">chips</span>
+            <h1 id="lobby-heading">Play Hold'em</h1>
+            <p class="field-hint panel__facts tabular">2–6 players · Blinds and buy-in depend on the table: Micro 1/2, Low 5/10 or Standard 10/20 · 30s action clock</p>
           </div>
         </div>
 
-        <!-- Invite friends to earn chips (replaces daily check-in) -->
-        <div class="referral-box" id="lobby-referral-box">
-          <div class="referral-box__head">
-            <div>
-              <span class="referral-box__title">Invite friends</span>
-              <p class="field-hint" id="referral-box-explanation"></p>
-            </div>
-            <span class="pill pill--chip tabular">+250 chips / friend</span>
-          </div>
-
-          <div class="referral-box__copy-row">
-            <input type="text" id="referral-link-input" class="referral-link-input tabular" readonly aria-label="Your referral invite link" value="Loading link…">
-            <button type="button" class="btn btn--primary btn--compact" id="referral-copy-btn">Copy link</button>
-          </div>
-
-          <div class="referral-box__stats" id="referral-stats">
-            <div class="referral-stat">
-              <span class="referral-stat__num tabular" id="ref-stat-invited">0</span>
-              <span class="referral-stat__lbl">Friends joined</span>
-            </div>
-            <div class="referral-stat">
-              <span class="referral-stat__num tabular" id="ref-stat-rewarded">0</span>
-              <span class="referral-stat__lbl">Rewarded (max 20)</span>
-            </div>
-            <div class="referral-stat">
-              <span class="referral-stat__num tabular" id="ref-stat-earned">0</span>
-              <span class="referral-stat__lbl">Chips earned</span>
-            </div>
-          </div>
-        </div>
-
-        <div id="active-table-banner" class="active-table-banner" hidden>
-          <div>
-            <strong id="active-table-banner-title">Active table</strong>
-            <div class="field-hint">Your seat is waiting on the felt.</div>
-          </div>
-          <button type="button" class="btn btn--primary" id="return-table-btn">Return to table</button>
-        </div>
-
-        <hr class="panel__divider">
-
-        <div class="panel__head">
-          <div>
-            <h2>Play Hold'em (2–6 players)</h2>
-            <p class="field-hint" style="margin-top: 4px">
-              10 / 20 blinds · Buy-in 400–2,000 chips · 30s action clock · Share your 5-character room code.
-            </p>
-          </div>
-          <button type="button" class="btn btn--ghost btn--compact" data-open-tutorial>Hand rankings</button>
-        </div>
-
-        <div class="table-lobby-split">
-          <form id="create-table-form" class="lobby-subbox" novalidate>
-            <h3>Create a table</h3>
-            <div class="field">
-              <label for="create-table-max-seats">Table size (seats)</label>
-              <select id="create-table-max-seats" name="max_seats" class="tabular">
-                <option value="6" selected>6 seats (6-max)</option>
-                <option value="5">5 seats</option>
-                <option value="4">4 seats</option>
-                <option value="3">3 seats</option>
-                <option value="2">2 seats (Heads-up)</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="create-table-buyin">Your buy-in (400–2,000 chips)</label>
-              <input id="create-table-buyin" name="buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required aria-describedby="create-table-error">
-            </div>
-            <p class="form-error" id="create-table-error" role="alert"></p>
-            <button type="submit" class="btn btn--primary btn--full" id="create-table-btn">Create table &amp; sit down</button>
-          </form>
-
-          <form id="join-table-form" class="lobby-subbox" novalidate>
-            <h3>Join by room code</h3>
+        <div class="play-grid">
+          <form id="join-table-form" class="play-card" novalidate>
+            <h2 class="play-card__title">Join by room code</h2>
             <div class="field">
               <label for="join-table-code">5-letter room code</label>
-              <input id="join-table-code" name="code" type="text" maxlength="5" placeholder="KTH26" autocomplete="off" class="code-input" required aria-describedby="join-table-error">
+              <input id="join-table-code" name="code" type="text" maxlength="5" placeholder="KTH26" autocomplete="off" autocapitalize="characters" spellcheck="false" class="code-input" required aria-describedby="join-table-error">
             </div>
             <div class="field">
-              <label for="join-table-buyin">Your buy-in (400–2,000 chips)</label>
-              <input id="join-table-buyin" name="buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required aria-describedby="join-table-error">
+              <label for="join-table-buyin" id="join-table-buyin-label">Your buy-in (chips)</label>
+              <input id="join-table-buyin" name="buyin" type="number" inputmode="numeric" min="1" step="1" value="500" class="tabular" required aria-describedby="join-table-hint join-table-error">
+              <p class="field-hint" id="join-table-hint">The buy-in range is set by the table you join.</p>
             </div>
             <p class="form-error" id="join-table-error" role="alert"></p>
-            <button type="submit" class="btn btn--ghost btn--full" id="join-table-btn">Join table</button>
+            <button type="submit" class="btn btn--primary btn--full" id="join-table-btn">Join table</button>
           </form>
-        </div>
 
-        <div class="btn-row">
-          <button type="button" class="btn btn--ghost" data-jump-view="leaderboard">View leaderboard</button>
-          <button type="button" class="btn btn--ghost" data-jump-view="profile">Edit display name</button>
+          <details class="play-card play-card--create" id="create-table-details">
+            <summary class="play-card__title">Create a table</summary>
+            <form id="create-table-form" class="play-card__body" novalidate>
+              <div class="field">
+                <label for="create-table-max-seats">Table size (seats)</label>
+                <select id="create-table-max-seats" name="max_seats" class="tabular">
+                  <option value="6" selected>6 seats (6-max)</option>
+                  <option value="5">5 seats</option>
+                  <option value="4">4 seats</option>
+                  <option value="3">3 seats</option>
+                  <option value="2">2 seats (Heads-up)</option>
+                </select>
+              </div>
+              <fieldset class="field stakes-picker" id="create-table-stakes">
+                <legend>Stakes</legend>
+                <div class="stakes-picker__options" id="create-table-stakes-options"></div>
+                <p class="field-hint tabular" id="create-table-stakes-hint" aria-live="polite"></p>
+              </fieldset>
+              <div class="field">
+                <label for="create-table-buyin" id="create-table-buyin-label">Your buy-in (200–1,000 chips)</label>
+                <input id="create-table-buyin" name="buyin" type="number" inputmode="numeric" min="200" max="1000" step="10" value="500" class="tabular" required aria-describedby="create-table-error">
+              </div>
+              <p class="form-error" id="create-table-error" role="alert"></p>
+              <button type="submit" class="btn btn--ghost btn--full" id="create-table-btn">Create table &amp; sit down</button>
+            </form>
+          </details>
         </div>
       </div>
 
       <div class="panel">
-        <div class="panel__head">
+        <div class="panel__head panel__head--center">
+          <h2>Your chips</h2>
+          <span class="pill" id="lobby-member-pill">Member</span>
+        </div>
+
+        <div class="chips-summary">
+          <div class="chips-summary__item" aria-live="polite">
+            <span class="chips-summary__label">Wallet</span>
+            <span class="chips-summary__figure">
+              <span class="chips-summary__value tabular" id="balance-value">0</span>
+              <span class="chips-summary__unit">chips</span>
+            </span>
+          </div>
+          <div class="chips-summary__item" id="at-tables-item" hidden>
+            <span class="chips-summary__label">At tables</span>
+            <span class="chips-summary__figure">
+              <span class="chips-summary__value tabular" id="at-tables-value">0</span>
+              <span class="chips-summary__unit">chips</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invite friends to earn chips (secondary) -->
+      <div class="panel panel--quiet referral-box" id="lobby-referral-box">
+        <div class="referral-box__head">
+          <div>
+            <h2 class="referral-box__title">Invite friends</h2>
+            <p class="field-hint" id="referral-box-explanation"></p>
+          </div>
+          <span class="pill pill--chip tabular">+250 chips / friend</span>
+        </div>
+
+        <div class="referral-box__copy-row">
+          <input type="text" id="referral-link-input" class="referral-link-input" readonly aria-label="Your referral invite link" value="Loading link…">
+          <button type="button" class="btn btn--primary btn--compact" id="referral-copy-btn">Copy link</button>
+        </div>
+
+        <div class="referral-box__stats" id="referral-stats">
+          <div class="referral-stat">
+            <span class="referral-stat__num tabular" id="ref-stat-invited">0</span>
+            <span class="referral-stat__lbl">Friends joined</span>
+          </div>
+          <div class="referral-stat">
+            <span class="referral-stat__num tabular" id="ref-stat-rewarded">0</span>
+            <span class="referral-stat__lbl">Rewarded</span>
+          </div>
+          <div class="referral-stat">
+            <span class="referral-stat__num tabular" id="ref-stat-earned">0</span>
+            <span class="referral-stat__lbl">Chips earned</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel panel--quiet">
+        <div class="panel__head panel__head--center">
           <h2>Recent chip history</h2>
           <span class="pill" id="ledger-count-pill">Ledger</span>
         </div>
@@ -248,7 +259,7 @@
             <span class="room-code-badge" id="table-code-badge">Room —</span>
             <span aria-hidden="true">⧉</span>
           </button>
-          <span class="pill tabular table-topbar__desktop" id="table-blinds-pill">10 / 20</span>
+          <span class="pill tabular table-topbar__desktop" id="table-blinds-pill"></span>
           <span class="pill pill--chip table-topbar__desktop">Play money – no cash value</span>
           <span class="pill table-topbar__desktop" id="table-conn-pill">Live</span>
         </div>
@@ -281,10 +292,11 @@
           <div id="table-opponent-seat" class="table-opponents-grid" aria-label="Opponent seats"></div>
 
           <div class="table-center">
-            <div class="table-pot-box" aria-live="polite">
+            <div class="table-pot-box" id="table-pot-box" aria-live="polite" hidden>
               <div class="table-pot-value">
-                <span class="chip-disc" aria-hidden="true"></span>
-                <span id="table-pot-amount">Pot: 0</span>
+                <span class="table-pot-label">Pot</span>
+                <span id="table-pot-amount">0</span>
+                <span class="sr-only">chips</span>
               </div>
               <div id="table-side-pots" class="table-side-pots" hidden></div>
             </div>
@@ -300,8 +312,8 @@
           <div id="table-self-zone" class="table-self-zone" aria-label="Your seat">
             <div id="table-self-seat" class="table-self-seat-slot"></div>
             <form id="table-sitdown-form" class="table-sitdown-inline" hidden novalidate>
-              <label for="table-sitdown-buyin" class="sr-only">Buy in (400–2,000 chips)</label>
-              <input id="table-sitdown-buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required>
+              <label for="table-sitdown-buyin" class="sr-only">Buy in (chips)</label>
+              <input id="table-sitdown-buyin" type="number" inputmode="numeric" min="1" step="1" value="500" class="tabular" required>
               <button type="submit" class="btn btn--primary btn--topbar" id="table-sitdown-btn">Sit &amp; buy in</button>
             </form>
           </div>
@@ -331,7 +343,7 @@
 
         <div class="action-bar__inner">
           <div class="action-bar__head">
-            <span id="action-waiting-text">Waiting for players…</span>
+            <span id="action-waiting-text" class="action-bar__status">Waiting for players…</span>
             <div class="action-bar__meta">
               <span id="action-timer-pill" class="pill tabular" hidden>30s</span>
               <span class="action-bar__keys">F Fold · C Call · R Raise</span>
@@ -364,10 +376,7 @@
     <section id="view-leaderboard" class="screen" aria-labelledby="leaderboard-heading" hidden>
       <div class="panel">
         <div class="panel__head">
-          <div>
-            <span class="pill pill--chip">Play money – no cash value</span>
-            <h1 id="leaderboard-heading" style="margin-top: 8px">Leaderboard</h1>
-          </div>
+          <h1 id="leaderboard-heading">Leaderboard</h1>
           <button type="button" class="btn btn--ghost" id="refresh-leaderboard-btn">Refresh</button>
         </div>
         <p class="panel__lede">
@@ -389,13 +398,7 @@
     <section id="view-profile" class="screen" aria-labelledby="profile-heading" hidden>
       <div class="panel">
         <div class="panel__head">
-          <div>
-            <div class="btn-row" style="gap: 8px">
-              <span class="pill pill--chip">Play money – no cash value</span>
-              <span class="pill">Privacy first</span>
-            </div>
-            <h1 id="profile-heading" style="margin-top: 8px">Table profile</h1>
-          </div>
+          <h1 id="profile-heading">Table profile</h1>
         </div>
         <p class="panel__lede">
           Choose the display name other students see at the table and on the leaderboard.
@@ -424,7 +427,7 @@
       </div>
 
       <div class="panel">
-        <div class="panel__head">
+        <div class="panel__head panel__head--center">
           <h2>Society membership</h2>
           <span class="pill pill--brand">Verified account</span>
         </div>
@@ -447,8 +450,8 @@
 
   <footer class="game-footer">
     <div class="wrap">
-      <span>KTH Poker Society · Student-led association at KTH Stockholm</span>
-      <span>Play money – no cash value · No real-money stakes or prizes</span>
+      <p>KTH Poker Society members only · Chips cannot be bought, sold or cashed out · No real-money stakes or prizes</p>
+      <p>Student-led association at KTH Stockholm · <a href="/">Society site</a></p>
     </div>
   </footer>
 
@@ -458,7 +461,7 @@
       <div class="dialog-top">
         <div>
           <span class="pill pill--chip">Play money – no cash value</span>
-          <h2 id="auth-dialog-title" tabindex="-1" style="margin-top: 6px">Log in</h2>
+          <h2 id="auth-dialog-title" tabindex="-1">Log in</h2>
         </div>
         <button type="button" class="icon-close-btn" data-close-dialog aria-label="Close dialog">×</button>
       </div>
@@ -469,7 +472,7 @@
           <button type="button" role="tab" id="tab-signup" aria-selected="false" aria-controls="signup-form" tabindex="-1">Create account</button>
         </div>
 
-        <form id="login-form" class="form-stack" role="tabpanel" aria-labelledby="tab-login" novalidate style="margin-top: 16px">
+        <form id="login-form" class="form-stack" role="tabpanel" aria-labelledby="tab-login" novalidate>
           <div class="field"><label for="li-email">Email</label><input id="li-email" name="email" type="email" autocomplete="email" required aria-describedby="login-error"></div>
           <div class="field"><label for="li-password">Password</label><input id="li-password" name="password" type="password" autocomplete="current-password" required aria-describedby="login-error"></div>
           <button type="button" class="link-btn" id="forgot-password-btn">Forgot your password?</button>
@@ -477,7 +480,7 @@
           <button type="submit" class="btn btn--primary btn--full" id="login-submit-btn">Log in</button>
         </form>
 
-        <form id="signup-form" class="form-stack" role="tabpanel" aria-labelledby="tab-signup" novalidate hidden style="margin-top: 16px">
+        <form id="signup-form" class="form-stack" role="tabpanel" aria-labelledby="tab-signup" novalidate hidden>
           <div class="field"><label for="su-name">Full name</label><input id="su-name" name="name" type="text" autocomplete="name" required aria-describedby="signup-error"></div>
           <div class="field"><label for="su-email">Email</label><input id="su-email" name="email" type="email" autocomplete="email" required aria-describedby="signup-error"></div>
           <div class="field"><label for="su-program">Program (optional)</label><input id="su-program" name="program" type="text" placeholder="e.g. CDATE, CINEK" autocomplete="off"></div>
@@ -516,19 +519,19 @@
       <div class="dialog-top">
         <div>
           <span class="pill pill--chip">Play money – no cash value</span>
-          <h2 id="tutorial-dialog-title" tabindex="-1" style="margin-top: 6px">How to play &amp; hand rankings</h2>
+          <h2 id="tutorial-dialog-title" tabindex="-1">How to play &amp; hand rankings</h2>
         </div>
         <button type="button" class="icon-close-btn" data-close-dialog aria-label="Close guide">×</button>
       </div>
 
       <div class="tutorial-steps">
         <div class="tutorial-step">
-          <strong>1. Sit down (400–2,000 chips)</strong>
-          <span class="field-hint">Create a 2–6 seat room or enter a 5-letter code. Your buy-in moves from your balance to your table stack and returns when you leave.</span>
+          <strong>1. Sit down with a buy-in</strong>
+          <span class="field-hint">Create a 2–6 seat room and pick its stakes (Micro 1/2, Low 5/10 or Standard 10/20), or enter a 5-letter code. Your buy-in moves from your balance to your table stack and returns when you leave.</span>
         </div>
         <div class="tutorial-step">
           <strong>2. Act within 30 seconds</strong>
-          <span class="field-hint">Blinds are 10 / 20. Each player gets 2 private hole cards and shares 5 community cards across Preflop, Flop, Turn, and River. Timing out twice in a row sets you to Sitting out.</span>
+          <span class="field-hint">Blinds depend on the table. Each player gets 2 private hole cards and shares 5 community cards across Preflop, Flop, Turn, and River. Timing out twice in a row sets you to Sitting out.</span>
         </div>
         <div class="tutorial-step">
           <strong>3. Best 5-card hand wins</strong>
@@ -542,6 +545,7 @@
       <div class="btn-row">
         <button type="button" class="btn btn--primary btn--full" data-close-dialog>Got it</button>
       </div>
+      <p class="field-hint">KTH Poker Society members only · Chips cannot be bought, sold or cashed out · No real-money stakes or prizes.</p>
     </div>
   </dialog>
 
@@ -551,7 +555,7 @@
       <div class="dialog-top">
         <div>
           <span class="pill pill--chip">Play money – no cash value</span>
-          <h2 id="table-drawer-title" tabindex="-1" style="margin-top: 6px">Table options &amp; recent hands</h2>
+          <h2 id="table-drawer-title" tabindex="-1">Table options &amp; recent hands</h2>
         </div>
         <button type="button" class="icon-close-btn" data-close-drawer aria-label="Close table options">×</button>
       </div>

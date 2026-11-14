@@ -30,12 +30,14 @@
 .action-bar__meta {
   display: flex;
   align-items: center;
+  width: 100%;
   gap: 8px;
   color: var(--muted);
   font-weight: 400;
   white-space: nowrap;
 }
 .action-bar__play-money {
+  margin-left: auto;
   color: var(--chip);
   font-weight: 600;
   font-size: 11px;
@@ -49,7 +51,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
+  min-height: var(--tap-min);
 }
 .action-idle-row > div { width: 100%; max-width: 340px; }
 .action-idle-row .btn { width: 100%; }
@@ -70,7 +72,7 @@
   gap: 8px;
 }
 .action-btn-grid .btn {
-  min-height: 46px;
+  min-height: var(--tap-min);
   padding: 0 10px;
   font-size: var(--text-xs);
 }
@@ -84,7 +86,7 @@
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  width: min(460px, calc(100vw - 16px));
+  width: min(460px, calc(100% - 16px));
   padding: 10px 12px;
   border-radius: var(--radius-panel);
   background: var(--deep);
@@ -103,8 +105,8 @@
 }
 .preset-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .preset-btn {
-  min-height: 44px;
-  min-width: 44px;
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
   padding: 0 6px;
   border-radius: var(--radius-card);
   border: 1px solid var(--control);
@@ -116,7 +118,7 @@
 .preset-btn:hover { border-color: var(--sky); }
 .raise-slider-row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px 86px;
+  grid-template-columns: var(--tap-min) minmax(0, 1fr) var(--tap-min) 86px;
   align-items: center;
   gap: 6px;
 }
@@ -140,50 +142,39 @@
   text-align: right;
 }
 
-/* 2. Desktop (>= 961px) 3x3 Oval Ring Layout */
-@media (min-width: 961px) and (min-height: 501px) {
-  .poker-felt {
-    grid-template-columns: var(--seat-col-w) minmax(0, 1fr) var(--seat-col-w);
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    grid-template-areas:
-      "top-left top-center top-right"
-      "mid-left center     mid-right"
-      "self-row self-row   self-row";
-    gap: 10px 16px;
-  }
-  .table-opponents-grid { display: contents; }
-  .poker-felt [data-grid-pos="top-left"] { grid-area: top-left; max-width: 100%; }
-  .poker-felt [data-grid-pos="top-center"] { grid-area: top-center; width: min(100%, 290px); max-width: 290px; }
-  .poker-felt [data-grid-pos="top-right"] { grid-area: top-right; max-width: 100%; }
-  .poker-felt [data-grid-pos="mid-left"] { grid-area: mid-left; max-width: 100%; align-self: center; }
-  .poker-felt [data-grid-pos="mid-right"] { grid-area: mid-right; max-width: 100%; align-self: center; }
-  .table-center { grid-area: center; gap: 10px; }
-  .table-self-zone { grid-area: self-row; }
-  .table-seat-card--opp { max-width: 310px; }
-  .table-seat-plaque { padding: 8px 12px; gap: 5px; }
-  .table-seat-plaque__name strong { font-size: var(--text-xs); max-width: 130px; }
-  .table-seat-plaque .chip-amount { font-size: var(--text-xs); }
-  .seat-avatar { width: 24px; height: 24px; font-size: 11px; }
+/* 2. Phone landscape: seats follow the oval, so use the "wide" slot positions */
+.table-shell[data-layout-mode="mobile-landscape"] .table-seat-card {
+  left: var(--sx-w, 50%);
+  top: var(--sy-w, 50%);
 }
-
-@media (min-width: 1400px) and (min-height: 820px) {
-  .table-seat-plaque { padding: 11px 15px; gap: 6px; border-radius: 12px; }
-  .table-seat-plaque__name strong { font-size: 16px; max-width: 155px; }
-  .table-seat-plaque .chip-amount { font-size: 16px; }
-  .table-seat-plaque .pill { font-size: 12px; padding: 2px 8px; }
-  .table-seat-card--self .table-seat-plaque { min-width: 230px; max-width: 320px; padding: 10px 14px; }
-  .seat-avatar { width: 28px; height: 28px; font-size: 12px; }
+/* The oval has room: bets sit level with the seat, facing the pot */
+.table-shell[data-layout-mode="mobile-landscape"] .table-bet[data-dir="right"] { top: 50%; }
+.table-shell[data-layout-mode="mobile-landscape"] .table-bet[data-row="lower"][data-dir="right"] { top: 74%; }
+.table-shell[data-layout-mode="mobile-landscape"] .table-bet[data-dir="left"] { top: 50%; }
+.table-shell[data-layout-mode="mobile-landscape"] .table-bet[data-row="lower"][data-dir="left"] { top: 74%; }
+.table-shell[data-layout-mode="mobile-landscape"] .table-bet[data-pdir="right"] {
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
 }
+/* Own seat puts the hole cards beside the plaque, which keeps it inside the lower rail */
+.table-shell[data-layout-mode="mobile-landscape"] .table-seat-card--self {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  gap: 8px;
+}
+.table-shell[data-layout-mode="mobile-landscape"] .table-seat-card--self .table-seat-cards { margin-bottom: 0; order: -1; }
 
 /* 3. Mobile Landscape (@media (orientation: landscape) and (max-height: 500px)) */
 @media (orientation: landscape) and (max-height: 500px) and (min-height: 320px) {
   .table-shell {
     grid-template-columns: minmax(0, 1fr) clamp(140px, 21vw, 172px);
-    grid-template-rows: 46px minmax(0, 1fr);
+    grid-template-rows: 52px minmax(0, 1fr);
   }
   .table-topbar {
     grid-column: 1 / -1;
-    min-height: 46px;
     padding-block: 1px;
   }
   .table-stage {
@@ -191,27 +182,23 @@
     grid-row: 2;
     padding: 3px 4px max(3px, env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px));
   }
-  .poker-felt {
-    grid-template-columns: var(--seat-col-w) minmax(0, 1fr) var(--seat-col-w);
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    grid-template-areas:
-      "top-left top-center top-right"
-      "mid-left center     mid-right"
-      "self-row self-row   self-row";
-    gap: 3px 6px;
+  .poker-felt { --seat-w: min(var(--seat-col-w), 124px); }
+  .table-center { gap: 4px; }
+  .table-seat-plaque { padding: 3px 6px 4px; gap: 1px; border-radius: 10px; }
+  .table-seat-plaque__name strong { font-size: 12px; -webkit-line-clamp: 1; }
+  .table-seat-plaque .chip-amount { font-size: 12px; }
+  .table-seat-plaque .pill { font-size: 10px; }
+  .table-seat-handname { font-size: 11px; }
+  .table-bet { font-size: 11px; padding: 1px 6px 1px 3px; }
+  .table-bet .chip-disc { width: 11px; height: 11px; }
+  .table-status-banner { font-size: 11px; padding: 2px 8px; max-width: min(46%, 340px); }
+  .table-pot-value { font-size: 20px; }
+  .table-seat-card--self .table-seat-plaque { width: 128px; }
+  .table-sitdown-inline { top: 84%; }
+  .table-seat-cards--opp:has(.playing-card--opp-reveal) .playing-card--opp-reveal {
+    width: calc(var(--opp-card-w) * 1.9);
+    height: calc(var(--opp-card-h) * 1.9);
   }
-  .table-opponents-grid { display: contents; }
-  .poker-felt [data-grid-pos="top-left"] { grid-area: top-left; max-width: 100%; }
-  .poker-felt [data-grid-pos="top-center"] { grid-area: top-center; width: min(100%, 195px); }
-  .poker-felt [data-grid-pos="top-right"] { grid-area: top-right; max-width: 100%; }
-  .poker-felt [data-grid-pos="mid-left"] { grid-area: mid-left; max-width: 100%; align-self: center; }
-  .poker-felt [data-grid-pos="mid-right"] { grid-area: mid-right; max-width: 100%; align-self: center; }
-  .table-center { grid-area: center; gap: 3px; }
-  .table-self-zone { grid-area: self-row; }
-  .table-seat-plaque { padding: 3px 6px; gap: 2px; }
-  .table-seat-plaque__name strong { font-size: 12px; max-width: 72px; }
-  .table-bet-pill { font-size: 10px; padding: 1px 5px; }
-  .seat-avatar { width: 18px; height: 18px; font-size: 9px; }
 
   .action-bar {
     grid-column: 2;
@@ -237,7 +224,7 @@
   .action-bar__meta { flex-wrap: wrap; white-space: normal; gap: 4px; }
   .action-bar__play-money { white-space: normal; line-height: 1.2; font-size: 10.5px; }
   .action-btn-grid { grid-template-columns: 1fr; gap: 6px; }
-  .action-btn-grid .btn { min-height: 44px; width: 100%; font-size: 13px; padding: 0 8px; }
+  .action-btn-grid .btn { min-height: var(--tap-min); width: 100%; font-size: 13px; padding: 0 8px; }
   .action-raise-sheet {
     position: fixed;
     left: auto;
@@ -285,3 +272,199 @@
 }
 .hand-history-row__sub { color: var(--muted); }
 .hand-history-row__board { display: flex; align-items: center; gap: 4px; }
+
+/* 5. Desktop (>= 961px wide, taller than 500px): a composed, capped table.
+      The felt is a ~1.8:1 oval and at most 1000px wide (see computeTableLayoutVars); the top bar, felt and action bar
+      share that width and are centred as one group. The own seat is bottom centre with the hole cards directly above it. */
+.table-shell[data-layout-mode="desktop"] {
+  --dk-gutter: max(16px, calc((100% - var(--felt-w)) / 2));
+  --self-plaque-w: calc(var(--seat-col-w) * 1.4);
+}
+@media (min-width: 961px) and (min-height: 501px) {
+  .table-shell[data-layout-mode="desktop"] {
+    /* topbar | spare | stage (capped) | action bar | spare: stage and bar sit together, centred in what is left.
+       The bar row has a fixed minimum so the felt does not jump when the bar changes height between states. */
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, 620px) minmax(120px, auto) minmax(0, 1fr);
+  }
+  .table-shell[data-layout-mode="desktop"] > .action-bar { align-self: start; }
+  .table-shell[data-layout-mode="desktop"] > .table-topbar { grid-row: 1; }
+  .table-shell[data-layout-mode="desktop"] > .table-stage { grid-row: 3; }
+  .table-shell[data-layout-mode="desktop"] > .action-bar { grid-row: 4; }
+}
+
+/* Top bar: quiet, and its contents line up with the felt edges */
+.table-shell[data-layout-mode="desktop"] .table-topbar {
+  background: var(--ink);
+  padding-inline: var(--dk-gutter);
+  min-height: 60px;
+  gap: 12px;
+}
+.table-shell[data-layout-mode="desktop"] .table-topbar__left,
+.table-shell[data-layout-mode="desktop"] .table-topbar__right { gap: 8px; }
+.table-shell[data-layout-mode="desktop"] .table-topbar .pill { font-size: var(--text-xs); padding: 2px 12px; }
+.table-shell[data-layout-mode="desktop"] .table-stage { padding: 0 max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Felt */
+.table-shell[data-layout-mode="desktop"] .poker-felt {
+  --seat-w: var(--seat-col-w);
+  --cy: 44%;
+  box-shadow:
+    0 18px 48px rgba(2, 8, 20, 0.5),
+    inset 0 0 0 8px var(--deep),
+    inset 0 0 0 9px var(--line),
+    inset 0 0 80px rgba(2, 8, 20, 0.34);
+}
+.table-shell[data-layout-mode="desktop"] .table-seat-card {
+  left: var(--sx-d, 50%);
+  top: var(--sy-d, 50%);
+}
+/* Own seat: anchored to the bottom edge; hole cards sit on the same axis directly above the plaque */
+.table-shell[data-layout-mode="desktop"] .table-seat-card--self {
+  top: auto;
+  bottom: 20px;
+  width: var(--self-plaque-w);
+  transform: translateX(-50%);
+}
+.table-shell[data-layout-mode="desktop"] .table-seat-cards--self { margin-bottom: calc(var(--self-card-h) * -0.3); gap: 8px; }
+
+/* Plaques and type: large enough to read from a desktop chair */
+.table-shell[data-layout-mode="desktop"] .table-seat-plaque {
+  border-radius: 14px;
+  padding: 10px 14px 11px;
+  gap: 4px;
+}
+.table-shell[data-layout-mode="desktop"] .table-seat-plaque__name strong { font-size: 17px; line-height: 1.25; -webkit-line-clamp: 1; }
+.table-shell[data-layout-mode="desktop"] .seat-you-tag { font-size: 11px; padding: 0 8px; }
+.table-shell[data-layout-mode="desktop"] .table-seat-plaque .chip-amount { font-size: 16px; gap: 6px; }
+.table-shell[data-layout-mode="desktop"] .table-seat-plaque .chip-disc { width: 13px; height: 13px; }
+.table-shell[data-layout-mode="desktop"] .table-seat-plaque .pill { font-size: 13px; padding: 0 9px; }
+.table-shell[data-layout-mode="desktop"] .table-seat-handname { font-size: 14px; }
+.table-shell[data-layout-mode="desktop"] .seat-timer-bar { height: 5px; margin-top: 3px; }
+.table-shell[data-layout-mode="desktop"] .table-seat-card--turn .table-seat-plaque {
+  box-shadow: 0 0 0 2px var(--sky), 0 0 26px rgba(125, 178, 244, 0.32), 0 6px 18px rgba(2, 8, 20, 0.5);
+}
+.table-shell[data-layout-mode="desktop"] .table-seat-empty { padding: 14px 8px; font-size: 14px; border-radius: 14px; }
+.table-shell[data-layout-mode="desktop"] .table-seat-plaque .table-dealer {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  top: -16px;
+  right: -16px;
+}
+.table-shell[data-layout-mode="desktop"] .table-seat-plaque .table-dealer[data-corner="left"] { right: auto; left: -16px; }
+
+/* Bets: between the seat and the pot */
+.table-shell[data-layout-mode="desktop"] .table-bet { font-size: 15px; padding: 2px 10px 2px 6px; gap: 6px; }
+.table-shell[data-layout-mode="desktop"] .table-bet .chip-disc { width: 14px; height: 14px; }
+.table-shell[data-layout-mode="desktop"] .table-bet[data-dir="right"] { top: 62%; left: calc(100% + 12px); }
+.table-shell[data-layout-mode="desktop"] .table-bet[data-dir="left"] { top: 62%; right: calc(100% + 12px); }
+.table-shell[data-layout-mode="desktop"] .table-bet[data-pdir="right"] { top: 62%; left: calc(100% + 12px); bottom: auto; transform: translateY(-50%); }
+.table-shell[data-layout-mode="desktop"] .table-bet[data-row="upper"][data-dir="right"],
+.table-shell[data-layout-mode="desktop"] .table-bet[data-row="upper"][data-dir="left"] { top: 46%; }
+.table-shell[data-layout-mode="desktop"] .table-bet[data-dir="up"] { bottom: calc(100% + 8px); }
+
+/* Observers: the buy-in form takes the own seat's spot */
+.table-shell[data-layout-mode="desktop"] .table-sitdown-inline { top: auto; bottom: 28px; transform: translateX(-50%); padding: 10px 12px; gap: 12px; }
+
+/* Centre: pot, board and status line */
+.table-shell[data-layout-mode="desktop"] .table-center { gap: 10px; }
+.table-shell[data-layout-mode="desktop"] .table-pot-value { font-size: 38px; gap: 12px; }
+.table-shell[data-layout-mode="desktop"] .table-pot-label { font-size: 13px; }
+.table-shell[data-layout-mode="desktop"] .table-side-pots .pill { font-size: 13px; padding: 0 10px; }
+.table-shell[data-layout-mode="desktop"] .table-board-row { gap: 10px; }
+.table-shell[data-layout-mode="desktop"] .table-board-row .playing-card,
+.table-shell[data-layout-mode="desktop"] .table-board-row .card-slot-empty { padding: 6px 7px; border-radius: 10px; }
+.table-shell[data-layout-mode="desktop"] .table-board-row .playing-card__rank { font-size: clamp(18px, calc(var(--board-card-w) * 0.36), 28px); }
+.table-shell[data-layout-mode="desktop"] .table-board-row .playing-card__suit { font-size: clamp(20px, calc(var(--board-card-w) * 0.44), 34px); }
+.table-shell[data-layout-mode="desktop"] .table-seat-cards--self .playing-card { padding: 6px 7px; border-radius: 10px; }
+.table-shell[data-layout-mode="desktop"] .table-seat-cards--self .playing-card__rank { font-size: clamp(18px, calc(var(--self-card-w) * 0.36), 28px); }
+.table-shell[data-layout-mode="desktop"] .table-seat-cards--self .playing-card__suit { font-size: clamp(20px, calc(var(--self-card-w) * 0.44), 34px); }
+.table-shell[data-layout-mode="desktop"] .table-seat-cards--opp .playing-card { border-radius: 5px; }
+.table-shell[data-layout-mode="desktop"] .table-seat-cards--opp .playing-card__rank { font-size: 13px; }
+.table-shell[data-layout-mode="desktop"] .table-seat-cards--opp .playing-card__suit { font-size: 14px; }
+.table-shell[data-layout-mode="desktop"] .table-status-banner { font-size: 15px; padding: 6px 16px; max-width: min(92%, 380px); }
+
+/* Action bar: a panel as wide as the felt, centred under it */
+.table-shell[data-layout-mode="desktop"] .action-bar {
+  width: var(--felt-w);
+  max-width: calc(100% - 32px);
+  margin: 10px auto 18px;
+  padding: 10px 20px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(2, 8, 20, 0.4);
+}
+.table-shell[data-layout-mode="desktop"] .action-bar--my-turn { border: 2px solid var(--sky); padding: 9px 19px 11px; }
+.table-shell[data-layout-mode="desktop"] .action-bar--urgent { border: 2px solid var(--danger); padding: 9px 19px 11px; }
+.table-shell[data-layout-mode="desktop"] .action-bar__inner { max-width: none; gap: 8px; }
+.table-shell[data-layout-mode="desktop"] .action-bar__head { min-height: 26px; font-size: var(--text-xs); gap: 16px; }
+.table-shell[data-layout-mode="desktop"] .action-bar__meta { width: auto; flex: 1; min-width: 0; gap: 14px; }
+.table-shell[data-layout-mode="desktop"] .action-bar__play-money { font-size: 13px; }
+.table-shell[data-layout-mode="desktop"] .action-btn-grid { gap: 12px; }
+.table-shell[data-layout-mode="desktop"] .action-btn-grid .btn { min-height: 52px; font-size: var(--text-base); }
+
+/* The turn cue: written out next to the buttons (on phones it stays screen-reader only) */
+.action-bar__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.table-shell[data-layout-mode="desktop"] .action-bar__status {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.table-shell[data-layout-mode="desktop"] .action-bar--my-turn .action-bar__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 14px 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  color: #fff;
+  font-size: var(--text-base);
+}
+.table-shell[data-layout-mode="desktop"] .action-bar--my-turn .action-bar__status::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--sky);
+  box-shadow: 0 0 0 3px rgba(125, 178, 244, 0.3);
+}
+.table-shell[data-layout-mode="desktop"] .action-bar--urgent .action-bar__status { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+.table-shell[data-layout-mode="desktop"] .action-bar--urgent .action-bar__status::before { background: var(--danger); box-shadow: 0 0 0 3px rgba(255, 155, 143, 0.3); }
+.table-shell[data-layout-mode="desktop"] .action-raise-sheet { bottom: calc(100% + 10px); width: min(520px, calc(100% - 16px)); }
+
+/* Shorter desktop windows (laptops, 1024x768, 1280x720): the same design with a tighter vertical rhythm */
+@media (min-width: 961px) and (min-height: 501px) and (max-height: 840px) {
+  .table-shell[data-layout-mode="desktop"] { grid-template-rows: auto minmax(0, 1fr) minmax(0, 620px) minmax(100px, auto) minmax(0, 1fr); }
+  .table-shell[data-layout-mode="desktop"] .table-topbar { min-height: 52px; }
+  .table-shell[data-layout-mode="desktop"] .action-bar { margin: 8px auto 12px; padding: 8px 20px 10px; }
+  .table-shell[data-layout-mode="desktop"] .action-bar--my-turn,
+  .table-shell[data-layout-mode="desktop"] .action-bar--urgent { padding: 7px 19px 9px; }
+  .table-shell[data-layout-mode="desktop"] .action-btn-grid .btn { min-height: 48px; }
+  .table-shell[data-layout-mode="desktop"] .table-seat-plaque { padding: 7px 12px 8px; gap: 2px; }
+  .table-shell[data-layout-mode="desktop"] .table-seat-plaque__name strong { font-size: 16px; }
+  .table-shell[data-layout-mode="desktop"] .table-seat-plaque .chip-amount { font-size: 15px; }
+  .table-shell[data-layout-mode="desktop"] .table-seat-plaque .pill { font-size: 12px; line-height: 1.4; }
+  .table-shell[data-layout-mode="desktop"] .table-seat-cards:not(.table-seat-cards--self) { margin-bottom: calc(var(--opp-card-h) * -0.5); }
+  .table-shell[data-layout-mode="desktop"] .table-seat-cards--self { margin-bottom: calc(var(--self-card-h) * -0.36); }
+  .table-shell[data-layout-mode="desktop"] .table-seat-card--self { bottom: 14px; }
+  .table-shell[data-layout-mode="desktop"] .table-center { gap: 6px; }
+  .table-shell[data-layout-mode="desktop"] .table-pot-value { font-size: 32px; }
+  .table-shell[data-layout-mode="desktop"] .table-status-banner { font-size: 14px; padding: 3px 14px; }
+  .table-shell[data-layout-mode="desktop"] .table-bet { font-size: 14px; }
+}

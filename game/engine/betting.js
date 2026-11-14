@@ -375,14 +375,17 @@ export function apply(inputState, seat, rawAction) {
   const type = String(actionObj.type || actionObj.intent || "").toLowerCase().trim();
 
   if (type === "timeout" || type === "timeout-fold") {
-    if (legal.canCheck) {
+    // A timeout checks when checking is free, unless the caller forces a fold (`{ type: "timeout", fold: true }`,
+    // used when the timed-out seat is, or is now being, sat out). A timed-out check is logged as a plain
+    // `check` (flagged `timeout: true`); only a real fold is logged as `timeout-fold`.
+    const forceFold = actionObj.fold === true;
+    if (legal.canCheck && !forceFold) {
       player.acted = true;
       player.actedSinceFullRaise = true;
       state.actions.push({
         street: state.street,
         seat,
-        type: "timeout-fold",
-        mode: "check",
+        type: "check",
         amount: 0,
         timeout: true
       });
@@ -394,7 +397,6 @@ export function apply(inputState, seat, rawAction) {
         street: state.street,
         seat,
         type: "timeout-fold",
-        mode: "fold",
         amount: 0,
         timeout: true
       });

@@ -5,6 +5,8 @@ import {
   extractInitials,
   detectTableLayoutMode,
   computeTableLayoutVars,
+  DESKTOP_FELT_MAX_W,
+  DESKTOP_FELT_MAX_H,
   isFullscreenSupported,
   getFullscreenElement,
   shouldShowAndroidRotateHint
@@ -67,11 +69,31 @@ test("computeTableLayoutVars fits felt, 5 board cards, and seat columns within s
     }
   }
 
-  // Verify desktop cards scale larger on 1920x1080 than 1280x720
-  const m720 = computeTableLayoutVars({ stageWidth: 1280, stageHeight: 586, viewportWidth: 1280, viewportHeight: 720 });
-  const m1080 = computeTableLayoutVars({ stageWidth: 1920, stageHeight: 944, viewportWidth: 1920, viewportHeight: 1080 });
-  assert.ok(m1080.boardCardW > m720.boardCardW);
-  assert.ok(m1080.feltW > m720.feltW);
+  // Desktop: the felt is capped (never edge to edge), centred-sized, about 2:1, and cards scale with it
+  for (const vp of [
+    { vw: 1920, vh: 1080, sw: 1920, sh: 620 },
+    { vw: 1440, vh: 900, sw: 1440, sh: 620 },
+    { vw: 1280, vh: 800, sw: 1280, sh: 603 },
+    { vw: 1280, vh: 720, sw: 1280, sh: 528 },
+    { vw: 1024, vh: 768, sw: 1024, sh: 560 }
+  ]) {
+    const m = computeTableLayoutVars({ stageWidth: vp.sw, stageHeight: vp.sh, viewportWidth: vp.vw, viewportHeight: vp.vh });
+    assert.equal(m.mode, "desktop");
+    assert.ok(m.feltW <= DESKTOP_FELT_MAX_W, `felt ${m.feltW} too wide at ${vp.vw}`);
+    assert.ok(m.feltH <= DESKTOP_FELT_MAX_H, `felt ${m.feltH} too tall at ${vp.vw}`);
+    assert.ok(m.feltW <= vp.sw - 48, "breathing room left and right");
+    const ratio = m.feltW / m.feltH;
+    assert.ok(ratio >= 1.74 && ratio <= 2.06, `ratio ${ratio} at ${vp.vw}x${vp.vh}`);
+    assert.equal(m.feltRadius, Math.round(m.feltH / 2), "a true oval");
+    assert.ok(m.boardCardW >= 56, `board cards stay large (${m.boardCardW}) at ${vp.vw}x${vp.vh}`);
+    assert.ok(m.selfCardW >= m.boardCardW);
+  }
+  const big = computeTableLayoutVars({ stageWidth: 1920, stageHeight: 620, viewportWidth: 1920, viewportHeight: 1080 });
+  const wide = computeTableLayoutVars({ stageWidth: 3000, stageHeight: 1400, viewportWidth: 3000, viewportHeight: 1600 });
+  assert.equal(wide.feltW, big.feltW, "the felt does not keep growing on very wide screens");
+  assert.equal(big.feltW, DESKTOP_FELT_MAX_W);
+  const small = computeTableLayoutVars({ stageWidth: 1024, stageHeight: 560, viewportWidth: 1024, viewportHeight: 768 });
+  assert.ok(small.feltW < big.feltW && small.boardCardW <= big.boardCardW);
 });
 
 test("Fullscreen capability detection, webkit fallback, and one-time Android portrait rotate hint", () => {

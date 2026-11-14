@@ -4,11 +4,11 @@
 import { formatChips } from "../lib/format.js";
 import {
   partitionTableSeats,
-  layoutOpponentSeatsForGrid,
   describeHandStatus,
-  summarizeShowdown
+  summarizeShowdown,
+  getDisplayPots
 } from "../lib/table-helpers.js";
-import { extractInitials } from "../lib/table-layout.js";
+import { assignSeatSlots, getSeatSlots, betDirection, clampSeatTotal } from "../lib/table-layout.js";
 import {
   createCard,
   createCardBack,
@@ -92,14 +92,65 @@ export function updateTurnTimerInPlace(rootEl, remainingSeconds, totalSeconds = 
   }
 }
 
+/** Writes the position of a seat for both table shapes (portrait stadium / phone-landscape oval / desktop oval) as CSS custom properties. */
+function setSlotVars(el, slotIndex, total) {
+  [["p", "portrait"], ["w", "wide"], ["d", "desktop"]].forEach(([key, shape]) => {
+    const pos = getSeatSlots(total, shape)[slotIndex];
+    if (!pos) return;
+    el.style.setProperty(`--sx-${key}`, `${pos[0]}%`);
+    el.style.setProperty(`--sy-${key}`, `${pos[1]}%`);
+  });
+}
+
+/** Quiet placeholder for a seat nobody has taken yet. */
+export function createEmptySeat(slotIndex, total) {
+  const el = document.createElement("div");
+  el.className = "table-seat-card table-seat-card--empty";
+  el.dataset.slot = String(slotIndex);
+  const box = document.createElement("div");
+  box.className = "table-seat-empty";
+  box.textContent = "Open seat";
+  el.appendChild(box);
+  setSlotVars(el, slotIndex, total);
+  return el;
+}
+
+/** Flat chip disc + amount. Placed beside its seat, on the side facing the pot (see betDirection). */
+export function createBetChip(seat, slotIndex, total, animate = false) {
+  const el = document.createElement("div");
+  el.className = `table-bet tabular${animate ? " chip-move-anim" : ""}`;
+  const pos = getSeatSlots(total, "portrait")[slotIndex] || [50, 50];
+  el.dataset.dir = betDirection(pos);
+  el.dataset.row = pos[1] < 45 ? "upper" : "lower";
+  // 6-max on a phone: the top-centre chip would collide with the upper side seats' chips, so it sits to the right
+  if (total === 6 && slotIndex === 3) el.dataset.pdir = "right";
+  el.setAttribute("role", "img");
+  const who = seat.isSelf ? "Your" : `${seat.displayName || `Seat ${seat.seatNo + 1}`}'s`;
+  el.setAttribute("aria-label", `${who} bet: ${formatChips(seat.bet)} chips`);
+  const disc = document.createElement("span");
+  disc.className = "chip-disc";
+  disc.setAttribute("aria-hidden", "true");
+  const amt = document.createElement("span");
+  amt.className = "table-bet__amount";
+  amt.textContent = formatChips(seat.bet);
+  el.append(disc, amt);
+  return el;
+}
+
+/** Top plaque corner for the dealer button (set in CSS, mostly outside the plaque): the pot-facing side, clear of the bet chip. */
+export function dealerCorner(dir, slotIndex, total) {
+  if (dir === "left") return "left";
+  if (dir === "down" && total === 6 && slotIndex === 3) return "left"; // phones: this chip sits to the right
+  return "right";
+}
+
 export function createSeatBox(
   seat,
   hand,
   {
     isSelf = false,
-    compact = false,
-    fullRow = false,
-    gridPosition = "",
+    slotIndex = null,
+    slotTotal = 6,
     myHoleCards = null,
     lastHoleCardsHandId = null,
     remainingSeconds = null,
@@ -118,8 +169,6 @@ export function createSeatBox(
   wrap.className = [
     "table-seat-card",
     isSelf ? "table-seat-card--self" : "table-seat-card--opp",
-    compact ? "table-seat-card--compact" : "",
-    fullRow ? "table-seat-card--fullrow" : "",
     isTurn ? "table-seat-card--turn" : "",
     isWinner ? "table-seat-card--winner" : "",
     isFolded ? "table-seat-card--folded" : "",
@@ -128,7 +177,10 @@ export function createSeatBox(
     .filter(Boolean)
     .join(" ");
   wrap.dataset.seatNo = String(seat.seatNo);
-  if (gridPosition) wrap.dataset.gridPos = gridPosition;
+  if (slotIndex !== null) {
+    wrap.dataset.slot = String(slotIndex);
+    setSlotVars(wrap, slotIndex, slotTotal);
+  }
 
   const cardsRow = document.createElement("div");
   cardsRow.className = isSelf ? "table-seat-cards table-seat-cards--self" : "table-seat-cards table-seat-cards--opp";
@@ -170,68 +222,41 @@ export function createSeatBox(
     cardsRow.append(b1, b2);
   }
 
-  const evalName = hand?.showdown?.hands?.[seat.seatNo]?.name || "";
-
-  let betBadge = null;
-  if (hand && Number(seat.bet) > 0) {
-    betBadge = document.createElement("span");
-    betBadge.className = `table-bet-pill tabular${animateBet ? " chip-move-anim" : ""}`;
-    betBadge.textContent = `Bet ${formatChips(seat.bet)}`;
-  }
+  const evalName = hand?.status === "complete" ? hand?.showdown?.hands?.[seat.seatNo]?.name || "" : "";
 
   const plaque = document.createElement("div");
   plaque.className = "table-seat-plaque";
 
-  const topRow = document.createElement("div");
-  topRow.className = "table-seat-plaque__top";
-
-  const nameGroup = document.createElement("div");
-  nameGroup.className = "table-seat-plaque__name";
-
-  const avatar = document.createElement("span");
-  avatar.className = "seat-avatar";
-  avatar.setAttribute("aria-hidden", "true");
-  avatar.textContent = extractInitials(seat.displayName || `S${seat.seatNo + 1}`);
-  nameGroup.appendChild(avatar);
-
-  if (hand && hand.dealerSeat === seat.seatNo) {
-    const dealerBtn = document.createElement("span");
-    dealerBtn.className = "seat__dealer";
-    dealerBtn.title = "Dealer button";
-    dealerBtn.setAttribute("aria-label", "Dealer button");
-    dealerBtn.textContent = "D";
-    nameGroup.appendChild(dealerBtn);
-  }
-
+  const nameRow = document.createElement("div");
+  nameRow.className = "table-seat-plaque__name";
   const strong = document.createElement("strong");
-  strong.textContent = isSelf
-    ? `${seat.displayName || "You"} (You)`
-    : seat.displayName || `Seat ${seat.seatNo + 1}`;
-  nameGroup.appendChild(strong);
-  if (!isSelf) buildRoleBadges(seat, hand).forEach((b) => nameGroup.appendChild(b));
-
-  topRow.append(nameGroup, buildSeatStatusPill(seat, hand, remainingSeconds));
-
-  const bottomRow = document.createElement("div");
-  bottomRow.className = "table-seat-plaque__bottom";
-
-  const leftMeta = document.createElement("div");
-  leftMeta.className = "table-seat-plaque__meta";
-  leftMeta.appendChild(
-    createChipAmount(seat.stack, { showDisc: true, suffix: "" })
-  );
-  if (isSelf) buildRoleBadges(seat, hand).forEach((b) => leftMeta.appendChild(b));
-  if (betBadge) leftMeta.appendChild(betBadge);
-  if (evalName) leftMeta.appendChild(createPill(evalName, "chip"));
-
-  bottomRow.appendChild(leftMeta);
-
-  // Opponent hole cards sit inline inside the pod so seat rows stay ultra-compact and never overlap
-  if (!isSelf && cardsRow.childNodes.length > 0) {
-    bottomRow.appendChild(cardsRow);
+  const fullName = seat.displayName || (isSelf ? "You" : `Seat ${seat.seatNo + 1}`);
+  strong.textContent = fullName;
+  strong.title = fullName;
+  nameRow.appendChild(strong);
+  if (isSelf) {
+    const you = document.createElement("span");
+    you.className = "seat-you-tag";
+    you.textContent = "You";
+    nameRow.appendChild(you);
   }
 
-  plaque.append(topRow, bottomRow);
+  const stackRow = document.createElement("div");
+  stackRow.className = "table-seat-plaque__meta";
+  stackRow.appendChild(createChipAmount(seat.stack, { showDisc: true, suffix: "" }));
+  if (hand?.status !== "complete") buildRoleBadges(seat, hand).forEach((b) => stackRow.appendChild(b));
+
+  // Routine states ("In hand", "Ready") add noise; only show a status when it tells the player something
+  const statusPill = buildSeatStatusPill(seat, hand, remainingSeconds);
+  if (!["In hand", "Ready"].includes(statusPill.textContent)) stackRow.appendChild(statusPill);
+  plaque.append(nameRow, stackRow);
+
+  if (evalName) {
+    const hn = document.createElement("div");
+    hn.className = "table-seat-handname";
+    hn.textContent = evalName;
+    plaque.appendChild(hn);
+  }
 
   if (isTurn && remainingSeconds !== null && remainingSeconds !== undefined) {
     const totalSec = Math.max(1, Math.round(Number(hand?.turnTimeoutMs || 30_000) / 1000));
@@ -255,11 +280,21 @@ export function createSeatBox(
     plaque.appendChild(barTrack);
   }
 
-  if (isSelf) {
-    if (cardsRow.childNodes.length > 0) wrap.appendChild(cardsRow);
-    wrap.appendChild(plaque);
-  } else {
-    wrap.appendChild(plaque);
+  if (cardsRow.childNodes.length > 0) wrap.appendChild(cardsRow);
+  wrap.appendChild(plaque);
+
+  if (slotIndex !== null) wrap.dataset.dir = betDirection(getSeatSlots(slotTotal, "portrait")[slotIndex] || [50, 50]);
+  if (hand && Number(seat.bet) > 0) wrap.appendChild(createBetChip(seat, slotIndex ?? 0, slotTotal, animateBet));
+
+  if (hand && hand.dealerSeat === seat.seatNo) {
+    const dealerBtn = document.createElement("span");
+    dealerBtn.className = "seat__dealer table-dealer";
+    dealerBtn.title = "Dealer button";
+    dealerBtn.setAttribute("aria-label", "Dealer button");
+    dealerBtn.textContent = "D";
+    // Lives on the plaque corner (see table.css) so it can never sit on another seat's cards or the bet chip
+    dealerBtn.dataset.corner = dealerCorner(wrap.dataset.dir, slotIndex, slotTotal);
+    plaque.appendChild(dealerBtn);
   }
 
   return wrap;
@@ -340,58 +375,49 @@ export function renderTableFelt({
       animState.selfHoleHandId !== handId
   );
 
-  // 1. Opponent seats (1 to 5 opponents arranged clockwise around the oval felt)
+  // 1. Seats around the felt: opponents, open seats and bets between each seat and the pot
+  const slotTotal = clampSeatTotal(currentTable.maxSeats);
+  const { slotBySeat, openSlots } = assignSeatSlots({
+    seatNos: seats.map((s) => s.seatNo),
+    selfSeatNo: selfSeat ? selfSeat.seatNo : null,
+    maxSeats: slotTotal
+  });
   els.opponentArea.replaceChildren();
   els.opponentArea.dataset.count = String(opponentSeats.length);
+  els.opponentArea.dataset.total = String(slotTotal);
 
-  if (opponentSeats.length > 0) {
-    const useCompact = opponentSeats.length >= 2;
-    const gridSlots = layoutOpponentSeatsForGrid(opponentSeats);
-    gridSlots.forEach(({ seat: oppSeat, position, fullRow }) => {
-      const prevBet = isNewHand ? 0 : Number(animState.betsBySeat.get(oppSeat.seatNo) || 0);
-      const animateBet = Number(oppSeat.bet || 0) > prevBet;
-      els.opponentArea.appendChild(
-        createSeatBox(oppSeat, hand, {
-          isSelf: false,
-          compact: useCompact,
-          fullRow,
-          gridPosition: position,
-          myHoleCards,
-          lastHoleCardsHandId,
-          remainingSeconds,
-          animateHoleCards: isNewHand || Boolean(hand?.status === "complete" && oppSeat.revealedCards),
-          animateBet
-        })
-      );
-    });
-  } else {
-    const emptyBox = document.createElement("div");
-    emptyBox.className = "table-seat-empty";
-    emptyBox.dataset.gridPos = "top-center";
-    const title = document.createElement("strong");
-    title.textContent = "Waiting for players to join";
-    const sub = document.createElement("span");
-    sub.textContent = `Share code ${currentTable.code} (${currentTable.maxSeats || 6}-max).`;
-    emptyBox.append(title, sub);
-    els.opponentArea.appendChild(emptyBox);
-  }
+  opponentSeats.forEach((oppSeat) => {
+    const slot = slotBySeat.get(oppSeat.seatNo);
+    if (slot === undefined) return;
+    els.opponentArea.appendChild(
+      createSeatBox(oppSeat, hand, {
+        isSelf: false,
+        slotIndex: slot,
+        slotTotal,
+        myHoleCards,
+        lastHoleCardsHandId,
+        remainingSeconds,
+        animateHoleCards: isNewHand || Boolean(hand?.status === "complete" && oppSeat.revealedCards),
+        animateBet: Number(oppSeat.bet || 0) > (isNewHand ? 0 : Number(animState.betsBySeat.get(oppSeat.seatNo) || 0))
+      })
+    );
+  });
+  openSlots.forEach((slot) => els.opponentArea.appendChild(createEmptySeat(slot, slotTotal)));
 
-  // 2. Self seat (always bottom centre, side-by-side with hole cards)
+  // 2. Self seat (always bottom centre, hole cards tucked behind the plaque)
   els.selfArea.replaceChildren();
   if (selfSeat) {
     els.sitDownForm.hidden = true;
-    const prevSelfBet = isNewHand ? 0 : Number(animState.betsBySeat.get(selfSeat.seatNo) || 0);
-    const animateSelfBet = Number(selfSeat.bet || 0) > prevSelfBet;
     els.selfArea.appendChild(
       createSeatBox(selfSeat, hand, {
         isSelf: true,
-        compact: false,
-        gridPosition: "self",
+        slotIndex: 0,
+        slotTotal,
         myHoleCards,
         lastHoleCardsHandId,
         remainingSeconds,
         animateHoleCards: isNewHand || animateSelfHole,
-        animateBet: animateSelfBet
+        animateBet: Number(selfSeat.bet || 0) > (isNewHand ? 0 : Number(animState.betsBySeat.get(selfSeat.seatNo) || 0))
       })
     );
   } else {
@@ -406,22 +432,24 @@ export function renderTableFelt({
     }
   }
 
-  // 3. Pot & Side Pots (during play and at showdown)
+  // 3. Pot & side pots: hidden until a hand is running; breakdown only when it tells the players something
   const pot = hand ? Number(hand.pot || 0) : 0;
   const potIncreased = hand && (!isNewHand ? pot > animState.pot : pot > 0);
-  els.potAmount.textContent = `Pot: ${formatChips(pot)} chips`;
+  els.potAmount.textContent = formatChips(pot);
+  const potBox = els.potAmount.closest(".table-pot-box");
+  if (potBox) potBox.hidden = !(hand && pot > 0);
   if (els.potAmount.parentElement) {
     els.potAmount.parentElement.classList.toggle("chip-move-anim", Boolean(potIncreased));
   }
 
   els.sidePotsRow.replaceChildren();
   const showdownSummary = summarizeShowdown(currentTable);
-  const potsList = hand?.showdown?.pots?.length > 1 ? hand.showdown.pots : hand?.pots || [];
-  if (hand && Array.isArray(potsList) && potsList.length > 1) {
+  const potsList = getDisplayPots(hand, seats);
+  if (potsList.length > 1) {
     potsList.forEach((p, idx) => {
       const prefix = idx === 0 ? "Main" : `Side ${idx}`;
       let winnerSuffix = "";
-      if (Array.isArray(p.winners) && p.winners.length > 0) {
+      if (hand.status === "complete" && Array.isArray(p.winners) && p.winners.length > 0) {
         const names = p.winners.map((sNo) => {
           const s = seats.find((item) => item.seatNo === sNo);
           return s?.isSelf ? "You" : s?.displayName || `S${sNo + 1}`;
@@ -460,7 +488,9 @@ export function renderTableFelt({
   // 5. Status / Showdown Banner
   const status = describeHandStatus(currentTable);
   els.statusHeadline.textContent = status.headline;
-  els.statusDetail.textContent = status.detail ? ` · ${status.detail}` : "";
+  // The pot is already shown in the centre, so a "Pot N chips" detail would only repeat it
+  const statusDetail = /^Pot [\d,.\s]+chips?$/i.test(status.detail || "") ? "" : status.detail;
+  els.statusDetail.textContent = statusDetail ? ` · ${statusDetail}` : "";
   const statusBanner = els.statusHeadline.parentElement;
   if (statusBanner) {
     statusBanner.classList.toggle("table-status-banner--turn", Boolean(status.isMyTurn));

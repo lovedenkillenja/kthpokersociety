@@ -9,7 +9,7 @@
 6. Known hard parts: side pots with several all-ins, split pots and odd chips (first player left of the button), disconnects (timer and auto-fold), chip conservation (`supabase/checks/chip_conservation.sql`), concurrency (per-table row lock), secure shuffle (server side, `crypto.getRandomValues`).
 
 ## Variant
-No-Limit Texas Hold'em, play-money. Blinds default 10/20. Tables 2–6 seats at first. Buy-in 400–2000 chips (20–100 BB) taken from the member's balance.
+No-Limit Texas Hold'em, play-money. The host picks stakes when creating a table: Micro 1/2 (buy-in 40–200), Low 5/10 (200–1000, default) or Standard 10/20 (400–2000); buy-in is always 20–100 BB. Tables 2–6 seats at first. The buy-in is taken from the member's balance.
 
 ## Chip flow (ledger is the single source of truth)
 - Earn: welcome +1000 (automatic on signup), referral +250 per invited member (cap 20 rewarded invites, see `public.referral_config()`), events via `award_chips`, admin. The daily check-in was removed (inflation); old `daily` ledger rows stay valid.
