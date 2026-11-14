@@ -9,7 +9,7 @@ import {
 } from "./lib/format.js";
 import { normalizeRoomCode, validateBuyIn } from "./lib/table-helpers.js";
 import { createTable, joinTable, fetchTableState, setUnauthorizedHandler } from "./lib/poker-api.js";
-import { isAlreadySeatedAt, shapeSeatedTableRows, seatedChipsHint } from "./lib/seated-tables.js";
+import { sumSeatedChips, isAlreadySeatedAt, shapeSeatedTableRows, seatedChipsHint } from "./lib/seated-tables.js";
 import {
   createCard, createCardBack, createLeaderboardRow, createLedgerRow, createEmptyState, showToast
 } from "./ui/components.js";
@@ -203,6 +203,12 @@ function renderLobby() {
   const displayName = state.chipProfile?.display_name || state.member?.full_name || "Member";
   els.lobbyMemberPill.textContent = displayName;
   els.balanceValue.textContent = formatChips(state.balance);
+  const atTables = sumSeatedChips(state.seatedTables);
+  const atTablesItem = byId("at-tables-item");
+  if (atTablesItem) {
+    atTablesItem.hidden = state.seatedTables.length === 0;
+    byId("at-tables-value").textContent = formatChips(atTables);
+  }
 
   renderSeatedTablesPanel(els, state.seatedTables, state.balance);
   renderReferralPanel(els, state.referral, Boolean(state.user));
@@ -621,7 +627,18 @@ function wireEvents() {
   });
 }
 
+function wireCreateDisclosure() {
+  const details = byId("create-table-details");
+  if (!details || !window.matchMedia) return;
+  const mq = window.matchMedia("(min-width: 900px)");
+  const sync = () => { if (mq.matches) details.open = true; };
+  details.open = mq.matches;
+  details.addEventListener("toggle", sync);
+  mq.addEventListener("change", (e) => { details.open = e.matches; });
+}
+
 async function init() {
+  wireCreateDisclosure();
   captureReferralCodeFromUrl();
   renderGuestCards();
   state.activeView = getViewFromHash();

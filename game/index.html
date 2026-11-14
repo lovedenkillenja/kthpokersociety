@@ -120,6 +120,15 @@
         <button type="button" class="btn btn--primary" id="return-table-btn">Return to table</button>
       </div>
 
+      <!-- Chips still seated at tables (read-only; server decides) -->
+      <section class="seated-tables panel" id="seated-tables-box" aria-labelledby="seated-tables-heading" hidden>
+        <div class="seated-tables__head">
+          <h3 class="seated-tables__title" id="seated-tables-heading">Your chips at tables</h3>
+          <p class="sr-only" id="seated-tables-summary" aria-live="polite"></p>
+        </div>
+        <ul class="seated-tables__list" id="seated-tables-list" role="list"></ul>
+      </section>
+
       <div class="panel">
         <div class="panel__head">
           <div>
@@ -143,25 +152,27 @@
             <button type="submit" class="btn btn--primary btn--full" id="join-table-btn">Join table</button>
           </form>
 
-          <form id="create-table-form" class="play-card" novalidate>
-            <h2 class="play-card__title">Create a table</h2>
-            <div class="field">
-              <label for="create-table-max-seats">Table size (seats)</label>
-              <select id="create-table-max-seats" name="max_seats" class="tabular">
-                <option value="6" selected>6 seats (6-max)</option>
-                <option value="5">5 seats</option>
-                <option value="4">4 seats</option>
-                <option value="3">3 seats</option>
-                <option value="2">2 seats (Heads-up)</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="create-table-buyin">Your buy-in (400–2,000 chips)</label>
-              <input id="create-table-buyin" name="buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required aria-describedby="create-table-error">
-            </div>
-            <p class="form-error" id="create-table-error" role="alert"></p>
-            <button type="submit" class="btn btn--ghost btn--full" id="create-table-btn">Create table &amp; sit down</button>
-          </form>
+          <details class="play-card play-card--create" id="create-table-details">
+            <summary class="play-card__title">Create a table</summary>
+            <form id="create-table-form" class="play-card__body" novalidate>
+              <div class="field">
+                <label for="create-table-max-seats">Table size (seats)</label>
+                <select id="create-table-max-seats" name="max_seats" class="tabular">
+                  <option value="6" selected>6 seats (6-max)</option>
+                  <option value="5">5 seats</option>
+                  <option value="4">4 seats</option>
+                  <option value="3">3 seats</option>
+                  <option value="2">2 seats (Heads-up)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="create-table-buyin">Your buy-in (400–2,000 chips)</label>
+                <input id="create-table-buyin" name="buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required aria-describedby="create-table-error">
+              </div>
+              <p class="form-error" id="create-table-error" role="alert"></p>
+              <button type="submit" class="btn btn--ghost btn--full" id="create-table-btn">Create table &amp; sit down</button>
+            </form>
+          </details>
         </div>
       </div>
 
@@ -172,22 +183,20 @@
         </div>
 
         <div class="chips-summary">
-          <div class="chips-summary__wallet" aria-live="polite">
+          <div class="chips-summary__item" aria-live="polite">
             <span class="chips-summary__label">Wallet</span>
             <span class="chips-summary__figure">
               <span class="chips-summary__value tabular" id="balance-value">0</span>
               <span class="chips-summary__unit">chips</span>
             </span>
           </div>
-
-          <!-- Chips still seated at tables (read-only; server decides) -->
-          <section class="seated-tables" id="seated-tables-box" aria-labelledby="seated-tables-heading" hidden>
-            <div class="seated-tables__head">
-              <h3 class="seated-tables__title" id="seated-tables-heading">Your chips at tables</h3>
-              <p class="field-hint tabular" id="seated-tables-summary" aria-live="polite"></p>
-            </div>
-            <ul class="seated-tables__list" id="seated-tables-list" role="list"></ul>
-          </section>
+          <div class="chips-summary__item" id="at-tables-item" hidden>
+            <span class="chips-summary__label">At tables</span>
+            <span class="chips-summary__figure">
+              <span class="chips-summary__value tabular" id="at-tables-value">0</span>
+              <span class="chips-summary__unit">chips</span>
+            </span>
+          </div>
         </div>
       </div>
 

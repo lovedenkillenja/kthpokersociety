@@ -573,7 +573,30 @@ body[data-active-view="table"] .toast-region {
   min-width: 0;
 }
 .play-card .btn { align-self: end; }
-.play-card__title { font-size: var(--text-md); }
+.play-card--create > summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: var(--tap-min);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+.play-card--create > summary::-webkit-details-marker { display: none; }
+.play-card--create > summary::after { content: "+"; font-family: var(--font-body); color: var(--sky); font-size: var(--text-md); }
+.play-card--create[open] > summary::after { content: "\2212"; }
+.play-card--create[open] > summary { margin-bottom: var(--space-2); }
+.play-card__body { display: grid; gap: var(--space-2); }
+@media (max-width: 899px) {
+  .play-card--create { padding-block: var(--space-1); }
+  .play-card--create[open] { padding-bottom: var(--space-3); }
+}
+@media (min-width: 900px) {
+  .play-card--create > summary { pointer-events: none; }
+  .play-card--create > summary::after,
+  .play-card--create[open] > summary::after { content: none; }
+}
+.play-card__title { font-family: var(--font-display); font-weight: 400; font-size: var(--text-md); line-height: 1.15; margin: 0; }
 .code-input { text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600; font-variant-numeric: tabular-nums; }
 .active-table-banner {
   display: flex;
@@ -587,12 +610,9 @@ body[data-active-view="table"] .toast-region {
   border: 1px solid var(--sky);
 }
 
-/* 14. Lobby: "Your chips" (wallet and chips seated at tables, one compact summary) */
-.chips-summary { display: grid; gap: var(--space-2); }
-@media (min-width: 640px) {
-  .chips-summary { grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: var(--space-4); align-items: start; }
-}
-.chips-summary__wallet { display: grid; gap: 2px; align-content: start; }
+/* 14. Lobby: "Your chips" (wallet and chips at tables as two aligned figures) */
+.chips-summary { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); }
+.chips-summary__item { display: grid; gap: 2px; align-content: start; min-width: 0; }
 .chips-summary__label { font-size: var(--text-xs); color: var(--muted); }
 .chips-summary__figure { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
 .chips-summary__value {
@@ -602,32 +622,17 @@ body[data-active-view="table"] .toast-region {
   color: var(--chip);
 }
 .chips-summary__unit { font-size: var(--text-base); color: var(--muted); }
-.seated-tables {
-  border-top: 1px solid var(--line);
-  padding-top: var(--space-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-@media (min-width: 640px) {
-  .seated-tables { border-top: 0; border-left: 1px solid var(--line); padding: 0 0 0 var(--space-3); }
-}
-.seated-tables__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px var(--space-2);
-  flex-wrap: wrap;
-}
-.seated-tables__title { font-family: var(--font-body); font-size: var(--text-base); font-weight: 600; margin: 0; }
+/* Seated chips: first thing in the lobby when present */
+.seated-tables { gap: var(--space-1); }
+.seated-tables__head { display: flex; align-items: baseline; justify-content: space-between; gap: 4px var(--space-2); flex-wrap: wrap; }
+.seated-tables__title { font-family: var(--font-display); font-size: var(--text-lg); font-weight: 400; margin: 0; }
 .seated-tables__list { list-style: none; margin: 0; padding: 0; }
 .seated-tables__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-1) var(--space-2);
-  padding: 8px 0;
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
 .seated-tables__code { color: var(--paper); font-weight: 600; letter-spacing: 0.08em; }

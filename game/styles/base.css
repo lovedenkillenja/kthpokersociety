@@ -238,7 +238,7 @@ a:hover {
   margin-left: auto;
 }
 
-.header-help-btn__icon { display: none; font-family: var(--font-display); font-size: var(--text-md); line-height: 1; }
+.header-help-btn__icon { display: none; font-family: var(--font-body); font-weight: 600; font-size: var(--text-base); line-height: 1; }
 .hide-xs { display: inline; }
 
 /* Primary view navigation (Lobby / Leaderboard / Profile) */
