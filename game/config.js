@@ -6,10 +6,10 @@ export const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdX
 
 export const GAME_CONFIG = Object.freeze({
   welcomeChips: 1000,
-  defaultSmallBlind: 10,
-  defaultBigBlind: 20,
-  minBuyIn: 400,
-  maxBuyIn: 2000,
+  defaultSmallBlind: 5,
+  defaultBigBlind: 10,
+  minBuyIn: 200,
+  maxBuyIn: 1000,
   leaderboardLimit: 50,
   recentLedgerLimit: 10,
   stockholmTimeZone: "Europe/Stockholm"

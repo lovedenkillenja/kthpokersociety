@@ -78,7 +78,7 @@
         </div>
         <div class="felt-preview" aria-label="Sample playing cards on poker felt">
           <div class="card-row" id="guest-card-showcase"></div>
-          <span class="felt-preview__facts tabular">10 / 20 blinds · 2–6 seats</span>
+          <span class="felt-preview__facts tabular">Micro, Low or Standard stakes · 2–6 seats</span>
         </div>
       </div>
 
@@ -133,7 +133,7 @@
         <div class="panel__head">
           <div>
             <h1 id="lobby-heading">Play Hold'em</h1>
-            <p class="field-hint panel__facts tabular">10 / 20 blinds · 2–6 players · Buy-in 400–2,000 chips · 30s action clock</p>
+            <p class="field-hint panel__facts tabular">2–6 players · Blinds and buy-in depend on the table: Micro 1/2, Low 5/10 or Standard 10/20 · 30s action clock</p>
           </div>
         </div>
 
@@ -145,8 +145,9 @@
               <input id="join-table-code" name="code" type="text" maxlength="5" placeholder="KTH26" autocomplete="off" autocapitalize="characters" spellcheck="false" class="code-input" required aria-describedby="join-table-error">
             </div>
             <div class="field">
-              <label for="join-table-buyin">Your buy-in (400–2,000 chips)</label>
-              <input id="join-table-buyin" name="buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required aria-describedby="join-table-error">
+              <label for="join-table-buyin" id="join-table-buyin-label">Your buy-in (chips)</label>
+              <input id="join-table-buyin" name="buyin" type="number" inputmode="numeric" min="1" step="1" value="500" class="tabular" required aria-describedby="join-table-hint join-table-error">
+              <p class="field-hint" id="join-table-hint">The buy-in range is set by the table you join.</p>
             </div>
             <p class="form-error" id="join-table-error" role="alert"></p>
             <button type="submit" class="btn btn--primary btn--full" id="join-table-btn">Join table</button>
@@ -165,9 +166,14 @@
                   <option value="2">2 seats (Heads-up)</option>
                 </select>
               </div>
+              <fieldset class="field stakes-picker" id="create-table-stakes">
+                <legend>Stakes</legend>
+                <div class="stakes-picker__options" id="create-table-stakes-options"></div>
+                <p class="field-hint tabular" id="create-table-stakes-hint" aria-live="polite"></p>
+              </fieldset>
               <div class="field">
-                <label for="create-table-buyin">Your buy-in (400–2,000 chips)</label>
-                <input id="create-table-buyin" name="buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required aria-describedby="create-table-error">
+                <label for="create-table-buyin" id="create-table-buyin-label">Your buy-in (200–1,000 chips)</label>
+                <input id="create-table-buyin" name="buyin" type="number" inputmode="numeric" min="200" max="1000" step="10" value="500" class="tabular" required aria-describedby="create-table-error">
               </div>
               <p class="form-error" id="create-table-error" role="alert"></p>
               <button type="submit" class="btn btn--ghost btn--full" id="create-table-btn">Create table &amp; sit down</button>
@@ -253,7 +259,7 @@
             <span class="room-code-badge" id="table-code-badge">Room —</span>
             <span aria-hidden="true">⧉</span>
           </button>
-          <span class="pill tabular table-topbar__desktop" id="table-blinds-pill">10 / 20</span>
+          <span class="pill tabular table-topbar__desktop" id="table-blinds-pill"></span>
           <span class="pill pill--chip table-topbar__desktop">Play money – no cash value</span>
           <span class="pill table-topbar__desktop" id="table-conn-pill">Live</span>
         </div>
@@ -306,8 +312,8 @@
           <div id="table-self-zone" class="table-self-zone" aria-label="Your seat">
             <div id="table-self-seat" class="table-self-seat-slot"></div>
             <form id="table-sitdown-form" class="table-sitdown-inline" hidden novalidate>
-              <label for="table-sitdown-buyin" class="sr-only">Buy in (400–2,000 chips)</label>
-              <input id="table-sitdown-buyin" type="number" inputmode="numeric" min="400" max="2000" step="20" value="500" class="tabular" required>
+              <label for="table-sitdown-buyin" class="sr-only">Buy in (chips)</label>
+              <input id="table-sitdown-buyin" type="number" inputmode="numeric" min="1" step="1" value="500" class="tabular" required>
               <button type="submit" class="btn btn--primary btn--topbar" id="table-sitdown-btn">Sit &amp; buy in</button>
             </form>
           </div>
@@ -520,12 +526,12 @@
 
       <div class="tutorial-steps">
         <div class="tutorial-step">
-          <strong>1. Sit down (400–2,000 chips)</strong>
-          <span class="field-hint">Create a 2–6 seat room or enter a 5-letter code. Your buy-in moves from your balance to your table stack and returns when you leave.</span>
+          <strong>1. Sit down with a buy-in</strong>
+          <span class="field-hint">Create a 2–6 seat room and pick its stakes (Micro 1/2, Low 5/10 or Standard 10/20), or enter a 5-letter code. Your buy-in moves from your balance to your table stack and returns when you leave.</span>
         </div>
         <div class="tutorial-step">
           <strong>2. Act within 30 seconds</strong>
-          <span class="field-hint">Blinds are 10 / 20. Each player gets 2 private hole cards and shares 5 community cards across Preflop, Flop, Turn, and River. Timing out twice in a row sets you to Sitting out.</span>
+          <span class="field-hint">Blinds depend on the table. Each player gets 2 private hole cards and shares 5 community cards across Preflop, Flop, Turn, and River. Timing out twice in a row sets you to Sitting out.</span>
         </div>
         <div class="tutorial-step">
           <strong>3. Best 5-card hand wins</strong>

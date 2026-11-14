@@ -38,7 +38,7 @@ export function isAlreadySeatedAt(tableState) {
 /**
  * Joins the member's `table_seats` rows with `poker_tables` rows into lobby rows.
  * Keeps only active/sit-out seats of this member at tables that exist and are not closed.
- * Returns `[{ tableId, code, stack, seatStatus, tableStatus }]`, sorted by room code.
+ * Returns `[{ tableId, code, stack, seatStatus, tableStatus, sb?, bb? }]` (sb and bb only when the table row has them), sorted by room code.
  */
 export function shapeSeatedTableRows(seatRows, tableRows, memberId = null) {
   const tablesById = new Map();
@@ -55,13 +55,19 @@ export function shapeSeatedTableRows(seatRows, tableRows, memberId = null) {
     const tableStatus = String(table.status || "").toLowerCase();
     if (tableStatus === "closed") return;
     if (byTable.has(s.table_id)) return; // one seated row per table (DB enforces this too)
-    byTable.set(s.table_id, {
+    const row = {
       tableId: s.table_id,
       code: String(table.code).toUpperCase(),
       stack: toChipInt(s.stack),
       seatStatus: String(s.status).toLowerCase(),
       tableStatus
-    });
+    };
+    // Blinds are optional: only present when the table row carries them.
+    if (toChipInt(table.sb) && toChipInt(table.bb)) {
+      row.sb = toChipInt(table.sb);
+      row.bb = toChipInt(table.bb);
+    }
+    byTable.set(s.table_id, row);
   });
 
   return Array.from(byTable.values()).sort((a, b) => a.code.localeCompare(b.code));
