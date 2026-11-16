@@ -182,6 +182,32 @@ export async function fetchMySeatedTables(userId) {
 }
 
 /**
+ * Reads open/playing tables (most recently active first, max 30) and their active/sit-out seats
+ * (read-only, RLS SELECT, two queries). Seat rows carry member ids but no names; shape them with
+ * `shapeOpenTableRows`. Returns `{ tables, seats, error }`.
+ */
+export async function fetchOpenTables(limit = 30) {
+  const sb = getSupabaseClient();
+  if (!sb) return { tables: [], seats: [], error: null };
+  const { data: tables, error: tableErr } = await sb
+    .from("poker_tables")
+    .select("id, code, sb, bb, min_buyin, max_buyin, max_seats, status, created_at, last_activity_at")
+    .in("status", ["open", "playing"])
+    .order("last_activity_at", { ascending: false })
+    .limit(limit);
+  if (tableErr || !Array.isArray(tables)) return { tables: [], seats: [], error: tableErr || null };
+  if (tables.length === 0) return { tables: [], seats: [], error: null };
+
+  const { data: seats, error: seatErr } = await sb
+    .from("table_seats")
+    .select("table_id, member_id, status")
+    .in("table_id", tables.map((t) => t.id))
+    .in("status", ["active", "sitout"]);
+  if (seatErr || !Array.isArray(seats)) return { tables: [], seats: [], error: seatErr || null };
+  return { tables, seats, error: null };
+}
+
+/**
  * Reads the signed-in member's recent `chip_ledger` entries (newest first).
  */
 export async function fetchRecentLedger(userId, limit = GAME_CONFIG.recentLedgerLimit) {

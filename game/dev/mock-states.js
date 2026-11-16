@@ -283,3 +283,142 @@ export function getMockState(name) {
     holeCards: selfEngine && built.table.hand ? [...selfEngine.holeCards] : null
   };
 }
+
+
+/**
+ * Steps of one realistic hand for the animated demo (`?state=demo-hand`), produced by the real engine.
+ * Each step is `{ label, table, holeCards }`; the harness shows them one after another so the deal, bet, fold,
+ * street change and showdown motion can be reviewed without a server.
+ */
+export function getDemoSteps() {
+  const four = [P(0, "Alex", 1000), P(1, "Sam", 1000), P(2, "Kim", 1000), P(3, "Jo", 1000)];
+  const two = [P(0, "Alex", 1000), P(1, "Sam", 1000)];
+  const steps = [{ label: "Waiting", table: toPublicTable({ players: four, engineState: null, selfSeat: 0 }), holeCards: null }];
+
+  // One hand through the real engine; every state becomes a step. The first step of a hand has `first: true` and `handName`.
+  const hand = ({ name, players, dealer, holes, board, script, handNo }) => {
+    let st = newHand(
+      players.map((p) => ({ seat: p.seat, id: p.id, name: p.name, stack: p.stack, status: "active" })),
+      dealer,
+      { sb: 10, bb: 20 },
+      fixedDeck(holes, board)
+    );
+    const push = (label, first = false) => {
+      const mine = st.seats.find((s) => s.seat === 0);
+      steps.push({
+        label: `${name}: ${label}`,
+        handName: name,
+        first,
+        table: toPublicTable({ players, engineState: st, selfSeat: 0, remainingSeconds: 24, handNo }),
+        holeCards: [...mine.holeCards]
+      });
+    };
+    push("deal, blinds posted", true);
+    for (const [seat, action, label] of script) {
+      st = apply(st, seat, action);
+      push(label);
+    }
+  };
+
+  // 1. Showdown win by the player (pair of aces over a pair of kings)
+  hand({
+    name: "Showdown win",
+    players: four,
+    dealer: 3,
+    handNo: 7,
+    holes: [["As", "Ah"], ["8c", "8d"], ["Kd", "Qd"], ["5c", "3c"]],
+    board: ["Kh", "7d", "2c", "9s", "4h"],
+    script: [
+      [2, { type: "raise", amount: 60 }, "Kim raises to 60"],
+      [3, "fold", "Jo folds"],
+      [0, "call", "Alex calls"],
+      [1, "call", "Sam calls, flop"],
+      [0, "check", "Alex checks"],
+      [1, "check", "Sam checks"],
+      [2, { type: "raise", amount: 100 }, "Kim bets 100"],
+      [0, "call", "Alex calls"],
+      [1, "fold", "Sam folds, turn"],
+      [0, "check", "Alex checks"],
+      [2, "check", "Kim checks, river"],
+      [0, { type: "raise", amount: 200 }, "Alex bets 200"],
+      [2, "call", "Kim calls, showdown"]
+    ]
+  });
+
+  // 2. Fold-out win (Sam wins without a showdown)
+  hand({
+    name: "Fold-out win",
+    players: four,
+    dealer: 0,
+    handNo: 8,
+    holes: [["Qs", "7d"], ["Kc", "Kd"], ["9h", "4c"], ["Jd", "2s"]],
+    board: ["3h", "8d", "Tc", "5s", "Ah"],
+    script: [
+      [3, "fold", "Jo folds"],
+      [0, "fold", "Alex folds"],
+      [1, { type: "raise", amount: 60 }, "Sam raises to 60"],
+      [2, "call", "Kim calls, flop"],
+      [1, { type: "raise", amount: 40 }, "Sam bets 40"],
+      [2, "fold", "Kim folds, Sam wins"]
+    ]
+  });
+
+  // 3. Split pot (the board plays for Alex and Sam)
+  hand({
+    name: "Split pot",
+    players: four,
+    dealer: 3,
+    handNo: 9,
+    holes: [["2c", "3d"], ["2h", "3s"], ["9c", "8c"], ["4d", "4h"]],
+    board: ["As", "Ks", "Qh", "Jd", "Tc"],
+    script: [
+      [2, "call", "Kim calls"],
+      [3, "fold", "Jo folds"],
+      [0, "call", "Alex calls"],
+      [1, "check", "Sam checks, flop"],
+      [0, "check", "Alex checks"],
+      [1, { type: "raise", amount: 40 }, "Sam bets 40"],
+      [2, "fold", "Kim folds"],
+      [0, "call", "Alex calls, turn"],
+      [0, "check", "Alex checks"],
+      [1, "check", "Sam checks, river"],
+      [0, "check", "Alex checks"],
+      [1, "check", "Sam checks, showdown"]
+    ]
+  });
+
+  // 4. Big pot: both all-in before the flop, Alex's aces hold up
+  hand({
+    name: "Big pot",
+    players: two,
+    dealer: 0,
+    handNo: 10,
+    holes: [["Ac", "Ad"], ["Kc", "Kd"]],
+    board: ["7d", "8c", "2s", "Jh", "4d"],
+    script: [
+      [0, "all-in", "Alex all-in"],
+      [1, "call", "Sam calls, run-out"]
+    ]
+  });
+
+  // 5. An opponent wins at showdown (no jingle for the player)
+  hand({
+    name: "Opponent wins",
+    players: two,
+    dealer: 0,
+    handNo: 11,
+    holes: [["7c", "2d"], ["As", "Ks"]],
+    board: ["Qs", "9s", "4s", "3h", "Jd"],
+    script: [
+      [0, "call", "Alex calls"],
+      [1, "check", "Sam checks, flop"],
+      [1, { type: "raise", amount: 40 }, "Sam bets 40"],
+      [0, "call", "Alex calls, turn"],
+      [1, "check", "Sam checks"],
+      [0, "check", "Alex checks, river"],
+      [1, "check", "Sam checks"],
+      [0, "check", "Alex checks, showdown"]
+    ]
+  });
+  return steps;
+}

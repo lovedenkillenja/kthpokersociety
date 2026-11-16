@@ -1,0 +1,93 @@
+/* KTH Poker Society – Lobby additions: "Open tables" list and practice card (tokens only, see docs/poker/STYLE_GUIDE.md) */
+
+/* Open tables */
+.open-tables {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+  min-width: 0;
+}
+.open-tables__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+}
+.open-tables__title { font-family: var(--font-display); font-size: var(--text-md); font-weight: 400; margin: 0; }
+.open-tables__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+.open-tables__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap-min);
+  color: var(--paper);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+.open-tables__toggle input { width: 24px; height: 24px; margin: 0; accent-color: var(--action); flex: none; }
+.open-tables__toggle:focus-within { outline: 2px solid var(--sky); outline-offset: 2px; border-radius: var(--radius-card); }
+.open-tables__list { list-style: none; margin: 0; padding: 0; min-width: 0; }
+.open-tables__list[hidden], .open-tables__empty[hidden] { display: none; }
+
+.open-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.open-table__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-2);
+  min-width: 0;
+}
+.open-table__stakes { font-size: var(--text-md); font-weight: 600; color: var(--paper); }
+.open-table__players { font-size: var(--text-base); color: var(--paper); }
+.open-table__unit { font-size: var(--text-xs); font-weight: 400; color: var(--muted); }
+.open-table__meta { flex-basis: 100%; overflow-wrap: anywhere; }
+.open-table__form {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--ink);
+}
+.open-table__form-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.open-table__form-actions .btn { flex: 1 1 140px; }
+
+.open-tables__empty h3 { font-family: var(--font-display); font-size: var(--text-md); font-weight: 400; color: var(--paper); margin: 0; }
+.open-tables__empty p { margin: 0; }
+.open-tables__empty-actions { justify-content: center; }
+.open-tables__empty-actions .btn { text-decoration: none; }
+
+@media (max-width: 420px) {
+  .open-table { grid-template-columns: minmax(0, 1fr); }
+  .open-table__action { width: 100%; }
+}
+
+/* Practice card (lobby and logged-out landing) */
+.practice-card {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--ink);
+  color: var(--paper);
+  text-decoration: none;
+  min-height: var(--tap-min);
+}
+.practice-card:hover { border-color: var(--sky); }
+.practice-card:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+.practice-card__title { font-weight: 600; }
+.practice-card__title::after { content: " →"; color: var(--sky); }
+.practice-card__text { font-size: var(--text-xs); color: var(--muted); }
+.practice-card--guest { margin-top: var(--space-2); max-width: 420px; }

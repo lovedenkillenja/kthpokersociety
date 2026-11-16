@@ -2,7 +2,7 @@
 
 import {
   getSupabaseClient, fetchMemberRecord, ensureChipProfile, saveChipProfile,
-  fetchChipBalance, fetchRecentLedger, fetchLeaderboard, fetchMyReferral, fetchMySeatedTables
+  fetchChipBalance, fetchRecentLedger, fetchLeaderboard, fetchMyReferral, fetchMySeatedTables, fetchOpenTables
 } from "./lib/supabase.js";
 import {
   formatChips, validateDisplayName, normalizeLeaderboardRows, friendlyAuthError
@@ -17,6 +17,9 @@ import {
   sumSeatedChips, isAlreadySeatedAt, shapeSeatedTableRows, seatedChipsHint, shouldShowActiveTableBanner
 } from "./lib/seated-tables.js";
 import {
+  shapeOpenTableRows, selectOpenTables, countHiddenFullTables, formatOpenTablesSummary
+} from "./lib/open-tables.js";
+import {
   createCard, createCardBack, createLeaderboardRow, createLedgerRow, createEmptyState, showToast
 } from "./ui/components.js";
 import { createAuthDialogController } from "./ui/auth-dialog.js";
@@ -27,12 +30,19 @@ import {
   claimDeferredReferralRewards, renderReferralPanel, wireReferralCopyButton
 } from "./ui/referral-panel.js";
 import { renderSeatedTablesPanel, wireSeatedTablesPanel } from "./ui/seated-tables-panel.js";
+import {
+  renderOpenTablesPanel, wireOpenTablesPanel, setOpenTablesStatus, setOpenTablesError, setOpenTablesBusy
+} from "./ui/open-tables-panel.js";
 
 const VALID_VIEWS = new Set(["lobby", "table", "leaderboard", "profile"]);
 const state = {
   user: null, member: null, chipProfile: null, balance: 0,
-  ledger: [], leaderboard: [], referral: null, seatedTables: [], activeView: "lobby", hydrating: false
+  ledger: [], leaderboard: [], referral: null, seatedTables: [], activeView: "lobby", hydrating: false,
+  openTables: [], openTablesLoaded: false, showFullTables: false
 };
+const OPEN_TABLES_REFRESH_MS = 20000;
+let openTablesTimer = null;
+let openTablesRequest = 0;
 
 const byId = (id) => document.getElementById(id);
 const els = {
@@ -65,7 +75,13 @@ const els = {
   profileLogoutBtn: byId("profile-logout-btn"), accountFullName: byId("account-full-name"),
   accountEmail: byId("account-email"), accountProgram: byId("account-program"), accountSince: byId("account-since"),
   seatedTablesBox: byId("seated-tables-box"), seatedTablesSummary: byId("seated-tables-summary"),
-  seatedTablesList: byId("seated-tables-list")
+  seatedTablesList: byId("seated-tables-list"),
+  openTablesBox: byId("open-tables-box"), openTablesList: byId("open-tables-list"),
+  openTablesEmpty: byId("open-tables-empty"), openTablesLoading: byId("open-tables-loading"),
+  openTablesStatus: byId("open-tables-status"), openTablesError: byId("open-tables-error"),
+  openTablesRefresh: byId("open-tables-refresh"), openTablesShowFull: byId("open-tables-show-full"),
+  openTablesToggleWrap: byId("open-tables-toggle-wrap"), openTablesToggleCount: byId("open-tables-toggle-count"),
+  openTablesCreateBtn: byId("open-tables-create-btn")
 };
 
 const JOIN_HINT_GENERIC = "The buy-in range is set by the table you join.";
@@ -98,6 +114,65 @@ function getTableCodeFromHash() {
 async function loadSeatedTables(userId) {
   const { seats, tables } = await fetchMySeatedTables(userId);
   return shapeSeatedTableRows(seats, tables, userId);
+}
+
+function renderOpenTables() {
+  if (!state.user) return;
+  const visible = selectOpenTables(state.openTables, { showFull: state.showFullTables });
+  renderOpenTablesPanel(els, visible, {
+    balance: state.balance,
+    hiddenFullCount: countHiddenFullTables(state.openTables),
+    showFull: state.showFullTables,
+    loading: !state.openTablesLoaded
+  }, {});
+  return visible;
+}
+
+/** Loads the open-tables list. `announce` forces a screen-reader message (manual refresh). */
+async function refreshOpenTables({ announce = false } = {}) {
+  if (!state.user) return;
+  const userId = state.user.id;
+  const request = ++openTablesRequest;
+  setOpenTablesBusy(els, true);
+  const { tables, seats, error } = await fetchOpenTables();
+  if (request !== openTablesRequest || state.user?.id !== userId) return;
+  setOpenTablesBusy(els, false);
+  if (error) {
+    setOpenTablesError(els, "Could not load open tables. Check your connection and press Refresh.");
+    state.openTablesLoaded = true;
+    renderOpenTables();
+    return;
+  }
+  setOpenTablesError(els, "");
+  const before = JSON.stringify(selectOpenTables(state.openTables, { showFull: state.showFullTables }).map((r) => [r.code, r.seated, r.status]));
+  state.openTables = shapeOpenTableRows(tables, seats, userId);
+  const firstLoad = !state.openTablesLoaded;
+  state.openTablesLoaded = true;
+  const visible = renderOpenTables();
+  const after = JSON.stringify(visible.map((r) => [r.code, r.seated, r.status]));
+  if (announce || (!firstLoad && before !== after)) {
+    setOpenTablesStatus(els, `${announce ? "Updated. " : "Open tables changed. "}${formatOpenTablesSummary(visible)}`);
+  }
+}
+
+/** Auto-refresh only while the lobby is on screen and the tab is visible. */
+function syncOpenTablesTimer() {
+  const shouldRun = Boolean(state.user) && state.activeView === "lobby" && !document.hidden;
+  if (shouldRun && !openTablesTimer) {
+    openTablesTimer = window.setInterval(() => refreshOpenTables(), OPEN_TABLES_REFRESH_MS);
+  } else if (!shouldRun && openTablesTimer) {
+    window.clearInterval(openTablesTimer);
+    openTablesTimer = null;
+  }
+}
+
+function openCreateForm() {
+  const details = byId("create-table-details");
+  if (details) details.open = true;
+  const target = els.createTableForm?.querySelector("select, input");
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  (details || target)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  target?.focus({ preventScroll: true });
 }
 
 async function refreshSeatedTables() {
@@ -213,6 +288,56 @@ function applyJoinTableRange(table) {
   }
 }
 
+/**
+ * Shared join flow for "Join by room code" and the open-tables list: reopen when already seated
+ * (server says via isSelf), validate the buy-in against the table's own range, then join.
+ * Returns { ok, error?, field? }; `field` means the error belongs to the buy-in input.
+ */
+async function attemptJoin(code, rawBuyIn, { busyBtn = null, onRange = null } = {}) {
+  const setBusy = (on) => {
+    if (!busyBtn) return;
+    if (on) busyBtn.setAttribute("aria-busy", "true"); else busyBtn.removeAttribute("aria-busy");
+    busyBtn.disabled = on;
+  };
+
+  setBusy(true);
+  const { opened: reopened, table: knownTable } = await lookupAndOpenIfSeated(code);
+  setBusy(false);
+  if (reopened) {
+    showToast(`Back at Room ${code}.`);
+    return { ok: true };
+  }
+
+  // Use the joined table's own range when the server told us (sb, bb, minBuyIn, maxBuyIn);
+  // otherwise only sanity-check here and let the server judge.
+  const hasRange = knownTable && Number.isFinite(Number(knownTable.minBuyIn)) && Number.isFinite(Number(knownTable.maxBuyIn));
+  if (hasRange) {
+    onRange?.(knownTable);
+    const rangeMsg = joinRangeMessage(knownTable, Number(rawBuyIn));
+    if (rangeMsg && Number.isInteger(Number(rawBuyIn))) return { ok: false, error: rangeMsg, field: true };
+  }
+  const buyInCheck = validateBuyIn(rawBuyIn, {
+    minBuyIn: hasRange ? knownTable.minBuyIn : 1,
+    maxBuyIn: hasRange ? knownTable.maxBuyIn : 100000,
+    balance: state.balance
+  });
+  if (!buyInCheck.valid) {
+    const hint = buyInCheck.value > state.balance ? seatedChipsHint(state.seatedTables) : "";
+    return { ok: false, error: hint ? `${buyInCheck.error} ${hint}` : buyInCheck.error, field: true };
+  }
+
+  setBusy(true);
+  const res = await joinTable({ code, buyIn: buyInCheck.value });
+  setBusy(false);
+  if (!res.ok || !res.table) return { ok: false, error: res.error || "Could not join table." };
+
+  tableController.openWithTable(res.table);
+  await refreshBalanceAndLedger();
+  setActiveView("table");
+  showToast(`Joined Room ${res.table.code}.`);
+  return { ok: true };
+}
+
 async function returnToSeatedTable(code) {
   if (!state.user || !tableController) return;
   if (tableController.getActiveTable()?.code === code) {
@@ -237,7 +362,10 @@ function setActiveView(viewName, { updateHash = true } = {}) {
   }
   renderViews();
   if (target === "leaderboard" && state.user) loadLeaderboard();
-  if (target === "lobby" && state.user && !state.hydrating) refreshSeatedTables();
+  if (target === "lobby" && state.user && !state.hydrating) {
+    refreshSeatedTables();
+    refreshOpenTables();
+  }
 }
 
 function renderViews() {
@@ -257,6 +385,7 @@ function renderViews() {
   els.viewProfile.hidden = !isSignedIn || state.activeView !== "profile";
 
   document.body.dataset.activeView = isSignedIn ? state.activeView : "guest";
+  syncOpenTablesTimer();
   if (isSignedIn && state.activeView === "table" && activeTable) {
     window.requestAnimationFrame(() => tableController.syncLayoutMetrics?.());
   }
@@ -304,6 +433,7 @@ function renderLobby() {
   }
 
   renderSeatedTablesPanel(els, state.seatedTables, state.balance);
+  renderOpenTables();
   renderReferralPanel(els, state.referral, Boolean(state.user));
 
   els.ledgerCountPill.textContent = `${state.ledger.length} recent`;
@@ -421,6 +551,8 @@ async function hydrateAuthenticatedMember(user) {
     state.leaderboard = [];
     state.referral = null;
     state.seatedTables = [];
+    state.openTables = [];
+    state.openTablesLoaded = false;
     state.hydrating = false;
     renderAll();
     return;
@@ -493,6 +625,7 @@ async function hydrateAuthenticatedMember(user) {
   }
 
   renderAll();
+  refreshOpenTables();
 }
 
 function wireEvents() {
@@ -576,60 +709,31 @@ function wireEvents() {
       return;
     }
 
-    // Already seated here? Open the table instead of asking for a new buy-in (server decides via isSelf).
-    els.joinTableBtn.setAttribute("aria-busy", "true");
-    els.joinTableBtn.disabled = true;
-    const { opened: reopened, table: knownTable } = await lookupAndOpenIfSeated(codeCheck.value);
-    els.joinTableBtn.removeAttribute("aria-busy");
-    els.joinTableBtn.disabled = false;
-    if (reopened) {
-      showToast(`Back at Room ${codeCheck.value}.`);
-      return;
-    }
-
-    // Use the joined table's own range when the server told us (sb, bb, minBuyIn, maxBuyIn);
-    // otherwise only sanity-check here and let the server judge.
-    const hasRange = knownTable && Number.isFinite(Number(knownTable.minBuyIn)) && Number.isFinite(Number(knownTable.maxBuyIn));
-    if (hasRange) {
-      applyJoinTableRange(knownTable);
-      const rangeMsg = joinRangeMessage(knownTable, Number(els.joinTableBuyIn.value));
-      if (rangeMsg && Number.isInteger(Number(els.joinTableBuyIn.value))) {
-        els.joinTableError.textContent = rangeMsg;
-        els.joinTableBuyIn.focus();
-        return;
-      }
-    }
-    const buyInCheck = validateBuyIn(els.joinTableBuyIn.value, {
-      minBuyIn: hasRange ? knownTable.minBuyIn : 1,
-      maxBuyIn: hasRange ? knownTable.maxBuyIn : 100000,
-      balance: state.balance
+    const res = await attemptJoin(codeCheck.value, els.joinTableBuyIn.value, {
+      busyBtn: els.joinTableBtn,
+      onRange: applyJoinTableRange
     });
-    if (!buyInCheck.valid) {
-      const hint = buyInCheck.value > state.balance ? seatedChipsHint(state.seatedTables) : "";
-      els.joinTableError.textContent = hint ? `${buyInCheck.error} ${hint}` : buyInCheck.error;
-      return;
+    if (!res.ok && res.error) {
+      els.joinTableError.textContent = res.error;
+      if (res.field) els.joinTableBuyIn.focus();
     }
+  });
 
-    els.joinTableBtn.setAttribute("aria-busy", "true");
-    els.joinTableBtn.disabled = true;
-
-    const res = await joinTable({
-      code: codeCheck.value,
-      buyIn: buyInCheck.value
-    });
-
-    els.joinTableBtn.removeAttribute("aria-busy");
-    els.joinTableBtn.disabled = false;
-
-    if (!res.ok || !res.table) {
-      els.joinTableError.textContent = res.error || "Could not join table.";
-      return;
-    }
-
-    tableController.openWithTable(res.table);
-    await refreshBalanceAndLedger();
-    setActiveView("table");
-    showToast(`Joined Room ${res.table.code}.`);
+  wireOpenTablesPanel(els, {
+    onSit: (code, rawBuyIn) => attemptJoin(code, rawBuyIn, {}),
+    onReturn: returnToSeatedTable,
+    onRefresh: () => refreshOpenTables({ announce: true }),
+    onToggleFull: (checked) => {
+      state.showFullTables = checked;
+      const visible = renderOpenTables();
+      setOpenTablesStatus(els, formatOpenTablesSummary(visible));
+    },
+    onCreate: openCreateForm,
+    rerender: renderOpenTables
+  });
+  document.addEventListener("visibilitychange", () => {
+    syncOpenTablesTimer();
+    if (!document.hidden && state.user && state.activeView === "lobby") refreshOpenTables();
   });
 
   els.viewNavBtns.forEach((btn) => {

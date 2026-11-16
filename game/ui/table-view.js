@@ -14,13 +14,17 @@ import {
 import { showToast } from "./components.js";
 import { renderTableFelt, updateTurnTimerInPlace, renderHandHistoryList } from "./table-render.js";
 import { createTableShellUI } from "./table-shell-ui.js";
-import { isSoundEnabled, toggleSoundEnabled, playTableCue } from "./tutorial-dialog.js";
+import {
+  isSoundEnabled, toggleSoundEnabled, getVolume, setVolume, onSoundChange, playTableCue, playSoundCues, timerWarningCue
+} from "./table-sound.js";
+import { cueMyTurn } from "./table-motion.js";
 
 export function createTableViewController({
   getUser, getDisplayName, getBalance, onChipsChanged, onExitToLobby, onNavigateView, onOpenAuth
 }) {
   let currentTable = null, knownSelfSeatNo = null, myHoleCards = null, lastHoleCardsHandId = null;
-  let lastAnnouncedTurnKey = "", lastTenSecWarnKey = "", lastAnnouncedWinHandId = "";
+  let lastAnnouncedTurnKey = "", lastTenSecWarnKey = "", lastAnnouncedWinHandId = "", lastTickKey = "";
+  let statesSeen = 0; // the first state of a table (page load, reconnect) never plays a cue
   let channelSub = null, subscribedCode = null, actionBusy = false, raiseSheetOpen = false;
   let currentRaiseTo = 0, lastHandSeqKey = "", serverClockSkewMs = 0, countdownInterval = null;
   let lastRenderedSecond = null, lastTickAttemptAt = 0, tickInFlight = false;
@@ -33,7 +37,9 @@ export function createTableViewController({
     blindsPill: byId("table-blinds-pill"), connPill: byId("table-conn-pill"),
     historyOpenBtn: byId("table-history-open-btn"), fullscreenBtn: byId("table-fullscreen-btn"),
     drawerBtn: byId("table-drawer-btn"), drawerDialog: byId("table-drawer-dialog"),
-    soundBtn: byId("table-sound-btn"), refreshBtn: byId("table-refresh-btn"),
+    soundBtn: byId("table-sound-btn"), soundQuickBtn: byId("table-sound-quick-btn"),
+    volumeLowBtn: byId("table-volume-low-btn"), volumeNormalBtn: byId("table-volume-normal-btn"),
+    timeoutNote: byId("action-timeout-note"), refreshBtn: byId("table-refresh-btn"),
     sitOutToggleBtn: byId("table-sitout-toggle-btn"), closeTableBtn: byId("table-close-btn"),
     leaveBtn: byId("table-leave-btn"), connBanner: byId("table-conn-banner"),
     connBannerText: byId("table-conn-banner-text"), connBannerBtn: byId("table-conn-banner-btn"),
@@ -150,7 +156,6 @@ export function createTableViewController({
       lastAnnouncedWinHandId = entry.handId;
       const status = describeHandStatus(table);
       announce(`${status.headline}. ${status.detail}`);
-      if (entry.winnerRows.some((w) => w.isSelf)) playTableCue("win");
     }
   }
 
@@ -176,6 +181,7 @@ export function createTableViewController({
     render();
     recordCompletedHandIfNeeded(normalized);
     syncHoleCardsIfNeeded(normalized);
+    statesSeen += 1;
   }
 
   function updateRaiseButtonLabel(legal) {
@@ -255,11 +261,26 @@ export function createTableViewController({
     if (lastAnnouncedTurnKey !== turnKey) {
       lastAnnouncedTurnKey = turnKey;
       announce(`Your turn. Pot is ${formatChips(hand.pot)} chips. 30 seconds to act.`);
-      playTableCue("turn");
-      try {
-        if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(35);
-      } catch (_err) { /* ignore */ }
+      if (statesSeen > 0) {
+        // One chime per turn (the key is also checked by the sound engine); a calm slide-up and ring pulse; a light buzz
+        playTableCue("turn", turnKey);
+        queueMicrotask(() => cueMyTurn(els));
+        try {
+          const visible = typeof document === "undefined" || !document.hidden;
+          if ((isSoundEnabled() || visible) && typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(30);
+        } catch (_err) { /* ignore */ }
+      }
     }
+
+    // Soft tick at 10 and 5 seconds left, only on the player's own turn, once each per turn
+    const tick = timerWarningCue(remainingSeconds, true);
+    if (tick && statesSeen > 0 && lastTickKey !== `${turnKey}:${remainingSeconds}`) {
+      lastTickKey = `${turnKey}:${remainingSeconds}`;
+      playSoundCues([tick]);
+    }
+
+    // After one timeout in a row the next one sits the player out: say so on their next turn
+    if (els.timeoutNote) els.timeoutNote.hidden = !(Number(selfSeat.consecutiveTimeouts) >= 1);
 
     if (remainingSeconds === 8 && lastTenSecWarnKey !== turnKey) {
       lastTenSecWarnKey = turnKey;
@@ -426,6 +447,7 @@ export function createTableViewController({
     if (channelSub) { channelSub.unsubscribe(); channelSub = null; }
     subscribedCode = null;
     currentTable = null;
+    statesSeen = 0;
     knownSelfSeatNo = null;
     myHoleCards = null;
     lastHoleCardsHandId = null;
@@ -448,11 +470,11 @@ export function createTableViewController({
       }
     });
 
-    els.soundBtn?.addEventListener("click", () => {
-      const on = toggleSoundEnabled();
-      els.soundBtn.textContent = on ? "Sound: On" : "Sound: Off";
-      els.soundBtn.setAttribute("aria-pressed", String(on));
-    });
+    // Both toggles are user gestures, so the browser lets audio start from the click
+    els.soundBtn?.addEventListener("click", () => toggleSoundEnabled());
+    els.soundQuickBtn?.addEventListener("click", () => toggleSoundEnabled());
+    els.volumeLowBtn?.addEventListener("click", () => setVolume("low"));
+    els.volumeNormalBtn?.addEventListener("click", () => setVolume("normal"));
 
     els.refreshBtn?.addEventListener("click", async () => {
       if (!currentTable?.code) return;
@@ -497,7 +519,6 @@ export function createTableViewController({
       const res = await startHand(currentTable.code);
       actionBusy = false;
       if (!res.ok) { els.dealBtn.disabled = false; showToast(res.error || "Could not deal hand.", { variant: "error" }); return; }
-      playTableCue("deal");
       if (res.table) applyTableState(res.table);
     });
 
@@ -566,8 +587,21 @@ export function createTableViewController({
     });
   }
 
+  function syncSoundUI() {
+    const on = isSoundEnabled();
+    if (els.soundBtn) {
+      els.soundBtn.textContent = on ? "Sound: On" : "Sound: Off";
+      els.soundBtn.setAttribute("aria-pressed", String(on));
+    }
+    if (els.soundQuickBtn) els.soundQuickBtn.setAttribute("aria-pressed", String(on));
+    const vol = getVolume();
+    els.volumeLowBtn?.setAttribute("aria-pressed", String(vol === "low"));
+    els.volumeNormalBtn?.setAttribute("aria-pressed", String(vol === "normal"));
+  }
+
   wireEvents();
-  if (els.soundBtn) els.soundBtn.textContent = isSoundEnabled() ? "Sound: On" : "Sound: Off";
+  onSoundChange(syncSoundUI);
+  syncSoundUI();
 
   return {
     openWithTable(tableState) {
