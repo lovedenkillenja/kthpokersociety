@@ -2,12 +2,16 @@
 // Called by the site after a member signs in. Sends the welcome mail once per member
 // (claim on members.welcome_sent_at) and a minimal notice to the society inbox.
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SMTP_USER, SMTP_PASS, MAIL_FROM_NAME.
+// Optional: SHEET_WEBHOOK_URL + SHEET_WEBHOOK_TOKEN copy new members (name, email, join date) to the society's
+// Google Sheet (docs/APPLICATIONS_SHEET.md, member register). Unset = no copy. Needs migration *_members_sheet_sync.sql.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { CORS_HEADERS, jsonResponse, extractBearerToken } from "../_shared/cors.js";
 import { createWelcomeStore } from "../_shared/welcome-store.js";
 import { handleWelcomeRequest } from "../_shared/welcome.js";
 import { sendMail } from "../_shared/mail.js";
+import { syncMembersToSheet } from "../_shared/member-sheet.js";
+import { createSheetPoster } from "../apply/sheet.js";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -48,6 +52,13 @@ Deno.serve(async (req) => {
       memberMail: (Deno.env.get("WELCOME_MEMBER_MAIL") ?? "").trim() === "on",
       jwt,
       payload,
+      // Member register in the Google Sheet. Off unless SHEET_WEBHOOK_URL and SHEET_WEBHOOK_TOKEN are set.
+      syncSheet: () => syncMembersToSheet({
+        store,
+        sheet: { url: Deno.env.get("SHEET_WEBHOOK_URL") ?? "", token: Deno.env.get("SHEET_WEBHOOK_TOKEN") ?? "" },
+        postSheet: createSheetPoster(fetch),
+        log: (msg) => console.error(`welcome: ${msg}`)
+      }),
       logError: (code) => console.error(`welcome: ${code}`)
     });
     return jsonResponse(result.body, result.status);

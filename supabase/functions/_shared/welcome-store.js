@@ -40,6 +40,22 @@ export function createWelcomeStore(supabaseAdmin) {
       return Array.isArray(data) && data.length > 0;
     },
 
+    /** Claims up to `limit` unsynced, confirmed members for the sheet (SQL function, service role only). */
+    async claimMembersForSheet(limit, claimedAt) {
+      const { data, error } = await supabaseAdmin.rpc("claim_members_for_sheet", {
+        p_limit: limit, p_claimed_at: claimedAt
+      });
+      if (error) throw error;
+      return Array.isArray(data) ? data : [];
+    },
+
+    async releaseMembersSheetClaim(ids, claimedAt) {
+      const { error } = await supabaseAdmin.rpc("release_members_sheet_claim", {
+        p_ids: ids, p_claimed_at: claimedAt
+      });
+      if (error) throw error;
+    },
+
     async getDisplayName(memberId) {
       const { data, error } = await supabaseAdmin
         .from("chip_profiles")

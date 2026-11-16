@@ -43,6 +43,18 @@ export function buildSheetBody(row, token, submittedAt) {
   };
 }
 
+// The JSON body for a member-register row (Apps Script route kind "member"). Name and email are
+// client-controlled, so they go through sanitizeCell like everything else.
+export function buildMemberSheetBody(member, token) {
+  return {
+    kind: "member",
+    token,
+    joined_at: sanitizeCell(member.created_at ? new Date(member.created_at).toISOString() : ""),
+    full_name: sanitizeCell(member.full_name),
+    email: sanitizeCell(member.email)
+  };
+}
+
 class SheetError extends Error {
   constructor(code) { super(code); this.code = code; }
 }

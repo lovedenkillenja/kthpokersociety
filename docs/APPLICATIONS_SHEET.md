@@ -105,10 +105,18 @@ again and redeploy `apply`. To turn the copy off: `supabase secrets unset SHEET_
 Paste this into `Code.gs`. It does not log the request body anywhere.
 
 ```js
-// Board applications webhook for KTH Poker Society. Called by Supabase Edge Function `apply`.
+// Webhook for KTH Poker Society. Called by Supabase Edge Function `apply` (board applications, no "kind")
+// and by Edge Function `welcome` (member register, kind "member").
 // Script property TOKEN must be set (long random string). Never logs the request body.
 
 var SHEET_NAME = 'Applications';
+var MEMBER_SHEET_NAME = 'Members';
+var MEMBER_FIELDS = [
+  // [json key, header, max length, required]
+  ['joined_at', 'Joined (UTC)', 40, true],
+  ['full_name', 'Name', 200, true],
+  ['email', 'Email', 330, true]
+];
 var FIELDS = [
   // [json key, header, max length, required]
   ['submitted_at', 'Submitted at (UTC)', 40, true],
@@ -140,6 +148,8 @@ function doPost(e) {
         !safeEqual_(data.token, expected)) {
       return out_({ ok: false, error: 'unauthorized' });
     }
+
+    if (data.kind === 'member') return addMember_(data);
 
     var values = [];
     for (var i = 0; i < FIELDS.length; i++) {
@@ -173,6 +183,47 @@ function doPost(e) {
   }
 }
 
+// Member register: one row per member (Joined, Name, Email) on the "Members" tab. A member whose email is
+// already listed is not added again.
+function addMember_(data) {
+  var values = [];
+  for (var i = 0; i < MEMBER_FIELDS.length; i++) {
+    var v = data[MEMBER_FIELDS[i][0]];
+    if (v === null || v === undefined) v = '';
+    if (typeof v !== 'string' || v.length > MEMBER_FIELDS[i][2] || (MEMBER_FIELDS[i][3] && !v.trim())) {
+      return out_({ ok: false, error: 'invalid' });
+    }
+    values.push(sanitize_(v));
+  }
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return out_({ ok: false, error: 'busy' });
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(MEMBER_SHEET_NAME) || ss.insertSheet(MEMBER_SHEET_NAME);
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, sheet.getMaxRows(), MEMBER_FIELDS.length).setNumberFormat('@').setVerticalAlignment('top');
+      sheet.appendRow(MEMBER_FIELDS.map(function (f) { return f[1]; }));
+      sheet.getRange(1, 1, 1, MEMBER_FIELDS.length).setFontWeight('bold').setFontColor('#ffffff').setBackground('#1c4587');
+      sheet.setFrozenRows(1);
+      sheet.setColumnWidth(1, 170);
+      sheet.setColumnWidth(2, 220);
+      sheet.setColumnWidth(3, 280);
+    }
+    var last = sheet.getLastRow();
+    if (last > 1) {
+      var emails = sheet.getRange(2, 3, last - 1, 1).getValues();
+      var mine = values[2].toLowerCase();
+      for (var j = 0; j < emails.length; j++) {
+        if (String(emails[j][0]).toLowerCase() === mine) return out_({ ok: true, duplicate: true });
+      }
+    }
+    sheet.appendRow(values);
+  } finally {
+    lock.releaseLock();
+  }
+  return out_({ ok: true });
+}
+
 // Formula injection: a value starting with = + - @ (or tab / CR) becomes text. Idempotent.
 function sanitize_(s) {
   return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
@@ -194,6 +245,26 @@ function out_(obj) {
 
 The Edge Function already prefixes risky values with `'` before sending; the script does it again in case
 anything else ever calls it. A value that already starts with `'` is left as it is.
+
+## Member register (name, email, join date)
+
+Edge Function `welcome` (members project `tibyyjnghhwwcxvlwmiq`) copies each new member to the tab **Members**
+of the same sheet through the same web app (JSON with `"kind": "member"`; a request without `kind` is still an
+application). Each call of `welcome` by a signed-in member claims up to 3 not yet copied members with a confirmed
+email (any member, not only the caller), so existing members are filled in over time. The join date is
+`members.created_at`. A failed copy gives the claim back and is retried by a later call. Off until both secrets
+are set. Code: `supabase/functions/_shared/member-sheet.js`, migration `20261116140000_members_sheet_sync.sql`
+(`members.sheet_synced_at`, SQL functions `claim_members_for_sheet` and `release_members_sheet_claim`, service
+role only), tests `game/tests/member-sheet.test.js`.
+
+Turn it on (after the privacy notice that mentions the register is live; Love):
+```sh
+supabase secrets set SHEET_WEBHOOK_URL='https://script.google.com/macros/s/<deployment-id>/exec' \
+  SHEET_WEBHOOK_TOKEN='<the same TOKEN value as for the applications project>' --project-ref tibyyjnghhwwcxvlwmiq
+```
+(no redeploy needed; the next call of `welcome` reads them). Privacy: the sheet holds member emails, so share
+it only with named board members. When a member asks to be deleted, delete the row in the Members tab by hand
+as well (promise: within 30 days). Version history keeps old rows (see the privacy section above).
 
 ## UNVERIFIED
 - The script has never run against Google: the header creation, `appendRow`, the lock and the JSON answer.

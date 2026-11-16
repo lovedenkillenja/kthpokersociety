@@ -110,11 +110,17 @@ export async function handleWelcomeRequest({
   payload = {},
   now = () => Date.now(),
   logError = () => {},
-  memberMail = true
+  memberMail = true,
+  syncSheet = null
 }) {
   const auth = await authenticateCaller(store, jwt, payload);
   if (auth.error) return auth.error;
   const user = auth.user;
+
+  // Member register in the Google Sheet: independent of the welcome mail and its claim. Never fails the call.
+  if (typeof syncSheet === "function") {
+    try { await syncSheet(); } catch (_err) { logError("ERR_MEMBER_SHEET"); }
+  }
 
   // Only ever mail the address on the caller's own, confirmed auth account.
   const to = typeof user.email === "string" ? user.email.trim() : "";
