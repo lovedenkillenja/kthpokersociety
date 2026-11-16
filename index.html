@@ -250,6 +250,12 @@ form { display: grid; gap: 14px; }
 .field label { font-size: 0.9375rem; font-weight: 500; }
 .field input, .field select { width: 100%; min-height: 46px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--control); background: var(--ink); color: var(--paper); font: 400 1rem var(--font-body); }
 .field input:focus, .field select:focus { outline: 2px solid var(--sky); outline-offset: 0; border-color: transparent; }
+/* File picker (CV upload): same box as the other fields, button styled like the ghost button */
+.field input[type="file"] { display: flex; align-items: center; height: 46px; padding: 0 6px; color: var(--muted); font-size: 0.9375rem; cursor: pointer; }
+.field input[type="file"]::file-selector-button { height: 34px; margin: 0 12px 0 0; padding: 0 16px; border: 1px solid var(--control); border-radius: 8px; background: var(--deep); color: var(--paper); font: 500 0.9375rem var(--font-body); cursor: pointer; transition: border-color .15s, background .15s; }
+.field input[type="file"]:hover::file-selector-button { border-color: var(--sky); background: var(--line); }
+.field input[type="file"]:focus-visible { outline: 2px solid var(--sky); outline-offset: 0; }
+@media (prefers-reduced-motion: reduce) { .field input[type="file"]::file-selector-button { transition: none; } }
 .field-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 @media (max-width: 420px) { .field-row { grid-template-columns: minmax(0, 1fr); } }
 .check { display: flex; gap: 10px; align-items: start; font-size: var(--step--1); color: var(--muted); }
