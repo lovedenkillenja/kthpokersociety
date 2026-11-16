@@ -1,7 +1,8 @@
 // Outgoing mail for Supabase Edge Functions (Deno only; never imported by node tests).
-// Transport: Gmail SMTP over implicit TLS (smtp.gmail.com:465) via denomailer (pinned).
-// Secrets (Edge Function secrets, never in git): SMTP_USER, SMTP_PASS (Gmail app password),
-// MAIL_FROM_NAME. Nothing here logs secrets, recipient addresses or raw SMTP errors.
+// Transport: SMTP over implicit TLS via denomailer (pinned). Default host is Brevo's relay
+// (smtp-relay.brevo.com:465); SMTP_HOST / SMTP_PORT override it (e.g. smtp.gmail.com).
+// Secrets (Edge Function secrets, never in git): SMTP_USER (SMTP login), SMTP_PASS (SMTP key),
+// MAIL_FROM_ADDRESS (a sender verified at the provider; falls back to SMTP_USER), MAIL_FROM_NAME. Nothing here logs secrets, recipient addresses or raw SMTP errors.
 //
 // The transport is swappable: callers only use `sendMail({ to, subject, text, html })`.
 // To move to Resend later, add another entry to TRANSPORTS and set MAIL_TRANSPORT=resend.
@@ -34,16 +35,19 @@ function stripHeaderUnsafe(value, max = 200) {
   return String(value ?? "").replace(/[\r\n\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
 }
 
-async function sendViaGmailSmtp({ to, subject, text, html }) {
+async function sendViaSmtp({ to, subject, text, html }) {
   const user = env("SMTP_USER");
   const pass = env("SMTP_PASS");
   const fromName = stripHeaderUnsafe(env("MAIL_FROM_NAME") || "KTH Poker Society", 80).replace(/["<>]/g, "");
-  if (!user || !pass) throw mailError("ERR_MAIL_CONFIG");
+  const fromAddress = stripHeaderUnsafe(env("MAIL_FROM_ADDRESS") || user, 320).replace(/["<>\s]/g, "");
+  const host = env("SMTP_HOST") || "smtp-relay.brevo.com";
+  const port = Number(env("SMTP_PORT") || 465);
+  if (!user || !pass || !fromAddress || !Number.isInteger(port)) throw mailError("ERR_MAIL_CONFIG");
 
   const client = new SMTPClient({
     connection: {
-      hostname: "smtp.gmail.com",
-      port: 465,
+      hostname: host,
+      port,
       tls: true,
       auth: { username: user, password: pass }
     }
@@ -51,7 +55,7 @@ async function sendViaGmailSmtp({ to, subject, text, html }) {
   try {
     await withTimeout(
       client.send({
-        from: `"${fromName}" <${user}>`,
+        from: `"${fromName}" <${fromAddress}>`,
         to: stripHeaderUnsafe(to, 320),
         subject: stripHeaderUnsafe(subject, 200),
         content: String(text ?? ""),
@@ -72,7 +76,7 @@ async function sendViaGmailSmtp({ to, subject, text, html }) {
 }
 
 const TRANSPORTS = {
-  smtp: sendViaGmailSmtp
+  smtp: sendViaSmtp
 };
 
 /**
