@@ -78,8 +78,43 @@ async function sendViaSmtp({ to, subject, text, html }) {
   }
 }
 
+// Resend HTTP API. Without a verified domain Resend only delivers to the account owner's own address
+// (enough for society notices). Secrets: RESEND_API_KEY, MAIL_FROM_ADDRESS (e.g. onboarding@resend.dev).
+async function sendViaResend({ to, subject, text, html }) {
+  const key = env("RESEND_API_KEY");
+  const fromAddress = stripHeaderUnsafe(env("MAIL_FROM_ADDRESS") || "onboarding@resend.dev", 320).replace(/["<>\s]/g, "");
+  const fromName = stripHeaderUnsafe(env("MAIL_FROM_NAME") || "KTH Poker Society", 80).replace(/["<>]/g, "");
+  if (!key) throw mailError("ERR_MAIL_CONFIG");
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), SEND_TIMEOUT_MS);
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: `${fromName} <${fromAddress}>`,
+        to: [stripHeaderUnsafe(to, 320)],
+        subject: stripHeaderUnsafe(subject, 200),
+        text: String(text ?? ""),
+        html: html ? String(html) : undefined
+      }),
+      signal: ctrl.signal
+    });
+    if (!res.ok) {
+      const body = (await res.text().catch(() => "")).replace(/\S+@\S+/g, "<addr>").replace(/\s+/g, " ").slice(0, 160);
+      console.error(`mail: resend failed (${res.status}): ${body}`);
+      throw mailError("ERR_MAIL_SEND");
+    }
+  } catch (err) {
+    throw err?.code ? err : mailError(err?.name === "AbortError" ? "ERR_MAIL_TIMEOUT" : "ERR_MAIL_SEND");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const TRANSPORTS = {
-  smtp: sendViaSmtp
+  smtp: sendViaSmtp,
+  resend: sendViaResend
 };
 
 /**

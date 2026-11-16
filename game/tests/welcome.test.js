@@ -189,3 +189,21 @@ test("welcome: mail copy is play money only and links the site", () => {
   assert.ok(!/\b(win|prize|cash prize|deposit|bet real|vinn pengar)\b/i.test(mail.text));
   assert.ok(!mail.html.includes("<script>"));
 });
+
+test("welcome: with memberMail off only the society notice is sent, and it never goes to the member", async () => {
+  const store = createStore();
+  const mailer = createMailer();
+  const res = await handleWelcomeRequest({ store, sendMail: mailer.sendMail, jwt: "jwt-alice", now: NOW, memberMail: false });
+  assert.deepEqual(res.body, { ok: true, sent: true });
+  assert.equal(mailer.sent.length, 1);
+  assert.equal(mailer.sent[0].to, SOCIETY_NOTICE_ADDRESS);
+  assert.ok(!JSON.stringify(mailer.sent[0]).includes(ALICE_EMAIL));
+});
+
+test("welcome: with memberMail off a failed notice releases the claim so it retries", async () => {
+  const store = createStore();
+  const mailer = createMailer({ failFor: () => true });
+  const res = await handleWelcomeRequest({ store, sendMail: mailer.sendMail, jwt: "jwt-alice", now: NOW, memberMail: false });
+  assert.deepEqual(res.body, { ok: true, sent: false });
+  assert.equal(store.members.get(ALICE_ID).welcome_sent_at, null);
+});

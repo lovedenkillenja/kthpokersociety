@@ -109,7 +109,8 @@ export async function handleWelcomeRequest({
   jwt,
   payload = {},
   now = () => Date.now(),
-  logError = () => {}
+  logError = () => {},
+  memberMail = true
 }) {
   const auth = await authenticateCaller(store, jwt, payload);
   if (auth.error) return auth.error;
@@ -137,18 +138,25 @@ export async function handleWelcomeRequest({
   const fullName = sanitizeName(claimed.full_name, 200);
   const firstName = fullName.split(" ")[0] || "";
 
-  try {
-    await sendMail({ to, ...buildWelcomeMail({ firstName }) });
-  } catch (err) {
-    logError(String(err?.code || "ERR_MAIL_SEND"));
+  const releaseClaim = async () => {
     try {
       const released = await store.releaseWelcome({ memberId: user.id, claimedAt });
       if (released === false) logError("ERR_WELCOME_RELEASE_NOOP");
     } catch (_releaseErr) {
       logError("ERR_WELCOME_RELEASE");
     }
-    // Contract is {ok:true, sent:boolean}; the claim is released so the next sign-in retries.
-    return { status: 200, body: { ok: true, sent: false } };
+  };
+
+  // memberMail=false: only the society notice is sent (no mail to the member).
+  if (memberMail) {
+    try {
+      await sendMail({ to, ...buildWelcomeMail({ firstName }) });
+    } catch (err) {
+      logError(String(err?.code || "ERR_MAIL_SEND"));
+      await releaseClaim();
+      // Contract is {ok:true, sent:boolean}; the claim is released so the next sign-in retries.
+      return { status: 200, body: { ok: true, sent: false } };
+    }
   }
 
   try {
@@ -163,8 +171,13 @@ export async function handleWelcomeRequest({
       ...buildSocietyNotice({ displayName: displayName || deriveDisplayName(fullName), at: claimedAt })
     });
   } catch (err) {
-    // Keep the claim: the member already has their welcome mail.
     logError(`NOTICE_${String(err?.code || "ERR_MAIL_SEND")}`);
+    if (!memberMail) {
+      // The notice is the only mail: release the claim so the next sign-in retries.
+      await releaseClaim();
+      return { status: 200, body: { ok: true, sent: false } };
+    }
+    // Keep the claim: the member already has their welcome mail.
   }
 
   return { status: 200, body: { ok: true, sent: true } };

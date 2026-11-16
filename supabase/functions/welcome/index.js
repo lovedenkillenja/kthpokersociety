@@ -45,6 +45,7 @@ Deno.serve(async (req) => {
     const result = await handleWelcomeRequest({
       store,
       sendMail,
+      memberMail: (Deno.env.get("WELCOME_MEMBER_MAIL") ?? "").trim() === "on",
       jwt,
       payload,
       logError: (code) => console.error(`welcome: ${code}`)
