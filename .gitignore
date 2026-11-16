@@ -1,3 +1,6 @@
 .DS_Store
 .claude/
 supabase/.temp/
+.wrangler/
+.dev.vars
+node_modules/

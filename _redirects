@@ -1,0 +1,5 @@
+# Intentionally no rules. Netlify and Cloudflare Pages both read this file.
+# The forced-404 list lives in netlify.toml (Netlify) and in shared/site-policy.js, enforced by
+# functions/_middleware.js (Cloudflare). Cloudflare Pages _redirects supports only 200 and
+# 301/302/303/307/308, not 404, and does not apply to requests handled by Functions, so it
+# cannot block paths.

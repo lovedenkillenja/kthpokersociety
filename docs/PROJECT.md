@@ -1,6 +1,6 @@
 # KTH Poker Society: project overview
 
-Last updated: 2026-11-14. Update the "Current state" and "Open issues" sections at the end of every work session.
+Last updated: 2026-11-16. Update the "Current state" and "Open issues" sections at the end of every work session.
 
 ## 1. What this project is
 KTH Poker Society is a student association at KTH Royal Institute of Technology (Stockholm) for poker strategy, probability and game theory. **No real money, ever.** The project has three parts:
@@ -23,6 +23,7 @@ People: **Love** (co-founder, owner, makes the decisions, writes Swedish; talk t
 | Edge Functions | in the members project: `table`, `act` (v2, JWT required) | Source in `supabase/functions/`, deployed with the Supabase CLI or MCP |
 | Old Netlify projects | `kthpokersociety` (prototype 1, id `24bb6f9e-7704-4452-8b81-513b9741c18a`) and `kthpokersociety-prototype-2` (id `58dfc7ea-4254-4325-9179-ac32d86fcc3f`) | Archived prototypes, not live. Do not touch without asking Love |
 | Game gate | Netlify Edge Function `netlify/edge-functions/game-gate.js` | Server-side dev code for `/game`. Env vars `DEV_CODE` (the code) and `DEV_COOKIE_SECRET` (any long random string) on project `kthpokersociety-v3`; both must be set (as secret values) and the site redeployed, otherwise the gate stays closed for everyone. Cookie `kps_dev`, 30 days, per browser |
+| Cloudflare Pages (prepared, not set up) | `functions/_middleware.js`, `shared/`, `_headers`, `_redirects` | Same repo, no build step, output `/`. Gate logic shared with Netlify (`shared/game-gate-core.js`). Setup, limits and checklist: `docs/CLOUDFLARE.md` |
 | Spare domain | `kthpokersociety.online` | Unused. Ask Love and check DNS before touching |
 
 The Supabase URL and the publishable (anon) key are public and appear in client code. **The service role key, CLI logins and any other secret must never be written to the repo or to docs.** They live in Supabase (Edge Function secrets) and on Love's computer.
@@ -109,6 +110,7 @@ Branches in the repo:
 8e. **Found in review, not fixed:** the turn timer only advances while a client is connected (needs `pg_cron`); referral rewards pay out immediately (farmable with fake accounts); the application form has no spam protection and no notification.
 9. **Privacy.** The applications table holds personal data (name, email, phone, LinkedIn, CV link). Members are students. Keep access to the owner, never put exports in the repo, and keep the site's privacy notice accurate.
 10. **Housekeeping:** decide what to do with the two old Netlify projects, the unused domain and the old branches.
+11. **Cloudflare Pages (branch `work/cloudflare-pages`):** config and tests in the repo; Love sets up the Pages project per `docs/CLOUDFLARE.md` (secrets `DEV_CODE`, `DEV_COOKIE_SECRET`, Functions limit set to fail closed). UNVERIFIED: a real Pages deployment; Netlify with `_headers`/`_redirects` present (check headers appear once on the Netlify deploy preview before merging); Netlify bundling the shared gate module. Cloudflare serves `index.html` with 200 for unknown paths (no `404.html`). Before the game launches add `/game/dev/*` to `shared/site-policy.js` as well as `netlify.toml`.
 
 ## 7. Where to look first
 - Fixing or extending the website: `index.html`, `docs/v3-notes.md`, `docs/creative-brief.md`.
