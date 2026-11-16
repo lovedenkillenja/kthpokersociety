@@ -19,7 +19,7 @@ The same repository deploys to both Netlify and Cloudflare Pages. There is no bu
 - **Pages `_headers` is not applied to responses that a Function creates** (the gate page, the 404). The middleware adds the same headers itself, and only when the header is not already set, so there are no duplicates.
 - **Files are uploaded, only not served.** With output directory = repo root, `docs/`, `supabase/`, `netlify/`, `functions/`, `shared/` and the repo meta files are uploaded to Cloudflare. The middleware answers 404 for them (also for encoded, doubled-slash, dot-segment and upper-case variants such as `/%64ocs/...`). `.assetsignore` is a Workers feature, not Pages, so it is not used. The only way to not upload them at all would be a build step that copies the site to a `dist/` folder; not done, to keep "no build step".
 - **The middleware runs on every request** (no `_routes.json`), on purpose: narrowing it would let encoded path variants bypass the block list. Every page view therefore counts as Functions requests (about 10 to 30 per page load). The free plan allows 100,000 Functions requests per day.
-- **Fail closed is required.** When the daily free Functions quota runs out, Pages either serves static assets without running the middleware ("fail open": the game and the repo files would be public) or returns an error page ("fail closed"). Set **fail closed** (step 6 below).
+- **Quota decision for Love.** When the daily free Functions quota runs out, Pages either serves static assets without running the middleware ("fail open": the game gate and the block list are off, so the game and the repo files are public) or returns an error page ("fail closed"). Because the middleware runs on every request, fail closed takes the **whole site** down (home page included) until midnight UTC. At 10 to 30 requests per page load the free quota is roughly 3,000 to 10,000 page views a day, and anyone can use it up on purpose. Choices: fail closed (site down when exhausted, recommended while the game is gated), fail open (gate and block list off when exhausted), or the paid Workers plan (no daily limit). Do not add a `_routes.json` exclude to save quota: it can let encoded paths such as `/assets/%2e%2e/docs/...` skip the middleware.
 - **Unknown paths:** the repo has no `404.html`. On Cloudflare an unknown path such as `/xyz` returns `index.html` with status 200 (Pages single-page fallback). Netlify returns its own 404 page. Harmless, but different.
 - **Netlify also reads `_headers` and `_redirects`.** Because the values are identical to `netlify.toml`, Netlify should behave the same. UNVERIFIED until checked on a Netlify deploy preview (checklist below).
 - **Netlify bundling of `shared/game-gate-core.js`** (an import from outside `netlify/edge-functions/`) is standard for Netlify edge functions but UNVERIFIED until a Netlify deploy preview builds.
@@ -40,8 +40,8 @@ The same repository deploys to both Netlify and Cloudflare Pages. There is no bu
    - `DEV_COOKIE_SECRET`: a long random string (for example the output of `openssl rand -hex 32` on your Mac), type **Secret**. Use a different value than on Netlify, so a cookie from one host does not work on the other.
    Never put either value in git, docs or chat.
 5. Click **Save and Deploy**. Wait for the first deployment to finish. If you added the secrets after the first deploy, go to **Deployments**, open the latest one, and click **Retry deployment** (secrets only apply to new deployments).
-6. **Settings > Runtime** (in older dashboards: **Settings > Functions**): set the free-tier limit behaviour to **Fail closed**.
-7. Preview check: open `https://kthpokersociety.pages.dev` (the name from step 3) and run the verification checklist below. Each pull request also gets a preview URL `https://<hash>.kthpokersociety.pages.dev`.
+6. **Settings > Runtime** (in older dashboards: **Settings > Functions**): set the free-tier limit behaviour (see "Quota decision" above; fail closed while the game is gated).
+7. Preview check: open `https://kthpokersociety.pages.dev` (the name from step 3) and run the verification checklist below. **First check that the middleware runs:** if `/game/` returns 200 or `/docs/PROJECT.md` is not 404, the Functions were not deployed (the deployment page lists "Functions" when they are). Stop, do not share the URL, and check the deploy log. Each pull request also gets a preview URL `https://<hash>.kthpokersociety.pages.dev`.
 8. **Optional:** **Settings > Builds & deployments > Preview deployments**: choose "None" or "Custom branches" if you do not want every branch built.
 
 ### Attaching kthpokersociety.se later (ask first, DNS change)
@@ -70,7 +70,7 @@ Run on the Pages URL (replace `$B`, for example `B=https://kthpokersociety.pages
 - [ ] A wrong code shows "Wrong code." and no cookie. The right code redirects to `/game/` and sets `kps_dev` (HttpOnly, Secure, SameSite=Lax, Path=/game, Max-Age 2592000). The game lobby loads and logging in works (Supabase calls are not blocked by the CSP: check the browser console).
 - [ ] With the cookie, `/game/tests/engine.test.js` is still 404.
 - [ ] Temporarily remove `DEV_CODE` in a preview environment and redeploy: `/game/` gives 403 without a code form (closed). Put it back.
-- [ ] Settings > Runtime shows **Fail closed**.
+- [ ] Settings > Runtime shows the limit behaviour Love chose (fail closed while the game is gated).
 - [ ] Netlify deploy preview of this branch (the PR): `curl -sI` on `/` shows each security header exactly once (not "DENY, DENY"), `/docs/PROJECT.md` and `/functions/_middleware.js` give 404, and the gate unlock still works (shared module bundled).
 - [ ] Pages at 375px and desktop width: the home page and the game open with no console errors.
 
