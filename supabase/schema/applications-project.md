@@ -31,4 +31,4 @@ Hygiene: `anon` and `authenticated` hold all table privileges (default grants); 
 
 Free-plan projects pause when inactive: if this one is paused the website form fails. See `docs/DATABASE.md`.
 
-**Planned (branch `work/cv-upload`, NOT APPLIED):** `20261116130000_applications_cv_upload.sql` adds `cv_path text` (object name in the private storage bucket `applicant-cvs`, PDF only, 5 MB; no storage policies, so only the service role can read or write), drops the old required-`cv_url` check and adds `cv_url` null-or-https plus "`cv_url` or `cv_path` present" (all `NOT VALID`).
+**Applied 2026-11-16 (CV upload):** `20261116130000_applications_cv_upload.sql` adds `cv_path text` (object name in the private storage bucket `applicant-cvs`, PDF only, 5 MB; no storage policies, so only the service role can read or write), drops the old required-`cv_url` check and adds `cv_url` null-or-https plus "`cv_url` or `cv_path` present" (all `NOT VALID`).
