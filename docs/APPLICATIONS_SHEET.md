@@ -20,7 +20,7 @@ Checked only with stubs in `node --test`.
 
 ## Before you start: privacy
 
-- This copies personal data about applicants (name, email, phone, programme, LinkedIn, CV link, GitHub,
+- This copies personal data about applicants (name, email, phone, programme, LinkedIn, CV (a link, or for uploaded PDFs only the storage file name, never the file), GitHub,
   motivation) to Google, a second processor besides Supabase. **Update the site's privacy notice first**
   (`index.html`, `#privacy-dialog`, section "Applications for roles"). It currently says only
   "Applications are stored with Supabase". Suggested text: "Applications are stored with Supabase and

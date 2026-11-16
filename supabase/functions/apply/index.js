@@ -12,6 +12,8 @@
 // to the service role key), plus whatever ../_shared/mail.js needs.
 // Optional: SHEET_WEBHOOK_URL and SHEET_WEBHOOK_TOKEN copy each accepted application to the board's Google
 // Sheet through an Apps Script web app (docs/APPLICATIONS_SHEET.md). Unset = no copy.
+// CV upload: the form sends multipart (JSON in "data", the PDF in "cv"). The PDF is stored in the private
+// bucket `applicant-cvs` (migration *_applications_cv_upload.sql, apply it BEFORE deploying this version).
 // Before deploying, apply the migration that adds board_applications.ip_hash (see supabase/migrations,
 // file *_applications_ip_hash.sql). Until then inserts fall back to rows without ip_hash and the rate
 // limit fails open.
@@ -21,6 +23,7 @@ import { sendMail } from "../_shared/mail.js";
 import { createApplyHandler, hmacIp, reply } from "./handler.js";
 import { createSheetPoster } from "./sheet.js";
 
+const CV_BUCKET = "applicant-cvs"; // private bucket, created by migration *_applications_cv_upload.sql
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const ipSalt = Deno.env.get("APPLY_IP_SALT") || serviceRoleKey;
@@ -46,11 +49,22 @@ const store = {
   async insertApplication(row) {
     let { error } = await admin.from("board_applications").insert(row);
     if (missingColumn(error)) {
-      // ip_hash migration not applied yet: keep the application rather than lose it.
+      // A migration is not applied yet: keep the application rather than lose it. ip_hash may be missing;
+      // cv_path may be missing too, which only matters when a PDF was uploaded (then the insert fails).
       const { ip_hash: _drop, ...rest } = row;
+      if (rest.cv_path === null) delete rest.cv_path;
       ({ error } = await admin.from("board_applications").insert(rest));
     }
     if (error) throw new Error("insert failed");
+  },
+  async uploadCv(path, bytes) {
+    const { error } = await admin.storage.from(CV_BUCKET).upload(path, bytes, {
+      contentType: "application/pdf", upsert: false
+    });
+    if (error) throw new Error("upload failed");
+  },
+  async deleteCv(path) {
+    await admin.storage.from(CV_BUCKET).remove([path]);
   }
 };
 

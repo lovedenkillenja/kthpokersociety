@@ -18,7 +18,9 @@ export const NOTICE_TO = "kthpokersociety@gmail.com";
 export const MIN_FILL_MS = 3000;
 export const RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 export const RATE_MAX = 3; // applications per hashed IP per window
-const MAX_BODY_BYTES = 16 * 1024;
+const MAX_BODY_BYTES = 16 * 1024; // JSON part of the request (the form fields)
+export const MAX_CV_BYTES = 5 * 1024 * 1024; // uploaded CV, PDF only
+const MAX_UPLOAD_REQUEST_BYTES = MAX_CV_BYTES + 64 * 1024; // CV plus multipart framing and the JSON part
 
 const ALLOWED_ORIGINS = [
   /^https:\/\/kthpokersociety\.se$/,
@@ -101,7 +103,9 @@ export function validateApplication(p) {
   const lh = new URL(linkedin_url).hostname.toLowerCase();
   if (!(lh === "linkedin.com" || lh.endsWith(".linkedin.com"))) throw new Invalid();
   if (!/linkedin\.com\//i.test(linkedin_url)) throw new Invalid(); // live DB constraint
-  const cv_url = httpsUrl(str(p.cv_url, { required: true, max: 500 }));
+  // The form uploads a PDF (see validateCvFile). A link is still accepted from older page versions;
+  // the handler requires one of the two.
+  const cv_url = httpsUrl(str(p.cv_url, { max: 500 }));
   const github_url = httpsUrl(str(p.github_url, { max: 500 }), { allowHttp: true });
 
   const role = p.role;
@@ -120,6 +124,18 @@ export function validateApplication(p) {
     full_name, email, phone, program, linkedin_url, cv_url, github_url,
     role, role_ranking: [...rk], hours_per_week, motivation
   };
+}
+
+// Validates an uploaded CV: a non-empty PDF up to MAX_CV_BYTES. Checks the size and the "%PDF-" signature
+// (the browser-supplied name and type are not trusted). Returns the bytes, or throws Invalid.
+export async function validateCvFile(file) {
+  if (!file || typeof file !== "object" || typeof file.arrayBuffer !== "function") throw new Invalid();
+  if (typeof file.size !== "number" || file.size < 8 || file.size > MAX_CV_BYTES) throw new Invalid();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes.length !== file.size || bytes.length > MAX_CV_BYTES) throw new Invalid();
+  const sig = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]);
+  if (sig !== "%PDF-") throw new Invalid();
+  return bytes;
 }
 
 // The notice contains only the applicant's name and first-choice role. Nothing else.
@@ -155,7 +171,8 @@ export async function hmacIp(secret, ip) {
 // ---------- handler ----------
 
 /**
- * store: { countRecentByIpHash(ipHash, sinceIso) -> number, insertApplication(row) -> void (throws on error) }
+ * store: { countRecentByIpHash(ipHash, sinceIso) -> number, insertApplication(row) -> void (throws on error),
+ *          uploadCv(path, bytes) -> void (throws on error), deleteCv(path) -> void }
  * sendMail: ({to, subject, text}) -> Promise
  * hashIp: (ip) -> Promise<string>
  * now: () -> ms
@@ -163,7 +180,8 @@ export async function hmacIp(secret, ip) {
  * postSheet: (url, body) -> Promise (throws on failure); see createSheetPoster in sheet.js
  */
 export function createApplyHandler({
-  store, sendMail, hashIp, now = () => Date.now(), log = () => {}, sheet = null, postSheet = null
+  store, sendMail, hashIp, now = () => Date.now(), log = () => {}, sheet = null, postSheet = null,
+  newId = () => crypto.randomUUID()
 }) {
   // Optional copy to the board's Google Sheet. Never fails the request; logs only a short code.
   async function copyToSheet(row) {
@@ -188,13 +206,35 @@ export function createApplyHandler({
     if (req.method !== "POST") return reply(origin, 405, { ok: false, error: "method_not_allowed" });
     if (!isAllowedOrigin(origin)) return reply(origin, 403, { ok: false, error: "forbidden_origin" });
 
+    // Two body formats: multipart (fields as JSON in "data", the PDF in "cv"; what the form sends) and plain
+    // JSON (older page versions, CV as a link).
     let payload;
-    try {
-      const text = await req.text();
-      if (text.length > MAX_BODY_BYTES) return reply(origin, 413, { ok: false, error: "invalid" });
-      payload = JSON.parse(text);
-    } catch {
-      return reply(origin, 400, { ok: false, error: "invalid" });
+    let cvFile = null;
+    const contentType = (req.headers.get("content-type") || "").toLowerCase();
+    if (contentType.startsWith("multipart/form-data")) {
+      const declared = Number(req.headers.get("content-length"));
+      if (Number.isFinite(declared) && declared > MAX_UPLOAD_REQUEST_BYTES) {
+        return reply(origin, 413, { ok: false, error: "invalid" });
+      }
+      try {
+        const form = await req.formData();
+        const raw = form.get("data");
+        if (typeof raw !== "string" || raw.length > MAX_BODY_BYTES) return reply(origin, 400, { ok: false, error: "invalid" });
+        payload = JSON.parse(raw);
+        const f = form.get("cv");
+        if (f !== null && typeof f === "string") return reply(origin, 400, { ok: false, error: "invalid" });
+        cvFile = f;
+      } catch {
+        return reply(origin, 400, { ok: false, error: "invalid" });
+      }
+    } else {
+      try {
+        const text = await req.text();
+        if (text.length > MAX_BODY_BYTES) return reply(origin, 413, { ok: false, error: "invalid" });
+        payload = JSON.parse(text);
+      } catch {
+        return reply(origin, 400, { ok: false, error: "invalid" });
+      }
     }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
       return reply(origin, 400, { ok: false, error: "invalid" });
@@ -212,8 +252,11 @@ export function createApplyHandler({
     }
 
     let row;
+    let cvBytes = null;
     try {
       row = validateApplication(payload);
+      if (cvFile) cvBytes = await validateCvFile(cvFile);
+      if (!cvBytes && !row.cv_url) throw new Invalid(); // a CV (PDF or link) is required
     } catch (err) {
       if (err instanceof Invalid) return reply(origin, 400, { ok: false, error: "invalid" });
       throw err;
@@ -236,10 +279,25 @@ export function createApplyHandler({
       if (recent >= RATE_MAX) return reply(origin, 429, { ok: false, error: "rate_limited" });
     }
 
+    // The PDF goes into a private storage bucket under a random name (never the applicant's file name).
+    let cv_path = null;
+    if (cvBytes) {
+      cv_path = newId() + ".pdf";
+      try {
+        await store.uploadCv(cv_path, cvBytes);
+      } catch {
+        log("apply: cv upload failed");
+        return reply(origin, 500, { ok: false, error: "server_error" });
+      }
+    }
+
     try {
-      await store.insertApplication({ ...row, ip_hash: ipHash });
+      await store.insertApplication({ ...row, cv_path, ip_hash: ipHash });
     } catch {
       log("apply: insert failed"); // never log the payload or the database error text (personal data)
+      if (cv_path) {
+        try { await store.deleteCv(cv_path); } catch { log("apply: cv cleanup failed"); }
+      }
       return reply(origin, 500, { ok: false, error: "server_error" });
     }
 
@@ -252,7 +310,7 @@ export function createApplyHandler({
           log("apply: notice mail failed");
         }
       })(),
-      copyToSheet(row)
+      copyToSheet({ ...row, cv_path })
     ]);
 
     return reply(origin, 200, { ok: true });

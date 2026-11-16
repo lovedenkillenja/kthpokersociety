@@ -225,3 +225,10 @@ test("poster: times out", async () => {
   });
   await assert.rejects(createSheetPoster(hang, { timeoutMs: 20 })(SHEET_URL, { token: TOKEN }));
 });
+
+test("sheet body for an uploaded CV names the storage path, not a link", async () => {
+  const { buildSheetBody } = await import("../../supabase/functions/apply/sheet.js");
+  const body = buildSheetBody({ cv_url: null, cv_path: "11111111-2222-3333-4444-555555555555.pdf" }, "t", "2026-01-01T00:00:00Z");
+  assert.equal(body.cv_url, "Uploaded PDF in Supabase Storage: 11111111-2222-3333-4444-555555555555.pdf");
+  assert.equal(buildSheetBody({ cv_url: "https://x.example/cv", cv_path: null }, "t", "z").cv_url, "https://x.example/cv");
+});

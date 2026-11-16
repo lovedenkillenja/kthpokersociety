@@ -30,3 +30,5 @@ Hygiene: `anon` and `authenticated` hold all table privileges (default grants); 
 **Planned (branch `work/apply-mail`, NOT APPLIED/DEPLOYED):** the form posts to the Edge Function `apply` (`supabase/functions/apply/`, deploy with `supabase functions deploy apply --project-ref hrdqlaurdzyueviplbmj --no-verify-jwt`), which validates, checks honeypot/fill time/rate limit and inserts with the service role. Migrations for this project (guarded to no-op elsewhere): `20261116120000_applications_ip_hash.sql` (adds `ip_hash`, apply before deploy) and `20261116120100_applications_insert_via_function_only.sql` (drops the anon insert policy; apply only after the new site is live).
 
 Free-plan projects pause when inactive: if this one is paused the website form fails. See `docs/DATABASE.md`.
+
+**Planned (branch `work/cv-upload`, NOT APPLIED):** `20261116130000_applications_cv_upload.sql` adds `cv_path text` (object name in the private storage bucket `applicant-cvs`, PDF only, 5 MB; no storage policies, so only the service role can read or write), drops the old required-`cv_url` check and adds `cv_url` null-or-https plus "`cv_url` or `cv_path` present" (all `NOT VALID`).

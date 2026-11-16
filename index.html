@@ -588,7 +588,7 @@ main { min-height: 72vh; }
             <div class="field"><label for="bf-program">Study program <span class="optional">(optional)</span></label><input id="bf-program" name="program" placeholder="e.g. Industrial Engineering and Management, year 2" autocomplete="off"></div>
           </div>
           <div class="field"><label for="bf-linkedin">LinkedIn profile</label><input id="bf-linkedin" name="linkedin" type="url" inputmode="url" placeholder="https://www.linkedin.com/in/…" required aria-describedby="bf-error"></div>
-          <div class="field"><label for="bf-cv">Link to your CV</label><input id="bf-cv" name="cv" type="url" inputmode="url" placeholder="Google Drive, Dropbox or similar" required aria-describedby="bf-error bf-cv-hint"><span class="hint" id="bf-cv-hint">Make sure the link can be opened by anyone who has it.</span></div>
+          <div class="field"><label for="bf-cv">Your CV <span class="optional">(PDF, max 5 MB)</span></label><input id="bf-cv" name="cv" type="file" accept="application/pdf,.pdf" required aria-describedby="bf-error bf-cv-hint"><span class="hint" id="bf-cv-hint">Upload your CV as a PDF. Only the recruitment team can open it.</span></div>
           <div class="field"><label for="bf-github">GitHub profile <span class="optional">(optional)</span></label><input id="bf-github" name="github" type="url" inputmode="url" placeholder="https://github.com/…"></div>
           <fieldset>
             <legend>Rank the roles by interest</legend>
@@ -762,7 +762,7 @@ main { min-height: 72vh; }
       <h3>How long we keep it</h3>
       <p>As long as you're a member. When you ask us to end your membership, we delete your account within 30 days.</p>
       <h3>Applications for roles</h3>
-      <p>Applications are stored with Supabase and a copy is kept in a private Google Sheet. Only the recruitment team can read them. When an application arrives we send ourselves an email with your name and first-choice role only. Applications are deleted within two months after recruitment closes unless you're accepted.</p>
+      <p>Applications, including the CV you upload as a PDF, are stored with Supabase in a private store, and a copy of the form answers is kept in a private Google Sheet (the CV file itself is not copied there). Only the recruitment team can read them. When an application arrives we send ourselves an email with your name and first-choice role only. Applications are deleted within two months after recruitment closes unless you're accepted.</p>
       <h3>Your rights</h3>
       <p>You can ask us for a copy of your data, ask us to correct or delete it, and withdraw your consent at any time by writing to kthpokersociety@gmail.com. If you think we handle your data wrongly, you can complain to the Swedish Authority for Privacy Protection (IMY).</p>
     </div>
@@ -1179,14 +1179,16 @@ main { min-height: 72vh; }
     var name = document.getElementById('bf-name').value.trim();
     var email = document.getElementById('bf-email').value.trim();
     var linkedin = url(document.getElementById('bf-linkedin').value);
-    var cv = url(document.getElementById('bf-cv').value);
+    var cvFile = document.getElementById('bf-cv').files[0];
     var github = url(document.getElementById('bf-github').value);
     if (!name) return bad('bf-name', 'Enter your full name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bad('bf-email', 'Enter a valid email address, like name@kth.se.');
     if (!/linkedin\.com\//i.test(linkedin) || !/(^|\.)linkedin\.com$/i.test(host(linkedin))) return bad('bf-linkedin', 'Paste the link to your LinkedIn profile.');
     if (!/^https:\/\//i.test(linkedin)) return bad('bf-linkedin', 'Use a link that starts with https://.');
-    if (!/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(cv)) return bad('bf-cv', 'Paste a link to your CV, for example from Google Drive.');
-    if (!/^https:\/\//i.test(cv)) return bad('bf-cv', 'Use a link that starts with https://.');
+    if (!cvFile) return bad('bf-cv', 'Choose your CV as a PDF file.');
+    if (!/\.pdf$/i.test(cvFile.name) || (cvFile.type && cvFile.type !== 'application/pdf')) return bad('bf-cv', 'Your CV must be a PDF file.');
+    if (cvFile.size > 5 * 1024 * 1024) return bad('bf-cv', 'Your CV is larger than 5 MB. Compress the PDF and try again.');
+    if (cvFile.size < 8) return bad('bf-cv', 'That file looks empty. Choose your CV as a PDF file.');
     if (github && !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(github)) return bad('bf-github', 'Enter a valid link, or leave this empty.');
     if (!window.fetch) { fail.hidden = false; return; }
     var ranking = Array.prototype.map.call(list.children, function (li) { return li.getAttribute('data-role'); });
@@ -1195,7 +1197,7 @@ main { min-height: 72vh; }
       full_name: name, email: email,
       phone: document.getElementById('bf-phone').value.trim() || null,
       program: document.getElementById('bf-program').value.trim() || null,
-      linkedin_url: linkedin, cv_url: cv, github_url: github || null,
+      linkedin_url: linkedin, github_url: github || null,
       role: ranking[0], role_ranking: ranking,
       hours_per_week: document.getElementById('bf-hours').value || null,
       motivation: document.getElementById('bf-motivation').value.trim() || null,
@@ -1203,7 +1205,11 @@ main { min-height: 72vh; }
       elapsed_ms: Date.now() - started
     };
     try {
-      var res = await fetch(APPLY_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify(data) });
+      var body = new FormData();
+      body.append('data', JSON.stringify(data));
+      body.append('cv', cvFile);
+      // No Content-Type header: the browser sets the multipart boundary itself.
+      var res = await fetch(APPLY_URL, { method: 'POST', headers: { apikey: KEY }, body: body });
       var out = await res.json().catch(function () { return null; });
       if (!res.ok || !out || out.ok !== true) throw new Error('apply failed');
       form.reset(); started = Date.now(); ok.hidden = false; ok.scrollIntoView({ block: 'nearest' });

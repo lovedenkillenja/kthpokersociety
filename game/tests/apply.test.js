@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createApplyHandler, hmacIp, isAllowedOrigin, ROLES, RATE_MAX, MIN_FILL_MS
+  createApplyHandler, hmacIp, isAllowedOrigin, ROLES, RATE_MAX, MIN_FILL_MS, MAX_CV_BYTES
 } from "../../supabase/functions/apply/handler.js";
 
 const ORIGIN = "https://kthpokersociety.se";
@@ -26,8 +26,9 @@ function validPayload(over = {}) {
   };
 }
 
-function setup({ mailFails = false, countFails = false, insertFails = false } = {}) {
+function setup({ mailFails = false, countFails = false, insertFails = false, uploadFails = false } = {}) {
   const rows = [];
+  const files = new Map();
   const mails = [];
   const store = {
     async countRecentByIpHash(ipHash, sinceIso) {
@@ -37,14 +38,21 @@ function setup({ mailFails = false, countFails = false, insertFails = false } = 
     async insertApplication(row) {
       if (insertFails) throw new Error("db down");
       rows.push({ ...row, created_at: new Date().toISOString() });
-    }
+    },
+    async uploadCv(path, bytes) {
+      if (uploadFails) throw new Error("storage down");
+      files.set(path, bytes);
+    },
+    async deleteCv(path) { files.delete(path); }
   };
   const sendMail = async (msg) => {
     mails.push(msg);
     if (mailFails) throw new Error("smtp down");
   };
-  const handle = createApplyHandler({ store, sendMail, hashIp: (ip) => hmacIp("test-secret", ip) });
-  return { rows, mails, handle };
+  const handle = createApplyHandler({
+    store, sendMail, hashIp: (ip) => hmacIp("test-secret", ip), newId: () => "11111111-2222-3333-4444-555555555555"
+  });
+  return { rows, mails, files, handle };
 }
 
 function post(body, { origin = ORIGIN, ip = "203.0.113.7", method = "POST" } = {}) {
@@ -239,4 +247,143 @@ test("IP hash is a keyed HMAC, stable per key", async () => {
   assert.equal(a, await hmacIp("k1", "203.0.113.7"));
   assert.notEqual(a, await hmacIp("k2", "203.0.113.7"));
   assert.match(a, /^[0-9a-f]{64}$/);
+});
+
+// ---------- CV upload (multipart: JSON in "data", the PDF in "cv") ----------
+
+function pdfBytes(size = 2048) {
+  const b = new Uint8Array(size);
+  b.set(new TextEncoder().encode("%PDF-1.7\n"));
+  return b;
+}
+
+function postUpload(data, file, { origin = ORIGIN, ip = "203.0.113.7" } = {}) {
+  const fd = new FormData();
+  fd.append("data", typeof data === "string" ? data : JSON.stringify(data));
+  if (file !== null) fd.append("cv", file, "my cv.pdf");
+  return new Request("https://example.supabase.co/functions/v1/apply", {
+    method: "POST",
+    headers: { origin, "x-forwarded-for": ip },
+    body: fd
+  });
+}
+
+async function upload(handle, data, file, opts) {
+  const res = await handle(postUpload(data, file, opts));
+  return { status: res.status, body: await res.json() };
+}
+
+const noLink = () => validPayload({ cv_url: undefined });
+
+test("PDF upload: stored under a random name, row has cv_path and no cv_url, notice sent", async () => {
+  const { rows, mails, files, handle } = setup();
+  const r = await upload(handle, noLink(), new File([pdfBytes()], "my cv.pdf", { type: "application/pdf" }));
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, { ok: true });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].cv_path, "11111111-2222-3333-4444-555555555555.pdf");
+  assert.equal(rows[0].cv_url, null);
+  assert.ok(!JSON.stringify(rows[0]).includes("my cv"), "applicant's file name is never stored");
+  assert.equal(files.size, 1);
+  assert.equal(files.get(rows[0].cv_path).length, 2048);
+  assert.equal(mails.length, 1);
+  assert.ok(!mails[0].text.includes(rows[0].cv_path), "notice does not mention the file");
+});
+
+test("a link still works for older page versions (cv_path is null)", async () => {
+  const { rows, files, handle } = setup();
+  const r = await call(handle, validPayload());
+  assert.equal(r.status, 200);
+  assert.equal(rows[0].cv_path, null);
+  assert.equal(files.size, 0);
+});
+
+const BAD_FILES = {
+  "not a PDF (wrong signature)": () => new File([new TextEncoder().encode("MZ this is an exe renamed .pdf")], "x.pdf", { type: "application/pdf" }),
+  "HTML renamed to pdf": () => new File([new TextEncoder().encode("<html><script>alert(1)</script></html>")], "x.pdf", { type: "application/pdf" }),
+  "empty file": () => new File([], "x.pdf", { type: "application/pdf" }),
+  "too small to be a PDF": () => new File([new TextEncoder().encode("%PDF-")], "x.pdf"),
+  "over the size limit": () => new File([pdfBytes(MAX_CV_BYTES + 1)], "x.pdf", { type: "application/pdf" })
+};
+
+for (const [name, make] of Object.entries(BAD_FILES)) {
+  test(`rejects upload: ${name}`, async () => {
+    const { rows, mails, files, handle } = setup();
+    const r = await upload(handle, noLink(), make());
+    assert.equal(r.status, 400);
+    assert.deepEqual(r.body, { ok: false, error: "invalid" });
+    assert.equal(rows.length, 0);
+    assert.equal(files.size, 0);
+    assert.equal(mails.length, 0);
+  });
+}
+
+test("accepts a PDF of exactly the size limit", async () => {
+  const { rows, handle } = setup();
+  const r = await upload(handle, noLink(), new File([pdfBytes(MAX_CV_BYTES)], "x.pdf"));
+  assert.equal(r.status, 200);
+  assert.equal(rows.length, 1);
+});
+
+test("multipart without a file and without a link is rejected", async () => {
+  const { rows, handle } = setup();
+  const r = await upload(handle, noLink(), null);
+  assert.equal(r.status, 400);
+  assert.equal(rows.length, 0);
+});
+
+test("multipart: cv sent as a text field, or bad data part, is rejected", async () => {
+  const { rows, handle } = setup();
+  const fd = new FormData();
+  fd.append("data", JSON.stringify(noLink()));
+  fd.append("cv", "%PDF-1.7 pretend");
+  const res = await handle(new Request("https://example.supabase.co/functions/v1/apply", {
+    method: "POST", headers: { origin: ORIGIN }, body: fd
+  }));
+  assert.equal(res.status, 400);
+  const r2 = await upload(handle, "not json", new File([pdfBytes()], "x.pdf"));
+  assert.equal(r2.status, 400);
+  assert.equal(rows.length, 0);
+});
+
+test("multipart: honeypot and fill-time checks still apply before anything is stored", async () => {
+  const { rows, files, handle } = setup();
+  const file = () => new File([pdfBytes()], "x.pdf");
+  assert.equal((await upload(handle, { ...noLink(), website_url: "http://spam.example" }, file())).status, 400);
+  assert.equal((await upload(handle, { ...noLink(), elapsed_ms: MIN_FILL_MS - 1 }, file())).status, 400);
+  assert.equal(rows.length, 0);
+  assert.equal(files.size, 0);
+});
+
+test("multipart: forbidden origin gets 403", async () => {
+  const { handle } = setup();
+  const r = await upload(handle, noLink(), new File([pdfBytes()], "x.pdf"), { origin: "https://evil.example" });
+  assert.equal(r.status, 403);
+});
+
+test("upload is rate limited like the JSON path and stores nothing when limited", async () => {
+  const { rows, files, handle } = setup();
+  for (let i = 0; i < RATE_MAX; i++) {
+    assert.equal((await upload(handle, noLink(), new File([pdfBytes()], "x.pdf"))).status, 200);
+  }
+  const r = await upload(handle, noLink(), new File([pdfBytes()], "x.pdf"));
+  assert.equal(r.status, 429);
+  assert.equal(rows.length, RATE_MAX);
+  assert.equal(files.size, 1, "all uploads share the stubbed id; the 4th was not written");
+});
+
+test("storage failure: 500, nothing inserted, nothing mailed", async () => {
+  const { rows, mails, handle } = setup({ uploadFails: true });
+  const r = await upload(handle, noLink(), new File([pdfBytes()], "x.pdf"));
+  assert.equal(r.status, 500);
+  assert.equal(rows.length, 0);
+  assert.equal(mails.length, 0);
+});
+
+test("insert failure after upload removes the uploaded file", async () => {
+  const { rows, files, handle } = setup({ insertFails: true });
+  const r = await upload(handle, noLink(), new File([pdfBytes()], "x.pdf"));
+  assert.equal(r.status, 500);
+  assert.equal(rows.length, 0);
+  assert.equal(files.size, 0);
 });

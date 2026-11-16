@@ -33,7 +33,8 @@ export function buildSheetBody(row, token, submittedAt) {
     phone: sanitizeCell(row.phone),
     program: sanitizeCell(row.program),
     linkedin_url: sanitizeCell(row.linkedin_url),
-    cv_url: sanitizeCell(row.cv_url),
+    // An uploaded CV is not linked (the bucket is private); the cell says where to find the file.
+    cv_url: sanitizeCell(row.cv_url || (row.cv_path ? "Uploaded PDF in Supabase Storage: " + row.cv_path : "")),
     github_url: sanitizeCell(row.github_url),
     role: sanitizeCell(row.role),
     role_ranking: sanitizeCell(Array.isArray(row.role_ranking) ? row.role_ranking.join(" > ") : ""),
