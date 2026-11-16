@@ -23,6 +23,7 @@ const ALLOWED_ORIGINS = [
   /^https:\/\/www\.kthpokersociety\.se$/,
   /^https:\/\/kthpokersociety-v3\.netlify\.app$/,
   /^https:\/\/[a-z0-9-]+--kthpokersociety-v3\.netlify\.app$/, // branch and deploy previews
+  /^https:\/\/([a-z0-9-]+\.)?kthpokersociety\.pages\.dev$/, // Cloudflare Pages production and previews
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/
 ];
 
