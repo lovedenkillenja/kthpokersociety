@@ -27,4 +27,6 @@ Constraints: `full_name` 1 to 200 chars; `email` 3 to 320 chars and contains '@'
 Row level security: on. One policy: "Anyone can submit an application" (INSERT to anon and authenticated, check true). No select, update or delete policy, so applications can only be read in the dashboard, with the service role, or via the Supabase MCP.
 
 Hygiene: `anon` and `authenticated` hold all table privileges (default grants); RLS blocks everything except INSERT, but revoking the extra privileges (keep INSERT) is cleaner.
+**Planned (branch `work/apply-mail`, NOT APPLIED/DEPLOYED):** the form posts to the Edge Function `apply` (`supabase/functions/apply/`, deploy with `supabase functions deploy apply --project-ref hrdqlaurdzyueviplbmj --no-verify-jwt`), which validates, checks honeypot/fill time/rate limit and inserts with the service role. Migrations for this project (guarded to no-op elsewhere): `20261116120000_applications_ip_hash.sql` (adds `ip_hash`, apply before deploy) and `20261116120100_applications_insert_via_function_only.sql` (drops the anon insert policy; apply only after the new site is live).
+
 Free-plan projects pause when inactive: if this one is paused the website form fails. See `docs/DATABASE.md`.
