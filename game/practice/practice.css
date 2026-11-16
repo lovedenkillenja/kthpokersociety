@@ -176,3 +176,9 @@ body.practice-page[data-active-view="table"] .game-main { flex-direction: column
   .practice-page .table-shell[data-layout-mode="desktop"] > .coach { grid-row: 4; margin-inline: var(--dk-gutter); border: 1px solid var(--line); border-radius: var(--radius-panel); }
   .practice-page .table-shell[data-layout-mode="desktop"]:has(> .coach:not([hidden])) > .action-bar { grid-row: 5; }
 }
+
+/* Desktop top bar: the coach column narrows the bar, so keep the buttons at their natural width
+   and let the bar itself give way (the pills at the end can shrink instead). */
+.table-shell .table-topbar__left > .btn { flex: 0 0 auto; min-width: max-content; white-space: nowrap; }
+/* The play-money notice is already shown in the strip above and in the action bar. */
+.table-topbar__left > .pill--chip { display: none; }
