@@ -1,4 +1,4 @@
--- APPLICATIONS PROJECT ONLY (hrdqlaurdzyueviplbmj, "kthps-prototype-2"). NOT APPLIED.
+-- APPLICATIONS PROJECT ONLY (hrdqlaurdzyueviplbmj, "kthps-prototype-2"). APPLIED 2026-11-16.
 -- CV upload: applicants upload a PDF instead of pasting a link. Apply BEFORE deploying the `apply` Edge
 -- Function version that stores uploads. The guard makes this file a no-op in the members project. Additive.
 --  1. column cv_path: object name inside the private bucket `applicant-cvs` (null for old rows and links)
