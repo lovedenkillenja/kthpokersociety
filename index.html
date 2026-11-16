@@ -989,6 +989,7 @@ main { min-height: 72vh; }
       if (event === "PASSWORD_RECOVERY") { clearErrors(); show("recovery"); openDialog(); return; }
       if (event === "SIGNED_OUT") { member = null; render(); return; }
       if (session && session.user) {
+        pingWelcome(session); // covers sign-up confirmation links and existing sessions, once per browser session
         loadMember(session.user).then(function () {
           if (arrivedFromLink && view !== "recovery") { arrivedFromLink = false; show("member"); openDialog(); try { history.replaceState(null, "", location.pathname); } catch (e) {} }
         });
