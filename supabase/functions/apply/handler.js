@@ -1,6 +1,8 @@
 // Pure request handler for the `apply` Edge Function (board applications).
 // No Deno or network imports here so the logic runs under `node --test` with a stub store and mailer.
-// The Deno entrypoint (index.js) injects: store, sendMail, hashIp, now.
+// The Deno entrypoint (index.js) injects: store, sendMail, hashIp, now, and optionally sheet + postSheet.
+
+import { buildSheetBody, isAllowedSheetUrl } from "./sheet.js";
 
 export const ROLES = Object.freeze([
   "Strategy & Research",
@@ -157,8 +159,27 @@ export async function hmacIp(secret, ip) {
  * sendMail: ({to, subject, text}) -> Promise
  * hashIp: (ip) -> Promise<string>
  * now: () -> ms
+ * sheet: { url, token } from env SHEET_WEBHOOK_URL / SHEET_WEBHOOK_TOKEN; the copy is skipped unless both are set
+ * postSheet: (url, body) -> Promise (throws on failure); see createSheetPoster in sheet.js
  */
-export function createApplyHandler({ store, sendMail, hashIp, now = () => Date.now(), log = () => {} }) {
+export function createApplyHandler({
+  store, sendMail, hashIp, now = () => Date.now(), log = () => {}, sheet = null, postSheet = null
+}) {
+  // Optional copy to the board's Google Sheet. Never fails the request; logs only a short code.
+  async function copyToSheet(row) {
+    const url = sheet && typeof sheet.url === "string" ? sheet.url.trim() : "";
+    const token = sheet && typeof sheet.token === "string" ? sheet.token.trim() : "";
+    if (!url || !token || typeof postSheet !== "function") return;
+    if (!isAllowedSheetUrl(url)) { log("apply: sheet skipped (bad_url)"); return; }
+    try {
+      await postSheet(url, buildSheetBody(row, token, new Date(now()).toISOString()));
+    } catch (err) {
+      const code = err && typeof err.code === "string" && /^[a-z0-9_]{1,32}$/.test(err.code) ? err.code : "error";
+      log("apply: sheet failed (" + code + ")"); // never the payload, the URL or the error text
+    }
+  }
+
+
   return async function handle(req) {
     const origin = req.headers.get("origin");
     if (req.method === "OPTIONS") {
@@ -222,11 +243,17 @@ export function createApplyHandler({ store, sendMail, hashIp, now = () => Date.n
       return reply(origin, 500, { ok: false, error: "server_error" });
     }
 
-    try {
-      await sendMail(buildNotice(row));
-    } catch {
-      log("apply: notice mail failed"); // the application is saved; do not fail the request
-    }
+    // The application is saved; neither the notice nor the sheet copy may fail the request.
+    await Promise.all([
+      (async () => {
+        try {
+          await sendMail(buildNotice(row));
+        } catch {
+          log("apply: notice mail failed");
+        }
+      })(),
+      copyToSheet(row)
+    ]);
 
     return reply(origin, 200, { ok: true });
   };

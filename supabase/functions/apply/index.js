@@ -10,6 +10,8 @@
 // Secrets (Edge Function secrets, never in git): SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (provided by
 // Supabase), APPLY_IP_SALT (optional, a long random string used as the HMAC key for IP hashes; falls back
 // to the service role key), plus whatever ../_shared/mail.js needs.
+// Optional: SHEET_WEBHOOK_URL and SHEET_WEBHOOK_TOKEN copy each accepted application to the board's Google
+// Sheet through an Apps Script web app (docs/APPLICATIONS_SHEET.md). Unset = no copy.
 // Before deploying, apply the migration that adds board_applications.ip_hash (see supabase/migrations,
 // file *_applications_ip_hash.sql). Until then inserts fall back to rows without ip_hash and the rate
 // limit fails open.
@@ -17,6 +19,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { sendMail } from "../_shared/mail.js";
 import { createApplyHandler, hmacIp, reply } from "./handler.js";
+import { createSheetPoster } from "./sheet.js";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -55,6 +58,8 @@ const handle = createApplyHandler({
   store,
   sendMail,
   hashIp: (ip) => hmacIp(ipSalt, ip),
+  sheet: { url: Deno.env.get("SHEET_WEBHOOK_URL") ?? "", token: Deno.env.get("SHEET_WEBHOOK_TOKEN") ?? "" },
+  postSheet: createSheetPoster(fetch),
   log: (msg) => console.error(msg)
 });
 
