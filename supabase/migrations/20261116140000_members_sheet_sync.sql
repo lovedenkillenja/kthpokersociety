@@ -1,4 +1,4 @@
--- MEMBERS PROJECT ONLY (tibyyjnghhwwcxvlwmiq). NOT APPLIED.
+-- MEMBERS PROJECT ONLY (tibyyjnghhwwcxvlwmiq). APPLIED 2026-11-16.
 -- Member register in Google Sheets: the `welcome` Edge Function copies each confirmed member
 -- (name, email, join date) to a private sheet tab. This adds the bookkeeping:
 --   members.sheet_synced_at   set once per member when the row is claimed for the sheet (server-only:
