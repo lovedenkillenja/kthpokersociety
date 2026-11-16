@@ -48,7 +48,7 @@ async function sendViaSmtp({ to, subject, text, html }) {
     connection: {
       hostname: host,
       port,
-      tls: true,
+      tls: port === 465,
       auth: { username: user, password: pass }
     }
   });
@@ -64,6 +64,9 @@ async function sendViaSmtp({ to, subject, text, html }) {
       SEND_TIMEOUT_MS
     );
   } catch (err) {
+    // Diagnostics: log a short reason with anything address-like removed (no secrets, no recipients).
+    const reason = String(err?.message ?? err).replace(/\S+@\S+/g, "<addr>").replace(/\s+/g, " ").slice(0, 160);
+    console.error(`mail: send failed (${host}:${port}): ${reason}`);
     throw err?.code === "ERR_MAIL_TIMEOUT" ? err : mailError("ERR_MAIL_SEND");
   } finally {
     // Bounded close: a hung connection must not hold the function past its limit.
