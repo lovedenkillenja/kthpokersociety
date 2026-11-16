@@ -29,7 +29,8 @@ Checked only with stubs in `node --test`.
 - Share the sheet only with named board members who recruit. **Never** "Anyone with the link".
 - When recruitment closes, delete the rows of applicants who were not accepted (in the sheet AND in
   Supabase), within the period the privacy notice promises. Also empty the sheet's version history if you
-  need the data truly gone (File > Version history: older versions keep deleted rows).
+  need the data truly gone: older versions keep deleted rows, so make a copy of the sheet, delete the
+  original and empty Drive's trash (UNVERIFIED that this removes the history).
 - Never download the sheet into the repo, a chat or a prompt.
 
 ## Step by step (Love)
@@ -63,8 +64,9 @@ Checked only with stubs in `node --test`.
    not publish it).
 
 ### 4. Give the URL and token to Supabase
-In a terminal on your computer (logged in with `supabase login`), with your own values in place of the
-placeholders:
+In a terminal on your computer (logged in with `supabase login`), from a checkout of the repo that
+contains `supabase/functions/apply/sheet.js` (otherwise the deployed function never copies anything),
+with your own values in place of the placeholders:
 
 ```sh
 supabase secrets set SHEET_WEBHOOK_URL='https://script.google.com/macros/s/<deployment-id>/exec' \
@@ -82,10 +84,10 @@ Supabase for `apply: sheet failed (<code>)`:
 
 | Code | Meaning |
 |---|---|
-| `rejected` | The script answered but refused: token mismatch, `TOKEN` not set, or a field failed validation |
-| `bad_response` | Not JSON: usually the deployment is not "Anyone" or not authorized yet |
+| `rejected` | The script answered but refused: token mismatch, `TOKEN` not set or shorter than 32 characters, or a field failed validation |
+| `bad_response` | The answer was not JSON (for example a Google error page) |
 | `http_<n>` | Google returned an HTTP error |
-| `bad_redirect`, `too_many_redirects` | The redirect went somewhere unexpected |
+| `bad_redirect`, `too_many_redirects` | The redirect went somewhere unexpected; usually to a Google login because access is not "Anyone", the script is not authorized yet, or the URL ends in `/dev` instead of `/exec` |
 | `error` | Network error or the 8 s timeout |
 | `sheet skipped (bad_url)` | `SHEET_WEBHOOK_URL` is not an https Apps Script URL |
 
@@ -125,7 +127,7 @@ var FIELDS = [
 
 function doPost(e) {
   try {
-    var expected = PropertiesService.getScriptProperties().getProperty('TOKEN');
+    var expected = (PropertiesService.getScriptProperties().getProperty('TOKEN') || '').trim();
     if (!expected || expected.length < 32) return out_({ ok: false, error: 'not_configured' });
 
     var data;
