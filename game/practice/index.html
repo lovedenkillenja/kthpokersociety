@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#06142a">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 400 400%27%3E%3Crect width=%27400%27 height=%27400%27 rx=%2760%27 fill=%27%23004791%27/%3E%3Cg stroke=%27white%27 fill=%27none%27 stroke-linecap=%27round%27%3E%3Cpath d=%27M200 108 L130 188 M130 188 L95 270 M130 188 L165 270 M270 188 L305 270%27 stroke-opacity=%27.5%27 stroke-width=%2710%27/%3E%3Cpath d=%27M200 108 L270 188 L235 268%27 stroke-width=%2718%27/%3E%3C/g%3E%3Ccircle cx=%27200%27 cy=%27108%27 r=%2722%27 fill=%27white%27/%3E%3C/svg%3E">
+  <title>Practice · KTH Poker Society</title>
+  <meta name="description" content="Practice Texas Hold'em against bots, with a coach that explains the probability behind each decision. Play money – no cash value.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Display&family=Hanken+Grotesk:wght@400;600&display=swap">
+  <link rel="stylesheet" href="../styles/tokens.css">
+  <link rel="stylesheet" href="../styles/base.css">
+  <link rel="stylesheet" href="../styles/components.css">
+  <link rel="stylesheet" href="../styles/table.css">
+  <link rel="stylesheet" href="../styles/table-responsive.css">
+  <link rel="stylesheet" href="./practice.css">
+  <!-- The real table UI imports ../lib/poker-api.js; practice swaps it for a local, offline server. -->
+  <script type="importmap">
+    { "imports": { "../lib/poker-api.js": "./practice-api.js" } }
+  </script>
+</head>
+<body class="practice-page">
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+
+  <div class="play-money-strip" role="region" aria-label="Play money notice">
+    <div class="wrap practice-strip-notice">
+      <span class="play-money-badge">
+        <span class="play-money-dot" aria-hidden="true"></span>
+        <span>Play money – no cash value</span>
+      </span>
+      <span class="practice-badge">Practice · chips here are not saved</span>
+    </div>
+  </div>
+
+  <header class="game-header">
+    <div class="wrap">
+      <a class="brand" href="../">
+        <svg viewBox="0 0 400 400" role="img" aria-label="KTH Poker Society mark">
+          <rect width="400" height="400" rx="60" fill="#004791"/>
+          <g stroke="white" fill="none" stroke-linecap="round">
+            <path d="M200 108 L130 188 M130 188 L95 270 M130 188 L165 270 M270 188 L305 270" stroke-opacity=".5" stroke-width="10"/>
+            <path d="M200 108 L270 188 L235 268" stroke-width="18"/>
+          </g>
+          <circle cx="200" cy="108" r="22" fill="white"/>
+        </svg>
+        <span>KTH Poker <span class="brand-subtitle">Practice</span></span>
+      </a>
+      <div class="header-right">
+        <a class="btn btn--ghost btn--compact" href="../">Back to the lobby</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="game-main wrap" id="main-content">
+    <section id="practice-setup" class="screen" aria-labelledby="practice-heading">
+      <div class="panel panel--hero practice-setup">
+        <h1 id="practice-heading">Practice table</h1>
+        <p class="panel__lede">
+          Play Texas Hold'em against bots, right here in your browser. Turn on the coach to see the probability behind each decision.
+        </p>
+        <p class="practice-note">
+          Practice chips are not society chips: nothing is saved, your balance is never touched and no login is needed.
+        </p>
+
+        <form id="practice-setup-form" class="form-stack" novalidate>
+          <fieldset class="field stakes-picker">
+            <legend>Opponents</legend>
+            <div class="stakes-picker__options practice-bots-options" id="practice-bots-options"></div>
+          </fieldset>
+
+          <fieldset class="field stakes-picker">
+            <legend>Stakes</legend>
+            <div class="stakes-picker__options" id="practice-stakes-options"></div>
+          </fieldset>
+
+          <div class="field">
+            <label for="practice-stack" id="practice-stack-label">Starting stack</label>
+            <input id="practice-stack" name="stack" type="number" inputmode="numeric" class="tabular" required aria-describedby="practice-stack-hint practice-setup-error">
+            <p class="field-hint tabular" id="practice-stack-hint"></p>
+          </div>
+
+          <label class="check-field" for="practice-coach-check">
+            <input id="practice-coach-check" type="checkbox">
+            <span class="check-field__label">
+              <span>Coach</span>
+              <span class="check-field__sub">On your turn: your chance to win, pot odds and a plain-words verdict. After each hand: a short review.</span>
+            </span>
+          </label>
+
+          <label class="check-field" for="practice-clock-check">
+            <input id="practice-clock-check" type="checkbox">
+            <span class="check-field__label">
+              <span>Play with the 30s clock</span>
+              <span class="check-field__sub">Off by default: take as long as you like to think.</span>
+            </span>
+          </label>
+
+          <p class="form-error" id="practice-setup-error" role="alert"></p>
+          <button type="submit" class="btn btn--primary btn--full" id="practice-start-btn">Start practice</button>
+        </form>
+      </div>
+    </section>
+
+    <div id="practice-play" class="practice-play" hidden>
+      <div class="practice-bar" role="region" aria-label="Practice controls">
+        <span class="practice-bar__label">
+          <strong>Practice</strong><span class="practice-bar__sep" aria-hidden="true"> · </span><span>chips here are not saved</span>
+        </span>
+        <span class="practice-bar__money">Play money – no cash value</span>
+        <span class="practice-bar__actions">
+          <button type="button" class="btn btn--ghost btn--topbar" id="practice-coach-btn" aria-pressed="false" aria-controls="practice-coach">Coach: Off</button>
+          <button type="button" class="btn btn--ghost btn--topbar" id="practice-new-btn">New session</button>
+        </span>
+      </div>
+      <div class="practice-body" id="practice-body">
+        <div class="practice-table-slot" id="practice-table-slot"></div>
+        <aside class="practice-side" id="practice-side" aria-label="Coach panel"></aside>
+      </div>
+    </div>
+  </main>
+
+  <dialog id="practice-bust-dialog" class="game-dialog" aria-labelledby="practice-bust-title">
+    <div class="dialog-inner">
+      <div class="dialog-top">
+        <div>
+          <span class="pill pill--chip">Practice · chips here are not saved</span>
+          <h2 id="practice-bust-title">Out of practice chips</h2>
+        </div>
+      </div>
+      <p class="field-hint" id="practice-bust-text">Practice chips are free. Rebuy and keep playing, or start a new session.</p>
+      <div class="btn-row practice-dialog-actions">
+        <button type="button" class="btn btn--primary" id="practice-rebuy-btn">Rebuy (free)</button>
+        <button type="button" class="btn btn--ghost" id="practice-bust-new-btn">New session</button>
+        <a class="btn btn--ghost" href="../">Back to the lobby</a>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="live-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="practice-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+
+  <script type="module" src="./practice-app.js"></script>
+</body>
+</html>
