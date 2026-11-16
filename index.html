@@ -508,6 +508,7 @@ main { min-height: 72vh; }
           <li class="person">
             <div class="portrait"><img src="assets/board/love-michael.jpg" alt="Love Michael" loading="lazy" width="640" height="640"></div>
             <div class="person-meta"><span class="person-name">Love Michael</span><span class="person-role">Co-founder</span></div>
+            <a href="https://www.linkedin.com/in/love-michael-101b911a9/" target="_blank" rel="noopener">LinkedIn</a>
           </li>
         </ul>
       </div>
@@ -599,6 +600,7 @@ main { min-height: 72vh; }
             <select id="bf-hours" name="hours"><option value="">Prefer not to say</option><option value="Less than 2 hours">Less than 2 hours</option><option value="2-4 hours">2–4 hours</option><option value="5-7 hours">5–7 hours</option><option value="8 or more hours">8 or more hours</option></select>
             <span class="hint">An estimate is fine. We know it varies around exams.</span></div>
           <div class="field"><label for="bf-motivation">Motivation <span class="optional">(optional)</span></label><textarea id="bf-motivation" name="motivation" maxlength="4000" placeholder="Why are you a good fit for your first-choice role?"></textarea></div>
+          <div class="sr-only" aria-hidden="true"><label for="bf-hp">Leave this field empty</label><input id="bf-hp" name="bf_hp_check" type="text" tabindex="-1" autocomplete="off" inert></div>
           <p class="privacy">We only use your answers to evaluate your application. See our <button class="link-btn" type="button" data-open-privacy>privacy notice</button>.</p>
           <p class="form-error" id="bf-error" aria-live="polite"></p>
           <button class="btn btn--primary" type="submit" id="bf-submit">Submit application</button>
@@ -756,11 +758,11 @@ main { min-height: 72vh; }
       <h3>Why we store it</h3>
       <p>To keep a register of our members and to send you information about the society and its events. The legal basis is your membership and your consent.</p>
       <h3>Where it's stored</h3>
-      <p>Member accounts are stored with Supabase on servers in the EU. The website is hosted by Netlify. We don't sell or share your details with sponsors or anyone else.</p>
+      <p>Member accounts are stored with Supabase on servers in the EU. The website is hosted by Cloudflare. We don't sell or share your details with sponsors or anyone else.</p>
       <h3>How long we keep it</h3>
       <p>As long as you're a member. When you ask us to end your membership, we delete your account within 30 days.</p>
       <h3>Applications for roles</h3>
-      <p>Applications are stored with Supabase. Only the recruitment team can read them, and they're deleted within two months after recruitment closes unless you're accepted.</p>
+      <p>Applications are stored with Supabase and a copy is kept in a private Google Sheet. Only the recruitment team can read them. When an application arrives we send ourselves an email with your name and first-choice role only. Applications are deleted within two months after recruitment closes unless you're accepted.</p>
       <h3>Your rights</h3>
       <p>You can ask us for a copy of your data, ask us to correct or delete it, and withdraw your consent at any time by writing to kthpokersociety@gmail.com. If you think we handle your data wrongly, you can complain to the Swedish Authority for Privacy Protection (IMY).</p>
     </div>
@@ -775,6 +777,23 @@ main { min-height: 72vh; }
   var sb = null;
   try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }); } catch (e) { sb = null; }
   var SITE = location.origin + "/";
+
+  /* After a sign-in in this dialog, ask the members project `welcome` function once per browser session
+     (it decides server-side whether a welcome email is due). Fire-and-forget: errors are swallowed. */
+  function pingWelcome(session) {
+    try {
+      if (!session || !session.access_token || !window.fetch) return;
+      if (sessionStorage.getItem("kps_welcome_pinged")) return;
+      sessionStorage.setItem("kps_welcome_pinged", "1");
+    } catch (e) { return; }
+    try {
+      fetch(SUPABASE_URL + "/functions/v1/welcome", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + session.access_token, "Content-Type": "application/json" },
+        body: "{}"
+      }).catch(function () {});
+    } catch (e) {}
+  }
 
   var member = null; // { name, email, program, year, joined }
   function current() { return member; }
@@ -922,6 +941,7 @@ main { min-height: 72vh; }
     busy("login-submit", false);
     if (res.error) return fail("login-error", "li-password", friendly(res.error));
     clearErrors(); loginForm.reset();
+    pingWelcome(res.data.session);
     await loadMember(res.data.user); show("member"); focusTitle();
   });
 
@@ -970,6 +990,7 @@ main { min-height: 72vh; }
       if (event === "PASSWORD_RECOVERY") { clearErrors(); show("recovery"); openDialog(); return; }
       if (event === "SIGNED_OUT") { member = null; render(); return; }
       if (session && session.user) {
+        pingWelcome(session); // covers sign-up confirmation links and existing sessions, once per browser session
         loadMember(session.user).then(function () {
           if (arrivedFromLink && view !== "recovery") { arrivedFromLink = false; show("member"); openDialog(); try { history.replaceState(null, "", location.pathname); } catch (e) {} }
         });
@@ -1054,10 +1075,11 @@ main { min-height: 72vh; }
 (function () {
   var form = document.getElementById('board-form');
   if (!form) return;
-  var URL_ = 'https://hrdqlaurdzyueviplbmj.supabase.co';
+  /* Applications go through the `apply` Edge Function (applications project): it validates, rate-limits
+     and saves with the service role. The publishable key goes in `apikey` only (it is not a JWT). */
+  var APPLY_URL = 'https://hrdqlaurdzyueviplbmj.supabase.co/functions/v1/apply';
   var KEY = 'sb_publishable_hKLPSwMbvmSNNnyj1osGfQ_uFgcnfPW';
-  var client = null;
-  try { client = window.supabase.createClient(URL_, KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }); } catch (e) { client = null; }
+  var started = Date.now();
   var ok = document.getElementById('apply-success'), fail = document.getElementById('apply-fail');
   var err = document.getElementById('bf-error'), btn = document.getElementById('bf-submit');
   var list = document.getElementById('rank'), live = document.getElementById('rank-live');
@@ -1150,6 +1172,7 @@ main { min-height: 72vh; }
     var f = document.getElementById(id); f.setAttribute('aria-invalid', 'true'); f.focus();
   }
   function url(v) { v = v.trim(); if (!v) return ''; return /^https?:\/\//i.test(v) ? v : 'https://' + v; }
+  function host(v) { try { return new URL(v).hostname; } catch (x) { return ''; } }
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
     ok.hidden = true; fail.hidden = true; err.textContent = '';
@@ -1160,10 +1183,12 @@ main { min-height: 72vh; }
     var github = url(document.getElementById('bf-github').value);
     if (!name) return bad('bf-name', 'Enter your full name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bad('bf-email', 'Enter a valid email address, like name@kth.se.');
-    if (!/linkedin\.com\//i.test(linkedin)) return bad('bf-linkedin', 'Paste the link to your LinkedIn profile.');
+    if (!/linkedin\.com\//i.test(linkedin) || !/(^|\.)linkedin\.com$/i.test(host(linkedin))) return bad('bf-linkedin', 'Paste the link to your LinkedIn profile.');
+    if (!/^https:\/\//i.test(linkedin)) return bad('bf-linkedin', 'Use a link that starts with https://.');
     if (!/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(cv)) return bad('bf-cv', 'Paste a link to your CV, for example from Google Drive.');
+    if (!/^https:\/\//i.test(cv)) return bad('bf-cv', 'Use a link that starts with https://.');
     if (github && !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(github)) return bad('bf-github', 'Enter a valid link, or leave this empty.');
-    if (!client) { fail.hidden = false; return; }
+    if (!window.fetch) { fail.hidden = false; return; }
     var ranking = Array.prototype.map.call(list.children, function (li) { return li.getAttribute('data-role'); });
     btn.setAttribute('aria-busy', 'true'); btn.textContent = 'Submitting…';
     var data = {
@@ -1173,12 +1198,15 @@ main { min-height: 72vh; }
       linkedin_url: linkedin, cv_url: cv, github_url: github || null,
       role: ranking[0], role_ranking: ranking,
       hours_per_week: document.getElementById('bf-hours').value || null,
-      motivation: document.getElementById('bf-motivation').value.trim() || null
+      motivation: document.getElementById('bf-motivation').value.trim() || null,
+      website_url: document.getElementById('bf-hp').value,
+      elapsed_ms: Date.now() - started
     };
     try {
-      var res = await client.from('board_applications').insert(data);
-      if (res.error) throw res.error;
-      form.reset(); ok.hidden = false; ok.scrollIntoView({ block: 'nearest' });
+      var res = await fetch(APPLY_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify(data) });
+      var out = await res.json().catch(function () { return null; });
+      if (!res.ok || !out || out.ok !== true) throw new Error('apply failed');
+      form.reset(); started = Date.now(); ok.hidden = false; ok.scrollIntoView({ block: 'nearest' });
     } catch (x) { fail.hidden = false; }
     btn.removeAttribute('aria-busy'); btn.textContent = 'Submit application';
   });

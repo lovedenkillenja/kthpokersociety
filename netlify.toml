@@ -98,3 +98,27 @@
   to = "/404.html"
   status = 404
   force = true
+
+[[redirects]]
+  from = "/functions/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/shared/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/_headers"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/_redirects"
+  to = "/404.html"
+  status = 404
+  force = true

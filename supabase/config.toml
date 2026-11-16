@@ -1,0 +1,11 @@
+project_id = "kthpokersociety"
+
+[functions.welcome]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/welcome/index.js"
+
+[functions.apply]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/apply/index.js"

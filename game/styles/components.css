@@ -100,15 +100,57 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
-.chip-disc {
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-pill);
-  background: var(--chip);
-  border: 2px solid var(--ink);
-  box-shadow: 0 0 0 1px var(--chip);
+/* Poker chip, drawn in CSS: rim with edge inserts (count differs per denomination, so colour is not the only cue),
+   an inner ring and the society mark in the centre. Decorative (aria-hidden); the amount is always printed as text. */
+.chip {
+  --n: 8;
+  --chip-face: var(--chip-25-face);
+  --chip-insert: var(--chip-25-insert);
+  --chip-edge: var(--chip-25-edge);
+  position: relative;
+  display: inline-block;
   flex: none;
+  width: var(--chip-size, 18px);
+  height: var(--chip-size, 18px);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle closest-side, var(--chip-face) 0 63%, transparent 64%),
+    repeating-conic-gradient(var(--chip-insert) 0 calc(180deg / var(--n)), var(--chip-face) 0 calc(360deg / var(--n)));
+  box-shadow: 0 0 0 0.5px rgba(2, 8, 20, 0.7), 0 1.5px 0 var(--chip-edge);
 }
+.chip::before {
+  content: "";
+  position: absolute;
+  inset: 21%;
+  border-radius: 50%;
+  border: max(1px, calc(var(--chip-size, 18px) * 0.045)) solid rgba(255, 255, 255, 0.55);
+}
+.chip::after {
+  content: "";
+  position: absolute;
+  inset: 25%;
+  background: var(--chip-mark) center / contain no-repeat;
+}
+.chip[data-denom="1"] { --chip-face: var(--chip-1-face); --chip-insert: var(--chip-1-insert); --chip-edge: var(--chip-1-edge); }
+.chip[data-denom="5"] { --chip-face: var(--chip-5-face); --chip-insert: var(--chip-5-insert); --chip-edge: var(--chip-5-edge); }
+.chip[data-denom="25"] { --chip-face: var(--chip-25-face); --chip-insert: var(--chip-25-insert); --chip-edge: var(--chip-25-edge); }
+.chip[data-denom="100"] { --chip-face: var(--chip-100-face); --chip-insert: var(--chip-100-insert); --chip-edge: var(--chip-100-edge); }
+.chip[data-denom="500"] { --chip-face: var(--chip-500-face); --chip-insert: var(--chip-500-insert); --chip-edge: var(--chip-500-edge); }
+.chip[data-denom="1000"] { --chip-face: var(--chip-1000-face); --chip-insert: var(--chip-1000-insert); --chip-edge: var(--chip-1000-edge); }
+/* The small icon beside a stack amount (kept under its old name so existing size rules still apply):
+   simplified for crispness, rim plus solid centre, no ring and no logo */
+.chip-disc { --chip-size: 16px; box-shadow: 0 0 0 0.5px rgba(2, 8, 20, 0.7); }
+.chip-disc::before,
+.chip-disc::after { display: none; }
+.chip-stacks { display: inline-flex; align-items: flex-end; gap: 3px; flex: none; }
+.chip-stack {
+  --step: 3.5px;
+  position: relative;
+  flex: none;
+  width: var(--chip-size, 14px);
+  height: calc(var(--chip-size, 14px) + (var(--count, 1) - 1) * var(--step) + 1.5px);
+}
+.chip-stack .chip { position: absolute; left: 0; bottom: calc(var(--i, 0) * var(--step) + 1.5px); }
 .chip-balance-hero {
   display: flex;
   flex-wrap: wrap;
@@ -221,45 +263,24 @@
 .playing-card--mini .playing-card__suit {
   font-size: 14px;
 }
-@keyframes cardDealIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px) scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+/* Motion (deal, fold, chips) is driven from ui/table-motion.js with the Web Animations API. The resting style of every
+   card and chip is the visible one; animations only run FROM an offset, so nothing depends on them having run. */
+.table-motion-layer { position: absolute; inset: 0; z-index: 20; pointer-events: none; overflow: hidden; border-radius: inherit; }
+.motion-ghost { position: absolute; left: 0; top: 0; margin: 0; pointer-events: none; opacity: 0; } /* invisible unless its animation is running */
+/* Face-up cards show a back-pattern cover while they fly; the cover is invisible at rest and only an animation makes it visible */
+.playing-card--covered { position: relative; }
+.card-flip-cover {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  background-color: var(--brand);
+  background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.12) 0 2px, transparent 2px 8px);
+  border: 2px solid var(--paper);
 }
-@keyframes chipMovePulse {
-  0% {
-    transform: translateY(4px) scale(0.95);
-  }
-  100% {
-    transform: translateY(0) scale(1);
-  }
-}
-.playing-card--deal {
-  animation: cardDealIn var(--duration-normal) var(--ease-out) both;
-}
-.playing-card--deal-2 {
-  animation-delay: 40ms;
-}
-.playing-card--deal-3 {
-  animation-delay: 80ms;
-}
-.chip-move-anim {
-  animation: chipMovePulse var(--duration-fast) var(--ease-out) both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .playing-card--deal,
-  .playing-card--deal-2,
-  .playing-card--deal-3,
-  .chip-move-anim {
-    animation: none !important;
-    transition: none !important;
-  }
-}
+.pot-chips { display: inline-flex; align-items: flex-end; --chip-size: 26px; }
+.pot-chips:empty { display: none; }
 
 /* 6. Seat & ActionBar primitives (reused in M4+) */
 .seat {

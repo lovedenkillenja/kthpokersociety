@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="./styles/tokens.css">
   <link rel="stylesheet" href="./styles/base.css">
   <link rel="stylesheet" href="./styles/components.css">
+  <link rel="stylesheet" href="./styles/lobby.css">
   <link rel="stylesheet" href="./styles/table.css">
   <link rel="stylesheet" href="./styles/table-responsive.css">
 </head>
@@ -76,6 +77,10 @@
           <button type="button" class="btn btn--ghost" id="guest-signup-btn">Become a member</button>
           <button type="button" class="btn btn--ghost" data-open-tutorial>How to play</button>
         </div>
+        <a class="practice-card practice-card--guest" href="./practice/">
+          <span class="practice-card__title">Practice against bots</span>
+          <span class="practice-card__text">Warm up against bots before you sit down with friends.</span>
+        </a>
         <div class="felt-preview" aria-label="Sample playing cards on poker felt">
           <div class="card-row" id="guest-card-showcase"></div>
           <span class="felt-preview__facts tabular">Micro, Low or Standard stakes · 2–6 seats</span>
@@ -137,6 +142,32 @@
           </div>
         </div>
 
+        <!-- Open tables: tables with free seats (counts only, no player names) -->
+        <section class="open-tables" id="open-tables-box" aria-labelledby="open-tables-heading">
+          <div class="open-tables__head">
+            <h2 class="open-tables__title" id="open-tables-heading">Open tables</h2>
+            <div class="open-tables__tools">
+              <label class="open-tables__toggle" id="open-tables-toggle-wrap" hidden>
+                <input type="checkbox" id="open-tables-show-full">
+                <span>Show full tables<span id="open-tables-toggle-count"></span></span>
+              </label>
+              <button type="button" class="btn btn--ghost btn--compact" id="open-tables-refresh">Refresh</button>
+            </div>
+          </div>
+          <p class="sr-only" id="open-tables-status" aria-live="polite"></p>
+          <p class="form-error" id="open-tables-error" role="alert"></p>
+          <p class="field-hint" id="open-tables-loading">Looking for open tables…</p>
+          <ul class="open-tables__list" id="open-tables-list" role="list" hidden></ul>
+          <div class="empty-state open-tables__empty" id="open-tables-empty" hidden>
+            <h3>No open tables right now</h3>
+            <p>Create one and share the code, or practise against bots.</p>
+            <div class="btn-row open-tables__empty-actions">
+              <button type="button" class="btn btn--primary" id="open-tables-create-btn">Create a table</button>
+              <a class="btn btn--ghost" href="./practice/">Practice</a>
+            </div>
+          </div>
+        </section>
+
         <div class="play-grid">
           <form id="join-table-form" class="play-card" novalidate>
             <h2 class="play-card__title">Join by room code</h2>
@@ -175,11 +206,17 @@
                 <label for="create-table-buyin" id="create-table-buyin-label">Your buy-in (200–1,000 chips)</label>
                 <input id="create-table-buyin" name="buyin" type="number" inputmode="numeric" min="200" max="1000" step="10" value="500" class="tabular" required aria-describedby="create-table-error">
               </div>
+              <p class="field-hint" id="create-table-visibility">Your table is listed under Open tables, so any member can sit down.</p>
               <p class="form-error" id="create-table-error" role="alert"></p>
-              <button type="submit" class="btn btn--ghost btn--full" id="create-table-btn">Create table &amp; sit down</button>
+              <button type="submit" class="btn btn--ghost btn--full" id="create-table-btn" aria-describedby="create-table-visibility">Create table &amp; sit down</button>
             </form>
           </details>
         </div>
+
+        <a class="practice-card" href="./practice/">
+          <span class="practice-card__title">Practice against bots</span>
+          <span class="practice-card__text">Warm up against bots without waiting for other players.</span>
+        </a>
       </div>
 
       <div class="panel">
@@ -269,6 +306,13 @@
           </button>
           <button type="button" class="btn btn--ghost btn--topbar btn--icon" data-open-tutorial aria-label="How to play and hand rankings" title="How to play &amp; hand rankings">
             ?
+          </button>
+          <button type="button" class="btn btn--ghost btn--topbar btn--icon sound-quick-btn" id="table-sound-quick-btn" aria-pressed="false" aria-label="Sound on/off" title="Sound on/off">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke-width="1.5"/>
+              <path class="sound-quick-btn__waves" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>
+              <path class="sound-quick-btn__slash" d="M16 9.5l5 5M21 9.5l-5 5"/>
+            </svg>
           </button>
           <button type="button" class="btn btn--ghost btn--topbar btn--icon" id="table-fullscreen-btn" aria-pressed="false" aria-label="Enter fullscreen" title="Toggle fullscreen">
             ⛶
@@ -362,6 +406,7 @@
           </div>
 
           <div id="action-controls-wrap" class="action-controls-wrap" hidden>
+            <p id="action-timeout-note" class="action-timeout-note" role="status" hidden>Next timeout sits you out</p>
             <div class="action-btn-grid">
               <button type="button" class="btn btn--danger" id="action-fold-btn">Fold</button>
               <button type="button" class="btn btn--primary" id="action-check-call-btn">Check</button>
@@ -568,6 +613,12 @@
         <button type="button" class="btn btn--ghost" data-drawer-jump="leaderboard">Leaderboard</button>
         <button type="button" class="btn btn--ghost" data-drawer-jump="profile">Profile</button>
         <button type="button" class="btn btn--ghost" id="table-close-btn" hidden>Close empty table</button>
+      </div>
+
+      <div class="sound-volume" role="group" aria-labelledby="table-volume-label">
+        <span id="table-volume-label" class="sound-volume__label">Sound volume</span>
+        <button type="button" class="btn btn--ghost sound-volume__btn" id="table-volume-low-btn" aria-pressed="false">Low</button>
+        <button type="button" class="btn btn--ghost sound-volume__btn" id="table-volume-normal-btn" aria-pressed="true">Normal</button>
       </div>
 
       <div id="table-history-panel" class="table-history-panel">

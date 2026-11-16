@@ -1,4 +1,4 @@
-// Interactive "How to play & Hand rankings" guide dialog + optional sound cues (off by default).
+// Interactive "How to play & Hand rankings" guide dialog (sound lives in table-sound.js).
 // Built with safe DOM construction and CSS playing cards per docs/poker/STYLE_GUIDE.md.
 
 import { createCard, createPill, wireDialog } from "./components.js";
@@ -56,65 +56,8 @@ const HAND_RANKINGS = Object.freeze([
   }
 ]);
 
-let soundEnabled = false;
-let audioCtx = null;
-
-export function isSoundEnabled() {
-  return soundEnabled;
-}
-
-export function toggleSoundEnabled() {
-  soundEnabled = !soundEnabled;
-  if (soundEnabled) playTableCue("deal");
-  return soundEnabled;
-}
-
-/**
- * Plays a subtle, calm synthesized audio cue when Sound is enabled by the player.
- * Sound is OFF by default per STYLE_GUIDE.md.
- */
-export function playTableCue(kind = "turn") {
-  if (!soundEnabled || typeof window === "undefined") return;
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!audioCtx) audioCtx = new Ctx();
-    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
-
-    const now = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    if (kind === "turn") {
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(520, now);
-      osc.frequency.exponentialRampToValueAtTime(660, now + 0.11);
-      gain.gain.setValueAtTime(0.06, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
-      osc.start(now);
-      osc.stop(now + 0.15);
-    } else if (kind === "win") {
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(440, now);
-      osc.frequency.setValueAtTime(587.33, now + 0.08);
-      gain.gain.setValueAtTime(0.07, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-      osc.start(now);
-      osc.stop(now + 0.23);
-    } else {
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(340, now);
-      gain.gain.setValueAtTime(0.04, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-      osc.start(now);
-      osc.stop(now + 0.09);
-    }
-  } catch (_err) {
-    // Ignore audio context restrictions
-  }
-}
+// Sound moved to ./table-sound.js (synthesized Web Audio engine). These names stay exported so existing imports keep working.
+export { isSoundEnabled, toggleSoundEnabled, playTableCue } from "./table-sound.js";
 
 export function createTutorialDialogController() {
   const dialog = document.getElementById("tutorial-dialog");

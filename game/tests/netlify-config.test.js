@@ -39,6 +39,7 @@ test("CSP header is set for /* with Supabase hosts and frame-ancestors 'none'", 
 const BLOCKED = [
   "/docs/*", "/supabase/*", "/netlify/*", "/AGENTS.md", "/CLAUDE.md", "/README.md",
   "/netlify.toml", "/game/tests/*", "/game/scripts/*", "/game/README.md",
+  "/functions/*", "/shared/*", "/_headers", "/_redirects",
 ];
 
 test("non-site paths get a forced 404", () => {
