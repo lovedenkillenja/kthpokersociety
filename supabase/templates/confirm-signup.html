@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Welcome to KTH Poker Society</title>
+</head>
+<body style="margin:0;padding:0;background:#eef2f8;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your KTH Poker Society verification code is {{ .Token }}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f8;padding:32px 16px;">
+  <tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #d5deeb;">
+      <tr><td style="background:#06142a;padding:28px 32px;">
+        <div style="font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:1.2;color:#ffffff;">KTH Poker Society</div>
+        <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#a3b4cb;margin-top:6px;">Strategy, probability and game theory</div>
+      </td></tr>
+      <tr><td style="padding:32px 32px 8px 32px;font-family:Helvetica,Arial,sans-serif;color:#0a1d3a;">
+        <h1 style="margin:0 0 12px 0;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.25;font-weight:normal;color:#06142a;">Welcome to KTH Poker Society</h1>
+        <p style="margin:0 0 20px 0;font-size:16px;line-height:1.55;">Good to have you. To finish joining, enter this code on the website to verify your KTH email:</p>
+      </td></tr>
+      <tr><td align="center" style="padding:0 32px;">
+        <div style="font-family:'Courier New',Courier,monospace;font-size:36px;letter-spacing:8px;font-weight:bold;color:#06142a;background:#eef2f8;border:1px solid #d5deeb;border-radius:10px;padding:18px 12px;">{{ .Token }}</div>
+      </td></tr>
+      <tr><td style="padding:20px 32px 8px 32px;font-family:Helvetica,Arial,sans-serif;color:#0a1d3a;">
+        <p style="margin:0 0 20px 0;font-size:14px;line-height:1.55;color:#46597a;">The code works for a limited time. You can also verify with one click:</p>
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#004791;border-radius:8px;">
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:13px 24px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;">Verify my email</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td style="padding:24px 32px 8px 32px;font-family:Helvetica,Arial,sans-serif;color:#0a1d3a;">
+        <p style="margin:0;font-size:15px;line-height:1.55;">Once you are in you get 1,000 play-money chips and a seat at the table. Chips have no cash value: this is for learning and fun.</p>
+      </td></tr>
+      <tr><td style="padding:24px 32px 32px 32px;font-family:Helvetica,Arial,sans-serif;">
+        <hr style="border:none;border-top:1px solid #d5deeb;margin:0 0 16px 0;">
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#6f86a8;">Didn't sign up? You can ignore this email and no account will be activated. Questions? Write to kthpokersociety@gmail.com.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>
