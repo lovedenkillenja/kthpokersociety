@@ -147,6 +147,9 @@ export function friendlyAuthError(err) {
   if (m.includes("password") && m.includes("character")) {
     return "Use a password with at least 8 characters.";
   }
+  if (m.includes("database error saving new user") || m.includes("kth.se")) {
+    return "Use your KTH email address (name@kth.se). Only KTH students can become members.";
+  }
   if (m.includes("failed to fetch") || m.includes("network")) {
     return "Connection lost. Check your internet connection and try again.";
   }

@@ -684,7 +684,7 @@ main { min-height: 72vh; }
 
       <form id="signup-form" role="tabpanel" aria-labelledby="tab-signup" novalidate style="margin-top:20px">
         <div class="field"><label for="su-name">Full name</label><input id="su-name" aria-describedby="signup-error" name="name" autocomplete="name" required></div>
-        <div class="field"><label for="su-email">Email</label><input id="su-email" aria-describedby="signup-error" name="email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="su-email">Email</label><input id="su-email" aria-describedby="signup-error" name="email" type="email" autocomplete="email" placeholder="name@kth.se" required><span class="hint">Members need a KTH address (@kth.se). We email you a code to verify it.</span></div>
         <div class="field-row">
           <div class="field"><label for="su-programme">Program <span class="optional">(optional)</span></label><input id="su-programme" name="programme" placeholder="e.g. CINEK" autocomplete="off"></div>
           <div class="field"><label for="su-year">Year <span class="optional">(optional)</span></label>
@@ -721,6 +721,15 @@ main { min-height: 72vh; }
       <div class="field"><label for="rc-password">New password</label><input id="rc-password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="recovery-error"><span class="hint">At least 8 characters.</span></div>
       <p class="form-error" id="recovery-error" aria-live="polite"></p>
       <button class="btn btn--primary" type="submit" id="recovery-submit">Save new password</button>
+    </form>
+
+    <form id="verify-form" novalidate hidden>
+      <p class="hint" id="verify-hint">Enter the code we sent to your KTH email.</p>
+      <div class="field"><label for="vf-code">Verification code</label><input id="vf-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required aria-describedby="verify-error"></div>
+      <p class="form-error" id="verify-error" aria-live="polite"></p>
+      <button class="btn btn--primary" type="submit" id="verify-submit">Verify and join</button>
+      <button class="link-btn" type="button" id="verify-resend">Send a new code</button>
+      <button class="link-btn" type="button" data-back-login>Back to log in</button>
     </form>
 
     <div id="message-view" class="message" hidden>
@@ -808,7 +817,7 @@ main { min-height: 72vh; }
   var title = document.getElementById("account-title"), memberBtn = document.getElementById("member-btn");
   var tabSignup = document.getElementById("tab-signup"), tabLogin = document.getElementById("tab-login");
   var signupForm = document.getElementById("signup-form"), loginForm = document.getElementById("login-form");
-  var views = { auth: document.getElementById("auth-view"), reset: document.getElementById("reset-form"), recovery: document.getElementById("recovery-form"), message: document.getElementById("message-view"), member: document.getElementById("member-view") };
+  var views = { auth: document.getElementById("auth-view"), reset: document.getElementById("reset-form"), recovery: document.getElementById("recovery-form"), verify: document.getElementById("verify-form"), message: document.getElementById("message-view"), member: document.getElementById("member-view") };
   var view = "auth";
 
   var ctas = document.querySelectorAll("[data-open-account]");
@@ -831,6 +840,7 @@ main { min-height: 72vh; }
   function friendly(err) {
     var m = (err && err.message || "").toLowerCase();
     if (m.indexOf("invalid login") > -1) return "Email or password is wrong. Check them and try again.";
+    if (m.indexOf("database error saving new user") > -1 || m.indexOf("kth.se") > -1) return "Use your KTH email address (name@kth.se). Only KTH students can become members.";
     if (m.indexOf("not confirmed") > -1) return "Confirm your email first. Check your inbox for the link we sent you.";
     if (m.indexOf("rate limit") > -1 || m.indexOf("too many") > -1) return "Too many attempts right now. Wait a while and try again, or write to kthpokersociety@gmail.com.";
     if (m.indexOf("already registered") > -1) return "There's already an account with this email. Log in instead.";
@@ -842,7 +852,7 @@ main { min-height: 72vh; }
   function show(name) {
     view = name;
     Object.keys(views).forEach(function (k) { views[k].hidden = k !== name; });
-    var titles = { reset: "Reset your password", recovery: "Choose a new password", member: "Your membership" };
+    var titles = { verify: "Verify your KTH email", reset: "Reset your password", recovery: "Choose a new password", member: "Your membership" };
     if (name === "auth") title.textContent = tabLogin.getAttribute("aria-selected") === "true" ? "Log in" : "Become a member";
     else if (name !== "message") title.textContent = titles[name];
   }
@@ -921,7 +931,7 @@ main { min-height: 72vh; }
     var email = document.getElementById("su-email").value.trim().toLowerCase();
     var pw = document.getElementById("su-password").value;
     if (!name) return fail("signup-error", "su-name", "Enter your full name.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail("signup-error", "su-email", "Enter a valid email address, like name@kth.se.");
+    if (!/^[^\s@]+@kth\.se$/.test(email)) return fail("signup-error", "su-email", "Use your KTH email address (name@kth.se). Only KTH students can become members.");
     if (pw.length < 8) return fail("signup-error", "su-password", "Use a password with at least 8 characters.");
     if (!document.getElementById("su-consent").checked) return fail("signup-error", "su-consent", "Check the box to agree to how we store your details.");
     if (!sb) return unavailable("signup-error");
@@ -932,7 +942,35 @@ main { min-height: 72vh; }
     if (res.data.user && res.data.user.identities && res.data.user.identities.length === 0) return fail("signup-error", "su-email", "There's already an account with this email. Log in instead.");
     clearErrors(); signupForm.reset();
     if (res.data.session) { await loadMember(res.data.session.user); show("member"); focusTitle(); }
-    else { message("Confirm your email to finish", "We've sent a link to " + email + ". Open it to activate your membership. It can take a few minutes, so check your spam folder too."); focusTitle(); }
+    else { startVerify(email); }
+  });
+
+  var pendingEmail = "";
+  function startVerify(email) {
+    pendingEmail = email; clearErrors();
+    document.getElementById("verify-hint").textContent = "Enter the code we sent to " + email + " (or open the link in the same email). It can take a few minutes, so check your spam folder too.";
+    show("verify"); document.getElementById("vf-code").focus();
+  }
+
+  views.verify.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var code = document.getElementById("vf-code").value.replace(/\s+/g, "");
+    if (!/^\d{6,10}$/.test(code)) return fail("verify-error", "vf-code", "Enter the numeric code from the email.");
+    if (!sb) return unavailable("verify-error");
+    busy("verify-submit", true);
+    var res = await sb.auth.verifyOtp({ email: pendingEmail, token: code, type: "signup" });
+    busy("verify-submit", false);
+    if (res.error) return fail("verify-error", "vf-code", /expired|invalid/i.test(res.error.message || "") ? "That code is wrong or has expired. Check it, or send a new code." : friendly(res.error));
+    clearErrors(); views.verify.reset();
+    if (res.data && res.data.session) pingWelcome(res.data.session);
+    await loadMember((res.data.session && res.data.session.user) || res.data.user); show("member"); focusTitle();
+  });
+
+  document.getElementById("verify-resend").addEventListener("click", async function () {
+    if (!sb || !pendingEmail) return;
+    var res = await sb.auth.resend({ type: "signup", email: pendingEmail });
+    if (res.error) return fail("verify-error", null, friendly(res.error));
+    clearErrors(); document.getElementById("verify-error").textContent = "A new code is on its way.";
   });
 
   loginForm.addEventListener("submit", async function (e) {
@@ -945,6 +983,7 @@ main { min-height: 72vh; }
     busy("login-submit", true);
     var res = await sb.auth.signInWithPassword({ email: email, password: pw });
     busy("login-submit", false);
+    if (res.error && /not confirmed/i.test(res.error.message || "")) { await sb.auth.resend({ type: "signup", email: email }); return startVerify(email); }
     if (res.error) return fail("login-error", "li-password", friendly(res.error));
     clearErrors(); loginForm.reset();
     pingWelcome(res.data.session);

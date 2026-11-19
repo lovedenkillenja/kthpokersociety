@@ -2,6 +2,7 @@
 
 import { getSupabaseClient } from "../lib/supabase.js";
 import { friendlyAuthError } from "../lib/format.js";
+import { isKthEmail, isValidOtp, normalizeOtp } from "../lib/kth-email.js";
 import { showToast, wireDialog } from "./components.js";
 
 export function createAuthDialogController({ onSignedIn }) {
@@ -14,6 +15,10 @@ export function createAuthDialogController({ onSignedIn }) {
   const signupForm = document.getElementById("signup-form");
   const resetForm = document.getElementById("reset-form");
   const recoveryForm = document.getElementById("recovery-form");
+  const verifyForm = document.getElementById("verify-form");
+  const verifyError = document.getElementById("verify-error");
+  const verifyHint = document.getElementById("verify-hint");
+  let pendingEmail = "";
   const messageView = document.getElementById("auth-message-view");
   const messageText = document.getElementById("auth-message-text");
 
@@ -23,7 +28,7 @@ export function createAuthDialogController({ onSignedIn }) {
   const recoveryError = document.getElementById("recovery-error");
 
   function clearErrors() {
-    [loginError, signupError, resetError, recoveryError].forEach((el) => {
+    [loginError, signupError, resetError, recoveryError, verifyError].forEach((el) => {
       if (el) el.textContent = "";
     });
     dialog.querySelectorAll("[aria-invalid]").forEach((input) => {
@@ -40,6 +45,7 @@ export function createAuthDialogController({ onSignedIn }) {
     tabsWrap.hidden = !isTabMode;
     resetForm.hidden = mode !== "reset";
     recoveryForm.hidden = mode !== "recovery";
+    verifyForm.hidden = mode !== "verify";
     messageView.hidden = mode !== "message";
 
     if (isTabMode) {
@@ -54,6 +60,10 @@ export function createAuthDialogController({ onSignedIn }) {
       titleEl.textContent = "Reset password";
     } else if (mode === "recovery") {
       titleEl.textContent = "Choose new password";
+    } else if (mode === "verify") {
+      titleEl.textContent = "Verify your KTH email";
+      verifyHint.textContent = `Enter the code we sent to ${pendingEmail} (or open the link in the same email). It can take a few minutes, so check spam too.`;
+      document.getElementById("vf-code").focus();
     }
   }
 
@@ -131,6 +141,12 @@ export function createAuthDialogController({ onSignedIn }) {
     submitBtn.removeAttribute("aria-busy");
 
     if (error) {
+      if (/not confirmed/i.test(error.message || "")) {
+        pendingEmail = email;
+        await sb.auth.resend({ type: "signup", email });
+        showMode("verify");
+        return;
+      }
       loginError.textContent = friendlyAuthError(error);
       pwInput.setAttribute("aria-invalid", "true");
       return;
@@ -164,8 +180,8 @@ export function createAuthDialogController({ onSignedIn }) {
       nameInput.focus();
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      signupError.textContent = "Enter a valid email address, such as name@kth.se.";
+    if (!isKthEmail(email)) {
+      signupError.textContent = "Use your KTH email address (name@kth.se). Only KTH students can become members.";
       emailInput.setAttribute("aria-invalid", "true");
       emailInput.focus();
       return;
@@ -215,11 +231,62 @@ export function createAuthDialogController({ onSignedIn }) {
       await onSignedIn(data.session.user);
       showToast("Welcome to KTH Poker Society! +1,000 chips added.");
     } else {
-      titleEl.textContent = "Check your inbox";
-      messageText.textContent = `We sent a confirmation link to ${email}. Open it to activate your account and receive your 1,000 welcome chips.`;
-      showMode("message");
+      pendingEmail = email;
+      showMode("verify");
     }
   });
+
+  async function finishVerified(user) {
+    verifyForm.reset();
+    close();
+    if (user && typeof onSignedIn === "function") {
+      await onSignedIn(user);
+      showToast("Welcome to KTH Poker Society! +1,000 chips added.");
+    }
+  }
+
+  verifyForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearErrors();
+    const codeInput = document.getElementById("vf-code");
+    if (!isValidOtp(codeInput.value)) {
+      verifyError.textContent = "Enter the numeric code from the email.";
+      codeInput.setAttribute("aria-invalid", "true");
+      codeInput.focus();
+      return;
+    }
+    const sb = getSupabaseClient();
+    if (!sb) {
+      verifyError.textContent = "Connection lost. Check your internet connection and try again.";
+      return;
+    }
+    const btn = document.getElementById("verify-submit-btn");
+    btn.setAttribute("aria-busy", "true");
+    const { data, error } = await sb.auth.verifyOtp({ email: pendingEmail, token: normalizeOtp(codeInput.value), type: "signup" });
+    btn.removeAttribute("aria-busy");
+    if (error) {
+      verifyError.textContent = /expired|invalid/i.test(error.message || "")
+        ? "That code is wrong or has expired. Check it, or send a new code."
+        : friendlyAuthError(error);
+      codeInput.setAttribute("aria-invalid", "true");
+      return;
+    }
+    await finishVerified(data?.user || data?.session?.user);
+  });
+
+  document.getElementById("verify-resend-btn").addEventListener("click", async () => {
+    clearErrors();
+    const sb = getSupabaseClient();
+    if (!sb || !pendingEmail) return;
+    const { error } = await sb.auth.resend({ type: "signup", email: pendingEmail });
+    if (error) {
+      verifyError.textContent = friendlyAuthError(error);
+      return;
+    }
+    showToast("A new code is on its way.");
+  });
+
+  document.getElementById("verify-back-btn").addEventListener("click", () => showMode("login"));
 
   resetForm.addEventListener("submit", async (e) => {
     e.preventDefault();

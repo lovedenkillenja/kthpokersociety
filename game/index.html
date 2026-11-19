@@ -527,7 +527,7 @@
 
         <form id="signup-form" class="form-stack" role="tabpanel" aria-labelledby="tab-signup" novalidate hidden>
           <div class="field"><label for="su-name">Full name</label><input id="su-name" name="name" type="text" autocomplete="name" required aria-describedby="signup-error"></div>
-          <div class="field"><label for="su-email">Email</label><input id="su-email" name="email" type="email" autocomplete="email" required aria-describedby="signup-error"></div>
+          <div class="field"><label for="su-email">Email</label><input id="su-email" name="email" type="email" autocomplete="email" placeholder="name@kth.se" required aria-describedby="signup-error"><span class="field-hint">Members need a KTH address (@kth.se). We email you a code to verify it.</span></div>
           <div class="field"><label for="su-program">Program (optional)</label><input id="su-program" name="program" type="text" placeholder="e.g. CDATE, CINEK" autocomplete="off"></div>
           <div class="field"><label for="su-password">Password</label><input id="su-password" name="password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="signup-error"><span class="field-hint">At least 8 characters.</span></div>
           <label class="check-field" for="su-consent"><input id="su-consent" type="checkbox" required><span class="check-field__label"><span>I agree to KTH Poker Society storing my membership details.</span></span></label>
@@ -549,6 +549,15 @@
         <div class="field"><label for="rc-password">New password</label><input id="rc-password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="recovery-error"><span class="field-hint">At least 8 characters.</span></div>
         <p class="form-error" id="recovery-error" role="alert"></p>
         <button type="submit" class="btn btn--primary btn--full" id="recovery-submit-btn">Save new password</button>
+      </form>
+
+      <form id="verify-form" class="form-stack" novalidate hidden>
+        <p class="field-hint" id="verify-hint">Enter the code we sent to your KTH email.</p>
+        <div class="field"><label for="vf-code">Verification code</label><input id="vf-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" class="code-input" required aria-describedby="verify-error"></div>
+        <p class="form-error" id="verify-error" role="alert"></p>
+        <button type="submit" class="btn btn--primary btn--full" id="verify-submit-btn">Verify and join</button>
+        <button type="button" class="link-btn" id="verify-resend-btn">Send a new code</button>
+        <button type="button" class="link-btn" id="verify-back-btn">Back to log in</button>
       </form>
 
       <div id="auth-message-view" class="form-stack" hidden>
